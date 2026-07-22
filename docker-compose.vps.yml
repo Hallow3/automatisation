@@ -8,13 +8,6 @@ services:
       - "5678"
 
     environment:
-      DB_TYPE: mysqldb
-      DB_MYSQLDB_HOST: mysql
-      DB_MYSQLDB_PORT: 3306
-      DB_MYSQLDB_DATABASE: n8n
-      DB_MYSQLDB_USER: root
-      DB_MYSQLDB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-
       N8N_HOST: n8n.jurinex.cloud
       N8N_PORT: 5678
       N8N_PROTOCOL: https
@@ -31,6 +24,8 @@ services:
       N8N_UNVERIFIED_PACKAGES_ENABLED: "true"
 
       N8N_WEBHOOK_URL: https://n8n.jurinex.cloud/
+
+      N8N_PROXY_HOPS: 1
 
       N8N_RUNNERS_TASK_TIMEOUT: 300
       N8N_COMPRESSION_NODE_MAX_DECOMPRESSED_SIZE_BYTES: 2147483648
