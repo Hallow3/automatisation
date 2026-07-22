@@ -101,7 +101,7 @@ services:
       - "80:80"
       - "443:443"
     environment:
-      DOMAINS: 'keycloak.${DOMAIN_NAME} -> http://keycloak:8080, minio.${DOMAIN_NAME} -> http://minio:9001, minio-api.${DOMAIN_NAME} -> http://minio:9000, phpmyadmin.${DOMAIN_NAME} -> http://phpmyadmin:80, temporal.${DOMAIN_NAME} -> http://temporal-ui:8080'
+      DOMAINS: 'keycloak.${DOMAIN_NAME} -> http://keycloak:8080, minio.${DOMAIN_NAME} -> http://minio:9001, minio-api.${DOMAIN_NAME} -> http://minio:9000, phpmyadmin.${DOMAIN_NAME} -> http://phpmyadmin:80, temporal.${DOMAIN_NAME} -> http://temporal-ui:8080, n8n.${DOMAIN_NAME} -> http://n8n:5678'
       STAGE: 'production'
     volumes:
       - https-portal-data:/var/lib/https-portal

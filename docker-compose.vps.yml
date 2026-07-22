@@ -4,8 +4,8 @@ services:
     container_name: n8n
     restart: unless-stopped
 
-    ports:
-      - "5678:5678"
+    expose:
+      - "5678"
 
     environment:
       DB_TYPE: mysqldb
@@ -17,7 +17,7 @@ services:
 
       N8N_HOST: 0.0.0.0
       N8N_PORT: 5678
-      N8N_PROTOCOL: http
+      N8N_PROTOCOL: https
 
       GENERIC_TIMEZONE: Africa/Douala
 
@@ -30,7 +30,7 @@ services:
       N8N_COMMUNITY_PACKAGES_ENABLED: "true"
       N8N_UNVERIFIED_PACKAGES_ENABLED: "true"
 
-      N8N_WEBHOOK_URL: http://${VPS_IP}:5678/
+      N8N_WEBHOOK_URL: https://n8n.jurinex.cloud/
 
       N8N_RUNNERS_TASK_TIMEOUT: 300
       N8N_COMPRESSION_NODE_MAX_DECOMPRESSED_SIZE_BYTES: 2147483648
