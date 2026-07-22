@@ -1,0 +1,372 @@
+{
+  "name": "LinkedIn Auto Post - Groq + Image + Sheet V4",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "b5ee83ff-0eb6-4122-9efd-6086ded3036a",
+      "name": "Déclenchement manuel",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [464, -80]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "daysInterval": 2,
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "id": "e5cec8a8-7f38-48bd-9d0f-3b37d26b4ba0",
+      "name": "Planification (tous les 2 jours à 9h)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [464, 80]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $vars.GOOGLE_SHEET_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $vars.SHEET_NAME }}",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "2dda9d03-b997-4463-9463-05d340c3c0d4",
+      "name": "Lire le calendrier éditorial",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [688, 0],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Kwk7FzpmxTlGqVa9",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(item => item.json);\n\nconst prochaine = rows.find(r => (r.status || '').trim().toLowerCase() === 'à publier');\n\nif (!prochaine) {\n  throw new Error(\"Aucun sujet avec le statut 'à publier' dans le calendrier éditorial. Ajoute des lignes dans le Google Sheet.\");\n}\n\nreturn [{\n  json: {\n    sujet: prochaine.theme,\n    row_id: prochaine.id,\n    row_number: prochaine.row_number\n  }\n}];"
+      },
+      "id": "900f8324-2f08-4fd5-ae42-b498a7e00aa6",
+      "name": "Choisir le prochain sujet",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [912, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $vars.GROQ_MODEL }}\",\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Tu écris des posts LinkedIn en français, à la première personne, ton direct et personnel, sans jargon marketing.\\n\\nSTRUCTURE OBLIGATOIRE (respecte l'ordre) :\\n1. Accroche : 1-2 phrases courtes et concrètes, jamais de généralité ni de question rhétorique éculée type 'Et si je vous disais que...'.\\n2. Développement : une anecdote ou situation technique précise et vécue, avec des détails concrets (chiffres, contexte, ce qui a été essayé, ce qui a coincé). C'est la partie la plus longue du post, viser environ 600-900 caractères à elle seule.\\n3. Leçon : le principe général que tu en tires, 2-3 phrases.\\n4. Question ouverte finale pour engager la conversation, une seule phrase.\\n\\nLONGUEUR : le post complet (hors hashtags) doit faire entre 1100 et 1500 caractères. C'est une contrainte stricte, pas indicative — si ton brouillon interne fait moins de 1100 caractères, développe davantage l'anecdote avec plus de détails concrets avant de répondre.\\n\\nFORMAT DU POST :\\n- Marque 3-4 mots-clés importants avec **double astérisques**.\\n- Utilise '- ' en début de ligne pour une courte liste si pertinent (2-4 items max).\\n- Termine par 3 à 5 hashtags pertinents en français ou anglais selon l'usage du secteur, format '#MotClé', séparés par des espaces, sur leur propre ligne à la toute fin du post (après la question).\\n- Pas d'emoji sauf si le sujet s'y prête vraiment (max 1-2).\\n\\nGÉNÉRATION DU PROMPT IMAGE (image_prompt) :\\nCe prompt sera envoyé tel quel à un modèle de génération d'images (Pollinations/Flux). Un prompt vague ou trop court produit des images floues et incohérentes. Le prompt doit donc être RICHE ET TRÈS DESCRIPTIF, entre 40 et 70 mots en anglais, en respectant impérativement cette structure dans l'ordre :\\n1. Le sujet central, décrit de façon concrète et visuelle (objet, forme, matière, taille relative) — jamais un concept abstrait comme 'growth' ou 'success', toujours quelque chose de représentable physiquement (ex: 'a single upward-pointing arrow made of folded paper' plutôt que 'progress').\\n2. Le style artistique exact et unique, répété si besoin pour bien l'ancrer (ex: 'flat vector illustration, clean geometric shapes, no gradients' ou 'minimalist studio photography, soft shadows').\\n3. Une palette de 2-3 couleurs précises nommées (ex: 'color palette of teal, cream white and coral orange').\\n4. La composition : sujet unique centré, cadrage précis, beaucoup d'espace négatif autour (ex: 'centered composition, front view, generous negative space, plain background').\\n5. L'éclairage/ambiance en 2-3 mots (ex: 'soft even lighting, calm mood').\\n6. Une clause finale de contraintes négatives explicites : 'no text, no letters, no words, no hands, no human faces, no clutter, single subject only, no background scene'.\\nN'utilise jamais de mots vagues comme 'concept of', 'representing', 'symbolizing' — décris uniquement ce qui doit être visuellement présent dans l'image.\\n\\nGÉNÉRATION DES MOTS-CLÉS IMAGE (image_keywords) :\\nGénère une requête de recherche Unsplash en anglais, entre 3 et 6 mots, qui décrit précisément la SCÈNE ou l'OBJET central du post — pas le thème général, mais ce qu'on verrait littéralement dans une photo professionnelle illustrant ce post. Règles strictes :\\n- Décris une scène concrète et photographiable (ex: 'person reviewing dashboard analytics screen' plutôt que 'data analysis').\\n- Inclus le contexte métier si pertinent (ex: 'developer debugging code terminal', 'team whiteboard planning sprint').\\n- Utilise des noms et verbes d'action, pas d'adjectifs vagues comme 'modern', 'successful', 'innovative'.\\n- Si le post parle d'un outil ou technologie précise, nomme-le (ex: 'docker container deployment', 'figma design wireframe').\\n- La requête doit retourner une vraie photo, pas une illustration — pense comme un photographe qui cherche dans une banque d'images.\\nExemples corrects : 'engineer reading server logs terminal', 'product manager sticky notes roadmap wall', 'api documentation code review screen'.\\nExemples incorrects : 'technology success', 'business growth', 'digital transformation'.\\n\\nRéponds UNIQUEMENT avec un objet JSON valide, sans texte autour, sans balises markdown, de cette forme exacte : {\\\"post\\\": \\\"le texte complet du post ici, hashtags inclus à la fin\\\", \\\"image_prompt\\\": \\\"prompt détaillé en anglais suivant scrupuleusement les 6 points ci-dessus\\\", \\\"image_keywords\\\": \\\"mot1, mot2, mot3\\\"}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ $json.sujet }}\"\n    }\n  ],\n  \"temperature\": 0.8,\n  \"max_tokens\": 1600\n}",
+        "options": {}
+      },
+      "id": "d7cfc55b-6a98-4818-a1d6-8f89cf75a2de",
+      "name": "Générer le post (Groq)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1136, 0],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "sawopsVUp8VTDeP7",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.choices[0].message.content;\n\nlet parsed;\ntry {\n  parsed = JSON.parse(raw);\n} catch (e) {\n  const cleaned = raw.replace(/```json|```/g, '').trim();\n  parsed = JSON.parse(cleaned);\n}\n\nfunction toBoldUnicode(str) {\n  const boldMap = {\n    a:'𝗮',b:'𝗯',c:'𝗰',d:'𝗱',e:'𝗲',f:'𝗳',g:'𝗴',h:'𝗵',i:'𝗶',j:'𝗷',k:'𝗸',l:'𝗹',m:'𝗺',\n    n:'𝗻',o:'𝗼',p:'𝗽',q:'𝗾',r:'𝗿',s:'𝘀',t:'𝘁',u:'𝘂',v:'𝘃',w:'𝘄',x:'𝘅',y:'𝘆',z:'𝘇',\n    A:'𝗔',B:'𝗕',C:'𝗖',D:'𝗗',E:'𝗘',F:'𝗙',G:'𝗚',H:'𝗛',I:'𝗜',J:'𝗝',K:'𝗞',L:'𝗟',M:'𝗠',\n    N:'𝗡',O:'𝗢',P:'𝗣',Q:'𝗤',R:'𝗥',S:'𝗦',T:'𝗧',U:'𝗨',V:'𝗩',W:'𝗪',X:'𝗫',Y:'𝗬',Z:'𝗭',\n    '0':'𝟬','1':'𝟭','2':'𝟮','3':'𝟯','4':'𝟰','5':'𝟱','6':'𝟲','7':'𝟳','8':'𝟴','9':'𝟵'\n  };\n  return str.split('').map(ch => boldMap[ch] || ch).join('');\n}\n\nlet text = parsed.post || '';\ntext = text.replace(/\\*\\*(.+?)\\*\\*/g, (_, inner) => toBoldUnicode(inner));\ntext = text.replace(/^-\\s+/gm, '• ');\n\nconst sujetNode = $('Choisir le prochain sujet').first().json;\n\nreturn [{\n  json: {\n    texte_formate: text,\n    longueur: text.length,\n    image_prompt: parsed.image_prompt || '',\n    image_keywords: parsed.image_keywords || '',\n    row_id: sujetNode.row_id,\n    sujet: sujetNode.sujet\n  }\n}];"
+      },
+      "id": "70d60e1d-d7c4-4f90-a45a-c95b5438e0ad",
+      "name": "Formater le texte (unicode + puces)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1344, 0]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.unsplash.com/photos/random?query={{ encodeURIComponent($json.image_keywords) }}&orientation=squarish&client_id={{ $vars.UNSPLASH_ACCESS_KEY }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Recherche image (Unsplash)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1568, -120],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const unsplashResult = $input.first();\nconst formatterData = $('Formater le texte (unicode + puces)').first().json;\n\n// Vérifie si Unsplash a retourné une image valide\nconst hasImage = unsplashResult.json && unsplashResult.json.urls && unsplashResult.json.urls.regular;\n\nreturn [{\n  json: {\n    texte_formate: formatterData.texte_formate,\n    image_prompt: formatterData.image_prompt,\n    image_keywords: formatterData.image_keywords,\n    row_id: formatterData.row_id,\n    sujet: formatterData.sujet,\n    unsplash_url: hasImage ? unsplashResult.json.urls.regular : null,\n    use_pollinations: !hasImage\n  }\n}];"
+      },
+      "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+      "name": "Vérifier résultat Unsplash",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1792, -120]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-use-pollinations",
+              "leftValue": "={{ $json.use_pollinations }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+      "name": "Unsplash OK ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2016, -120]
+    },
+    {
+      "parameters": {
+        "url": "=https://image.pollinations.ai/prompt/{{ encodeURIComponent($json.image_prompt) }}?width=1024&height=1024&nologo=true&model=flux",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "1821afe5-1afe-4274-9ff6-3f9c7a5aae6c",
+      "name": "Générer l'image (Pollinations)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2240, -240]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.unsplash_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "d4e5f6a7-b8c9-0123-defa-234567890123",
+      "name": "Télécharger image Unsplash",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2240, 0]
+    },
+{
+      "parameters": {
+        "person": "={{ $vars.LINKEDIN_PERSON_URN }}",
+        "text": "={{ $('Formater le texte (unicode + puces)').item.json.texte_formate }}",
+        "shareMediaCategory": "IMAGE",
+        "additionalFields": {}
+      },
+      "id": "6f0341e5-b10e-43eb-a18a-151dec135b14",
+      "name": "Publier sur LinkedIn",
+      "type": "n8n-nodes-base.linkedIn",
+      "typeVersion": 1,
+      "position": [2464, -120],
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "reBA5APT6Xf7soMZ",
+          "name": "LinkedIn account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $vars.GOOGLE_SHEET_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $vars.SHEET_NAME }}",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Formater le texte (unicode + puces)').item.json.row_id }}",
+            "status": "publié",
+            "date_publication": "={{ new Date().toISOString().split('T')[0] }}",
+            "urn": "={{ $json.id }}"
+          },
+          "matchingColumns": ["id"],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "theme",
+              "displayName": "theme",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "date_publication",
+              "displayName": "date_publication",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "urn",
+              "displayName": "urn",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "bf04e81c-ccca-4f5a-8f56-00496da91491",
+      "name": "Marquer comme publié",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2688, -120],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Kwk7FzpmxTlGqVa9",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Déclenchement manuel": {
+      "main": [[{ "node": "Lire le calendrier éditorial", "type": "main", "index": 0 }]]
+    },
+    "Planification (tous les 2 jours à 9h)": {
+      "main": [[{ "node": "Lire le calendrier éditorial", "type": "main", "index": 0 }]]
+    },
+    "Lire le calendrier éditorial": {
+      "main": [[{ "node": "Choisir le prochain sujet", "type": "main", "index": 0 }]]
+    },
+    "Choisir le prochain sujet": {
+      "main": [[{ "node": "Générer le post (Groq)", "type": "main", "index": 0 }]]
+    },
+    "Générer le post (Groq)": {
+      "main": [[{ "node": "Formater le texte (unicode + puces)", "type": "main", "index": 0 }]]
+    },
+    "Formater le texte (unicode + puces)": {
+      "main": [[{ "node": "Recherche image (Unsplash)", "type": "main", "index": 0 }]]
+    },
+    "Recherche image (Unsplash)": {
+      "main": [[{ "node": "Vérifier résultat Unsplash", "type": "main", "index": 0 }]]
+    },
+    "Vérifier résultat Unsplash": {
+      "main": [[{ "node": "Unsplash OK ?", "type": "main", "index": 0 }]]
+    },
+    "Unsplash OK ?": {
+      "main": [
+        [{ "node": "Générer l'image (Pollinations)", "type": "main", "index": 0 }],
+        [{ "node": "Télécharger image Unsplash", "type": "main", "index": 0 }]
+      ]
+    },
+    "Générer l'image (Pollinations)": {
+      "main": [[{ "node": "Publier sur LinkedIn", "type": "main", "index": 0 }]]
+    },
+    "Télécharger image Unsplash": {
+      "main": [[{ "node": "Publier sur LinkedIn", "type": "main", "index": 0 }]]
+    },
+    "Publier sur LinkedIn": {
+      "main": [[{ "node": "Marquer comme publié", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "48433f31-1b7b-4860-8608-071867a0f411",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c5a032ec4a73cc569bdefa1544a71b89fba08fac438ff9af45666b34a2e8f6c5"
+  },
+  "nodeGroups": [],
+  "id": "FcfUAjskRahKHsWf",
+  "tags": []
+}

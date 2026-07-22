@@ -1,0 +1,14 @@
+# Environnement
+.env
+.env.*
+
+# Données n8n locales (DB, logs, credentials chiffrés)
+n8n_data/
+
+# Credentials en clair
+workflows/credentials/
+ressources/
+
+# OS
+.DS_Store
+Thumbs.db
