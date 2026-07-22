@@ -18,7 +18,6 @@ services:
       N8N_HOST: 0.0.0.0
       N8N_PORT: 5678
       N8N_PROTOCOL: http
-      WEBHOOK_URL: http://${VPS_IP}:5678/
 
       GENERIC_TIMEZONE: Africa/Douala
 
@@ -29,6 +28,13 @@ services:
       N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD}
 
       N8N_COMMUNITY_PACKAGES_ENABLED: "true"
+      N8N_UNVERIFIED_PACKAGES_ENABLED: "true"
+
+      N8N_WEBHOOK_URL: http://${VPS_IP}:5678/
+
+      N8N_RUNNERS_TASK_TIMEOUT: 300
+      N8N_COMPRESSION_NODE_MAX_DECOMPRESSED_SIZE_BYTES: 2147483648
+      N8N_COMPRESSION_NODE_MAX_ZIP_ENTRIES: 5000
 
     volumes:
       - n8n_data:/home/node/.n8n
