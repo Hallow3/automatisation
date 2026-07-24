@@ -51,9 +51,8 @@ services:
     image: python:3.12-slim
     container_name: weasyprint
     restart: unless-stopped
-    command: >
-      sh -c "pip install weasyprint flask --quiet &&
-             python -c \"
+    command: |
+      sh -c "pip install weasyprint flask --quiet && python -c \"
       from flask import Flask, request, send_file
       import weasyprint, io
       app = Flask(__name__)
