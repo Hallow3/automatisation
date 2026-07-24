@@ -37,9 +37,55 @@ services:
     networks:
       - app-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+
+  weasyprint:
+    image: python:3.12-slim
+    container_name: weasyprint
+    restart: unless-stopped
+    command: >
+      sh -c "pip install weasyprint flask --quiet &&
+             python -c \"
+      from flask import Flask, request, send_file
+      import weasyprint, io
+      app = Flask(__name__)
+      @app.route('/pdf', methods=['POST'])
+      def pdf():
+          html = request.data.decode()
+          buf = io.BytesIO()
+          weasyprint.HTML(string=html).write_pdf(buf)
+          buf.seek(0)
+          return send_file(buf, mimetype='application/pdf')
+      app.run(host='0.0.0.0', port=5000)
+      \""
+    expose:
+      - "5000"
+    networks:
+      - app-network
+
+  # --- OLLAMA (optionnel — décommenter si ton VPS a 16 Go+ RAM) ---
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: ollama
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   networks:
+  #     - app-network
+
 volumes:
   n8n_data:
     external: true
+  redis_data:
+  # ollama_data:
 
 networks:
   app-network:

@@ -1,0 +1,2509 @@
+[
+    {
+        "name": "[CORE] AI Router",
+        "nodes": [
+            {
+                "parameters": {
+                    "inputSource": "passthrough"
+                },
+                "id": "trigger-ai-router",
+                "name": "Execute Workflow Trigger",
+                "type": "n8n-nodes-base.executeWorkflowTrigger",
+                "position": [
+                    240,
+                    300
+                ],
+                "typeVersion": 1
+            },
+            {
+                "parameters": {
+                    "jsCode": "// Attendu en entrée : { prompt, system, model_hint }\n// model_hint : \u0027fast\u0027 | \u0027quality\u0027 | \u0027classify\u0027\nconst { prompt, system, model_hint } = $input.first().json;\n\nconst PROVIDERS = [\n  { name: \u0027groq\u0027,     model: model_hint === \u0027quality\u0027 ? \u0027llama-3.3-70b-versatile\u0027 : \u0027llama-3.1-8b-instant\u0027 },\n  { name: \u0027gemini\u0027,   model: \u0027gemini-1.5-flash\u0027 },\n  { name: \u0027deepseek\u0027, model: \u0027deepseek-chat\u0027 },\n  { name: \u0027openai\u0027,   model: \u0027gpt-4o-mini\u0027 }\n];\n\nreturn [{ json: { prompt, system, providers: PROVIDERS, current_index: 0 } }];"
+                },
+                "id": "prepare-providers",
+                "name": "Prepare Providers",
+                "type": "n8n-nodes-base.code",
+                "position": [
+                    460,
+                    300
+                ],
+                "typeVersion": 2
+            },
+            {
+                "parameters": {
+                    "jsCode": "const data = $input.first().json;\nconst provider = data.providers[data.current_index];\nreturn [{ json: { ...data, active_provider: provider } }];"
+                },
+                "id": "pick-provider",
+                "name": "Pick Provider",
+                "type": "n8n-nodes-base.code",
+                "position": [
+                    680,
+                    300
+                ],
+                "typeVersion": 2
+            },
+            {
+                "parameters": {
+                    "mode": "rules",
+                    "rules": {
+                        "values": [
+                            {
+                                "conditions": {
+                                    "conditions": [
+                                        {
+                                            "leftValue": "={{ $json.active_provider.name }}",
+                                            "rightValue": "groq",
+                                            "operator": "@{type=string; operation=equals}"
+                                        }
+                                    ]
+                                }
+                            },
+                            {
+                                "conditions": {
+                                    "conditions": [
+                                        {
+                                            "leftValue": "={{ $json.active_provider.name }}",
+                                            "rightValue": "gemini",
+                                            "operator": "@{type=string; operation=equals}"
+                                        }
+                                    ]
+                                }
+                            },
+                            {
+                                "conditions": {
+                                    "conditions": [
+                                        {
+                                            "leftValue": "={{ $json.active_provider.name }}",
+                                            "rightValue": "deepseek",
+                                            "operator": "@{type=string; operation=equals}"
+                                        }
+                                    ]
+                                }
+                            },
+                            {
+                                "conditions": {
+                                    "conditions": [
+                                        {
+                                            "leftValue": "={{ $json.active_provider.name }}",
+                                            "rightValue": "openai",
+                                            "operator": "@{type=string; operation=equals}"
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                },
+                "id": "route-provider",
+                "name": "Route by Provider",
+                "type": "n8n-nodes-base.switch",
+                "position": [
+                    900,
+                    300
+                ],
+                "typeVersion": 3
+            },
+            {
+                "parameters": {
+                    "method": "POST",
+                    "url": "https://api.groq.com/openai/v1/chat/completions",
+                    "authentication": "genericCredentialType",
+                    "genericAuthType": "httpHeaderAuth",
+                    "sendHeaders": true,
+                    "headerParameters": {
+                        "parameters": [
+                            {
+                                "name": "Authorization",
+                                "value": "Bearer {{ $credentials.groqApi.apiKey }}"
+                            }
+                        ]
+                    },
+                    "sendBody": true,
+                    "bodyParameters": {
+                        "parameters": [
+                            {
+                                "name": "model",
+                                "value": "={{ $json.active_provider.model }}"
+                            },
+                            {
+                                "name": "messages",
+                                "value": "=[{\"role\":\"system\",\"content\":\"{{ $json.system }}\"},{\"role\":\"user\",\"content\":\"{{ $json.prompt }}\"}]"
+                            }
+                        ]
+                    },
+                    "options": {
+                        "response": {
+                            "response": {
+                                "fullResponse": false
+                            }
+                        }
+                    }
+                },
+                "id": "call-groq",
+                "name": "Call Groq",
+                "type": "n8n-nodes-base.httpRequest",
+                "position": [
+                    1120,
+                    100
+                ],
+                "typeVersion": 4.2,
+                "onError": "continueErrorOutput"
+            },
+            {
+                "parameters": {
+                    "method": "POST",
+                    "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+                    "authentication": "genericCredentialType",
+                    "genericAuthType": "httpHeaderAuth",
+                    "sendHeaders": true,
+                    "headerParameters": {
+                        "parameters": [
+                            {
+                                "name": "Authorization",
+                                "value": "Bearer {{ $credentials.geminiApi.apiKey }}"
+                            }
+                        ]
+                    },
+                    "sendBody": true,
+                    "bodyParameters": {
+                        "parameters": [
+                            {
+                                "name": "model",
+                                "value": "={{ $json.active_provider.model }}"
+                            },
+                            {
+                                "name": "messages",
+                                "value": "=[{\"role\":\"system\",\"content\":\"{{ $json.system }}\"},{\"role\":\"user\",\"content\":\"{{ $json.prompt }}\"}]"
+                            }
+                        ]
+                    },
+                    "options": {}
+                },
+                "id": "call-gemini",
+                "name": "Call Gemini",
+                "type": "n8n-nodes-base.httpRequest",
+                "position": [
+                    1120,
+                    260
+                ],
+                "typeVersion": 4.2,
+                "onError": "continueErrorOutput"
+            },
+            {
+                "parameters": {
+                    "method": "POST",
+                    "url": "https://api.deepseek.com/chat/completions",
+                    "authentication": "genericCredentialType",
+                    "genericAuthType": "httpHeaderAuth",
+                    "sendHeaders": true,
+                    "headerParameters": {
+                        "parameters": [
+                            {
+                                "name": "Authorization",
+                                "value": "Bearer {{ $credentials.deepseekApi.apiKey }}"
+                            }
+                        ]
+                    },
+                    "sendBody": true,
+                    "bodyParameters": {
+                        "parameters": [
+                            {
+                                "name": "model",
+                                "value": "={{ $json.active_provider.model }}"
+                            },
+                            {
+                                "name": "messages",
+                                "value": "=[{\"role\":\"system\",\"content\":\"{{ $json.system }}\"},{\"role\":\"user\",\"content\":\"{{ $json.prompt }}\"}]"
+                            }
+                        ]
+                    },
+                    "options": {}
+                },
+                "id": "call-deepseek",
+                "name": "Call DeepSeek",
+                "type": "n8n-nodes-base.httpRequest",
+                "position": [
+                    1120,
+                    420
+                ],
+                "typeVersion": 4.2,
+                "onError": "continueErrorOutput"
+            },
+            {
+                "parameters": {
+                    "method": "POST",
+                    "url": "https://api.openai.com/v1/chat/completions",
+                    "authentication": "genericCredentialType",
+                    "genericAuthType": "httpHeaderAuth",
+                    "sendHeaders": true,
+                    "headerParameters": {
+                        "parameters": [
+                            {
+                                "name": "Authorization",
+                                "value": "Bearer {{ $credentials.openAiApi.apiKey }}"
+                            }
+                        ]
+                    },
+                    "sendBody": true,
+                    "bodyParameters": {
+                        "parameters": [
+                            {
+                                "name": "model",
+                                "value": "={{ $json.active_provider.model }}"
+                            },
+                            {
+                                "name": "messages",
+                                "value": "=[{\"role\":\"system\",\"content\":\"{{ $json.system }}\"},{\"role\":\"user\",\"content\":\"{{ $json.prompt }}\"}]"
+                            }
+                        ]
+                    },
+                    "options": {}
+                },
+                "id": "call-openai",
+                "name": "Call OpenAI",
+                "type": "n8n-nodes-base.httpRequest",
+                "position": [
+                    1120,
+                    580
+                ],
+                "typeVersion": 4.2,
+                "onError": "continueErrorOutput"
+            },
+            {
+                "parameters": {
+                    "jsCode": "const input = $input.first().json;\n// Succès : extraire le texte de la réponse OpenAI-compatible\nconst text = input?.choices?.[0]?.message?.content ?? null;\nif (!text) throw new Error(\u0027Empty response from provider\u0027);\nreturn [{ json: { result: text, provider_used: \u0027success\u0027 } }];"
+                },
+                "id": "extract-result",
+                "name": "Extract Result",
+                "type": "n8n-nodes-base.code",
+                "position": [
+                    1360,
+                    300
+                ],
+                "typeVersion": 2
+            },
+            {
+                "parameters": {
+                    "jsCode": "// Fallback : incrémenter l\u0027index et réessayer avec le prochain fournisseur\nconst data = $(\u0027Pick Provider\u0027).first().json;\nconst next = data.current_index + 1;\nif (next \u003e= data.providers.length) {\n  throw new Error(\u0027All AI providers failed\u0027);\n}\nreturn [{ json: { ...data, current_index: next } }];"
+                },
+                "id": "next-provider",
+                "name": "Next Provider (Fallback)",
+                "type": "n8n-nodes-base.code",
+                "position": [
+                    1360,
+                    500
+                ],
+                "typeVersion": 2
+            }
+        ],
+        "connections": {
+            "Execute Workflow Trigger": {
+                "main": [
+                    [
+                        {
+                            "node": "Prepare Providers",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Prepare Providers": {
+                "main": [
+                    [
+                        {
+                            "node": "Pick Provider",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Pick Provider": {
+                "main": [
+                    [
+                        {
+                            "node": "Route by Provider",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Route by Provider": {
+                "main": [
+                    [
+                        {
+                            "node": "Call Groq",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ],
+                    [
+                        {
+                            "node": "Call Gemini",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ],
+                    [
+                        {
+                            "node": "Call DeepSeek",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ],
+                    [
+                        {
+                            "node": "Call OpenAI",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Call Groq": {
+                "main": [
+                    [
+                        {
+                            "node": "Extract Result",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ],
+                "error": [
+                    [
+                        {
+                            "node": "Next Provider (Fallback)",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Call Gemini": {
+                "main": [
+                    [
+                        {
+                            "node": "Extract Result",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ],
+                "error": [
+                    [
+                        {
+                            "node": "Next Provider (Fallback)",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Call DeepSeek": {
+                "main": [
+                    [
+                        {
+                            "node": "Extract Result",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ],
+                "error": [
+                    [
+                        {
+                            "node": "Next Provider (Fallback)",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Call OpenAI": {
+                "main": [
+                    [
+                        {
+                            "node": "Extract Result",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ],
+                "error": [
+                    [
+                        {
+                            "node": "Next Provider (Fallback)",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Next Provider (Fallback)": {
+                "main": [
+                    [
+                        {
+                            "node": "Pick Provider",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            }
+        },
+        "settings": {
+            "executionOrder": "v1"
+        },
+        "tags": [
+            {
+                "name": "core"
+            }
+        ]
+    },
+    {
+        "name": "[CORE] Log Workflow",
+        "nodes": [
+            {
+                "parameters": {
+                    "inputSource": "passthrough"
+                },
+                "id": "trigger",
+                "name": "Execute Workflow Trigger",
+                "type": "n8n-nodes-base.executeWorkflowTrigger",
+                "position": [
+                    240,
+                    300
+                ],
+                "typeVersion": 1
+            },
+            {
+                "parameters": {
+                    "operation": "executeQuery",
+                    "query": "INSERT INTO workflow_log (workflow_name, node_name, candidate_id, application_id, status, input_summary, output_summary, error_message, duration_ms, ai_tokens_used) VALUES (\u0027{{ $json.workflow_name }}\u0027, \u0027{{ $json.node_name || \u0027\u0027 }}\u0027, {{ $json.candidate_id || \u0027NULL\u0027 }}, {{ $json.application_id || \u0027NULL\u0027 }}, \u0027{{ $json.status }}\u0027, \u0027{{ ($json.input_summary || \u0027\u0027).substring(0, 500).replace(/\u0027/g, \"\u0027\u0027\") }}\u0027, \u0027{{ ($json.output_summary || \u0027\u0027).substring(0, 500).replace(/\u0027/g, \"\u0027\u0027\") }}\u0027, {{ $json.error_message ? `\u0027${$json.error_message.substring(0, 500).replace(/\u0027/g, \"\u0027\u0027\")}\u0027` : \u0027NULL\u0027 }}, {{ $json.duration_ms || 0 }}, {{ $json.ai_tokens_used || \u0027NULL\u0027 }});"
+                },
+                "id": "insert-log",
+                "name": "Insert Log",
+                "type": "n8n-nodes-base.mySql",
+                "position": [
+                    460,
+                    300
+                ],
+                "typeVersion": 2.4,
+                "credentials": {
+                    "mySql": {
+                        "name": "MySQL Emploi"
+                    }
+                }
+            }
+        ],
+        "connections": {
+            "Execute Workflow Trigger": {
+                "main": [
+                    [
+                        {
+                            "node": "Insert Log",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            }
+        },
+        "settings": {
+            "executionOrder": "v1"
+        },
+        "tags": [
+            {
+                "name": "core"
+            }
+        ]
+    },
+    {
+        "name": "[CORE] Orchestrator",
+        "nodes": [
+            {
+                "parameters": {
+                    "rule": {
+                        "interval": [
+                            {
+                                "field": "hours",
+                                "hoursInterval": 6
+                            }
+                        ]
+                    }
+                },
+                "id": "cron-trigger",
+                "name": "Cron Every 6h",
+                "type": "n8n-nodes-base.scheduleTrigger",
+                "position": [
+                    240,
+                    300
+                ],
+                "typeVersion": 1.2
+            },
+            {
+                "parameters": {
+                    "workflowId": {
+                        "__rl": true,
+                        "mode": "name",
+                        "value": "[OFFRES] Search CamerJob"
+                    }
+                },
+                "id": "run-wf4-camerjob",
+                "name": "WF4 — Search CamerJob",
+                "type": "n8n-nodes-base.executeWorkflow",
+                "position": [
+                    460,
+                    200
+                ],
+                "typeVersion": 1.1
+            },
+            {
+                "parameters": {
+                    "workflowId": {
+                        "__rl": true,
+                        "mode": "name",
+                        "value": "[QUALIF] Score Offers"
+                    }
+                },
+                "id": "run-wf5",
+                "name": "WF5 — Score Offers",
+                "type": "n8n-nodes-base.executeWorkflow",
+                "position": [
+                    680,
+                    200
+                ],
+                "typeVersion": 1.1
+            },
+            {
+                "parameters": {
+                    "workflowId": {
+                        "__rl": true,
+                        "mode": "name",
+                        "value": "[CANDIDATURE] Generate Cover Letter"
+                    }
+                },
+                "id": "run-wf6",
+                "name": "WF6 — Generate Cover Letter",
+                "type": "n8n-nodes-base.executeWorkflow",
+                "position": [
+                    900,
+                    200
+                ],
+                "typeVersion": 1.1
+            },
+            {
+                "parameters": {
+                    "workflowId": {
+                        "__rl": true,
+                        "mode": "name",
+                        "value": "[CANDIDATURE] Send Application"
+                    }
+                },
+                "id": "run-wf7",
+                "name": "WF7 — Send Application",
+                "type": "n8n-nodes-base.executeWorkflow",
+                "position": [
+                    1120,
+                    200
+                ],
+                "typeVersion": 1.1
+            }
+        ],
+        "connections": {
+            "Cron Every 6h": {
+                "main": [
+                    [
+                        {
+                            "node": "WF4 — Search CamerJob",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "WF4 — Search CamerJob": {
+                "main": [
+                    [
+                        {
+                            "node": "WF5 — Score Offers",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "WF5 — Score Offers": {
+                "main": [
+                    [
+                        {
+                            "node": "WF6 — Generate Cover Letter",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "WF6 — Generate Cover Letter": {
+                "main": [
+                    [
+                        {
+                            "node": "WF7 — Send Application",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            }
+        },
+        "settings": {
+            "executionOrder": "v1"
+        },
+        "tags": [
+            {
+                "name": "core"
+            }
+        ]
+    },
+    {
+        "name": "[PROFIL] Create Candidate",
+        "nodes": [
+            {
+                "parameters": {
+                    "formTitle": "Inscription — Plateforme Emploi",
+                    "formDescription": "Remplis ce formulaire pour démarrer ta recherche d\u0027emploi automatisée.",
+                    "formFields": {
+                        "values": [
+                            {
+                                "fieldLabel": "Nom complet",
+                                "fieldType": "text",
+                                "requiredField": true
+                            },
+                            {
+                                "fieldLabel": "Email",
+                                "fieldType": "email",
+                                "requiredField": true
+                            },
+                            {
+                                "fieldLabel": "Téléphone / WhatsApp",
+                                "fieldType": "text",
+                                "requiredField": true
+                            },
+                            {
+                                "fieldLabel": "Ville recherchée",
+                                "fieldType": "text",
+                                "requiredField": true
+                            },
+                            {
+                                "fieldLabel": "Poste recherché",
+                                "fieldType": "text",
+                                "requiredField": true
+                            },
+                            {
+                                "fieldLabel": "CV (PDF ou Word)",
+                                "fieldType": "file",
+                                "requiredField": false
+                            }
+                        ]
+                    },
+                    "responseMode": "responseNode"
+                },
+                "id": "form-trigger",
+                "name": "Form Trigger",
+                "type": "n8n-nodes-base.formTrigger",
+                "position": [
+                    240,
+                    300
+                ],
+                "typeVersion": 2.2,
+                "webhookId": "emploi-create-candidate"
+            },
+            {
+                "parameters": {
+                    "jsCode": "const f = $input.first().json;\nconst required = [\u0027Nom complet\u0027, \u0027Email\u0027, \u0027Téléphone / WhatsApp\u0027, \u0027Ville recherchée\u0027, \u0027Poste recherché\u0027];\nfor (const field of required) {\n  if (!f[field]) throw new Error(`Champ manquant : ${field}`);\n}\nreturn [{ json: {\n  full_name: f[\u0027Nom complet\u0027],\n  email: f[\u0027Email\u0027].toLowerCase().trim(),\n  phone: f[\u0027Téléphone / WhatsApp\u0027],\n  whatsapp_number: f[\u0027Téléphone / WhatsApp\u0027],\n  city: f[\u0027Ville recherchée\u0027],\n  target_role: f[\u0027Poste recherché\u0027],\n  has_cv: !!f[\u0027CV (PDF ou Word)\u0027]\n}}];"
+                },
+                "id": "validate-fields",
+                "name": "Validate \u0026 Normalize",
+                "type": "n8n-nodes-base.code",
+                "position": [
+                    460,
+                    300
+                ],
+                "typeVersion": 2
+            },
+            {
+                "parameters": {
+                    "operation": "executeQuery",
+                    "query": "INSERT IGNORE INTO candidate (full_name, email, phone, whatsapp_number) VALUES (\u0027{{ $json.full_name }}\u0027, \u0027{{ $json.email }}\u0027, \u0027{{ $json.phone }}\u0027, \u0027{{ $json.whatsapp_number }}\u0027);\nSELECT id FROM candidate WHERE email = \u0027{{ $json.email }}\u0027 LIMIT 1;"
+                },
+                "id": "upsert-candidate",
+                "name": "Upsert Candidate",
+                "type": "n8n-nodes-base.mySql",
+                "position": [
+                    680,
+                    300
+                ],
+                "typeVersion": 2.4,
+                "credentials": {
+                    "mySql": {
+                        "name": "MySQL Emploi"
+                    }
+                }
+            },
+            {
+                "parameters": {
+                    "operation": "executeQuery",
+                    "query": "INSERT INTO candidate_profile (candidate_id, raw_data) VALUES ({{ $json[0].id }}, \u0027{{ JSON.stringify({ city: $(\u0027Validate \u0026 Normalize\u0027).first().json.city, target_role: $(\u0027Validate \u0026 Normalize\u0027).first().json.target_role }) }}\u0027) ON DUPLICATE KEY UPDATE raw_data = VALUES(raw_data);"
+                },
+                "id": "upsert-profile",
+                "name": "Upsert Profile",
+                "type": "n8n-nodes-base.mySql",
+                "position": [
+                    900,
+                    300
+                ],
+                "typeVersion": 2.4,
+                "credentials": {
+                    "mySql": {
+                        "name": "MySQL Emploi"
+                    }
+                }
+            },
+            {
+                "parameters": {
+                    "conditions": {
+                        "conditions": [
+                            {
+                                "leftValue": "={{ $(\u0027Validate \u0026 Normalize\u0027).first().json.has_cv }}",
+                                "rightValue": true,
+                                "operator": {
+                                    "type": "boolean",
+                                    "operation": "equals"
+                                }
+                            }
+                        ]
+                    }
+                },
+                "id": "has-cv-check",
+                "name": "Has CV?",
+                "type": "n8n-nodes-base.if",
+                "position": [
+                    1120,
+                    300
+                ],
+                "typeVersion": 2
+            },
+            {
+                "parameters": {
+                    "workflowId": {
+                        "__rl": true,
+                        "mode": "name",
+                        "value": "[CV] Analyze Existing CV"
+                    }
+                },
+                "id": "run-analyze-cv",
+                "name": "→ Analyze Existing CV",
+                "type": "n8n-nodes-base.executeWorkflow",
+                "position": [
+                    1340,
+                    200
+                ],
+                "typeVersion": 1.1
+            },
+            {
+                "parameters": {
+                    "workflowId": {
+                        "__rl": true,
+                        "mode": "name",
+                        "value": "[CV] Build CV"
+                    }
+                },
+                "id": "run-build-cv",
+                "name": "→ Build CV",
+                "type": "n8n-nodes-base.executeWorkflow",
+                "position": [
+                    1340,
+                    420
+                ],
+                "typeVersion": 1.1
+            },
+            {
+                "parameters": {
+                    "respondWith": "text",
+                    "responseBody": "Profil créé avec succès. Tu recevras une notification WhatsApp dès que des offres sont trouvées."
+                },
+                "id": "form-response",
+                "name": "Form Response",
+                "type": "n8n-nodes-base.respondToWebhook",
+                "position": [
+                    1560,
+                    300
+                ],
+                "typeVersion": 1.1
+            }
+        ],
+        "connections": {
+            "Form Trigger": {
+                "main": [
+                    [
+                        {
+                            "node": "Validate \u0026 Normalize",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Validate \u0026 Normalize": {
+                "main": [
+                    [
+                        {
+                            "node": "Upsert Candidate",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Upsert Candidate": {
+                "main": [
+                    [
+                        {
+                            "node": "Upsert Profile",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Upsert Profile": {
+                "main": [
+                    [
+                        {
+                            "node": "Has CV?",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Has CV?": {
+                "main": [
+                    [
+                        {
+                            "node": "→ Analyze Existing CV",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ],
+                    [
+                        {
+                            "node": "→ Build CV",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "→ Analyze Existing CV": {
+                "main": [
+                    [
+                        {
+                            "node": "Form Response",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "→ Build CV": {
+                "main": [
+                    [
+                        {
+                            "node": "Form Response",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            }
+        },
+        "settings": {
+            "executionOrder": "v1"
+        },
+        "tags": [
+            {
+                "name": "profil"
+            }
+        ]
+    },
+    {
+        "name": "[CV] Build CV",
+        "nodes": [
+            {
+                "parameters": {
+                    "inputSource": "passthrough"
+                },
+                "id": "trigger",
+                "name": "Execute Workflow Trigger",
+                "type": "n8n-nodes-base.executeWorkflowTrigger",
+                "position": [
+                    240,
+                    300
+                ],
+                "typeVersion": 1
+            },
+            {
+                "parameters": {
+                    "operation": "executeQuery",
+                    "query": "SELECT c.full_name, c.email, c.phone, cp.raw_data, cp.id as profile_id FROM candidate c JOIN candidate_profile cp ON cp.candidate_id = c.id WHERE c.id = {{ $json.candidate_id }} LIMIT 1;"
+                },
+                "id": "load-profile",
+                "name": "Load Profile",
+                "type": "n8n-nodes-base.mySql",
+                "position": [
+                    460,
+                    300
+                ],
+                "typeVersion": 2.4,
+                "credentials": {
+                    "mySql": {
+                        "name": "MySQL Emploi"
+                    }
+                }
+            },
+            {
+                "parameters": {
+                    "workflowId": {
+                        "__rl": true,
+                        "mode": "name",
+                        "value": "[CORE] AI Router"
+                    },
+                    "workflowInputs": {
+                        "values": [
+                            {
+                                "name": "model_hint",
+                                "value": "quality"
+                            },
+                            {
+                                "name": "system",
+                                "value": "Tu es un expert RH. Génère un CV professionnel en HTML structuré (sections : Profil, Expériences, Compétences, Formation, Langues). Réponds UNIQUEMENT avec le HTML, sans markdown."
+                            },
+                            {
+                                "name": "prompt",
+                                "value": "=Génère un CV pour : {{ JSON.stringify($json[0]) }}"
+                            }
+                        ]
+                    }
+                },
+                "id": "call-ai-router",
+                "name": "AI Router — Generate CV HTML",
+                "type": "n8n-nodes-base.executeWorkflow",
+                "position": [
+                    680,
+                    300
+                ],
+                "typeVersion": 1.1
+            },
+            {
+                "parameters": {
+                    "method": "POST",
+                    "url": "http://weasyprint:5000/pdf",
+                    "sendBody": true,
+                    "contentType": "raw",
+                    "rawContentType": "text/html",
+                    "body": "={{ $json.result }}"
+                },
+                "id": "html-to-pdf",
+                "name": "HTML → PDF (WeasyPrint)",
+                "type": "n8n-nodes-base.httpRequest",
+                "position": [
+                    900,
+                    300
+                ],
+                "typeVersion": 4.2
+            },
+            {
+                "parameters": {
+                    "method": "PUT",
+                    "url": "=http://minio:9000/emploi-cvs/{{ $(\u0027Load Profile\u0027).first().json[0].profile_id }}/cv.pdf",
+                    "authentication": "genericCredentialType",
+                    "genericAuthType": "httpHeaderAuth",
+                    "sendBody": true,
+                    "contentType": "binaryData",
+                    "inputDataFieldName": "data"
+                },
+                "id": "upload-minio",
+                "name": "Upload to MinIO",
+                "type": "n8n-nodes-base.httpRequest",
+                "position": [
+                    1120,
+                    300
+                ],
+                "typeVersion": 4.2
+            },
+            {
+                "parameters": {
+                    "operation": "executeQuery",
+                    "query": "UPDATE candidate_profile SET cv_minio_key = \u0027emploi-cvs/{{ $(\u0027Load Profile\u0027).first().json[0].profile_id }}/cv.pdf\u0027, cv_generated = TRUE WHERE id = {{ $(\u0027Load Profile\u0027).first().json[0].profile_id }};"
+                },
+                "id": "update-profile",
+                "name": "Update Profile — CV Key",
+                "type": "n8n-nodes-base.mySql",
+                "position": [
+                    1340,
+                    300
+                ],
+                "typeVersion": 2.4,
+                "credentials": {
+                    "mySql": {
+                        "name": "MySQL Emploi"
+                    }
+                }
+            }
+        ],
+        "connections": {
+            "Execute Workflow Trigger": {
+                "main": [
+                    [
+                        {
+                            "node": "Load Profile",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Load Profile": {
+                "main": [
+                    [
+                        {
+                            "node": "AI Router — Generate CV HTML",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "AI Router — Generate CV HTML": {
+                "main": [
+                    [
+                        {
+                            "node": "HTML → PDF (WeasyPrint)",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "HTML → PDF (WeasyPrint)": {
+                "main": [
+                    [
+                        {
+                            "node": "Upload to MinIO",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Upload to MinIO": {
+                "main": [
+                    [
+                        {
+                            "node": "Update Profile — CV Key",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            }
+        },
+        "settings": {
+            "executionOrder": "v1"
+        },
+        "tags": [
+            {
+                "name": "cv"
+            }
+        ]
+    },
+    {
+        "name": "[CV] Analyze Existing CV",
+        "nodes": [
+            {
+                "parameters": {
+                    "inputSource": "passthrough"
+                },
+                "id": "trigger",
+                "name": "Execute Workflow Trigger",
+                "type": "n8n-nodes-base.executeWorkflowTrigger",
+                "position": [
+                    240,
+                    300
+                ],
+                "typeVersion": 1
+            },
+            {
+                "parameters": {
+                    "operation": "pdf"
+                },
+                "id": "extract-text",
+                "name": "Extract Text from CV",
+                "type": "n8n-nodes-base.extractFromFile",
+                "position": [
+                    460,
+                    300
+                ],
+                "typeVersion": 1
+            },
+            {
+                "parameters": {
+                    "workflowId": {
+                        "__rl": true,
+                        "mode": "name",
+                        "value": "[CORE] AI Router"
+                    },
+                    "workflowInputs": {
+                        "values": [
+                            {
+                                "name": "model_hint",
+                                "value": "fast"
+                            },
+                            {
+                                "name": "system",
+                                "value": "Tu es un parseur de CV. Extrais les informations structurées et réponds UNIQUEMENT avec un JSON valide : { nom, email, phone, competences: [], experiences: [{poste, entreprise, duree}], formations: [{diplome, etablissement}], langues: [] }"
+                            },
+                            {
+                                "name": "prompt",
+                                "value": "=Voici le texte du CV :\n{{ $json.text }}"
+                            }
+                        ]
+                    }
+                },
+                "id": "call-ai-router",
+                "name": "AI Router — Parse CV",
+                "type": "n8n-nodes-base.executeWorkflow",
+                "position": [
+                    680,
+                    300
+                ],
+                "typeVersion": 1.1
+            },
+            {
+                "parameters": {
+                    "jsCode": "const raw = $input.first().json.result;\ntry {\n  const parsed = JSON.parse(raw.replace(/```json|```/g, \u0027\u0027).trim());\n  return [{ json: { structured: parsed } }];\n} catch(e) {\n  throw new Error(\u0027AI did not return valid JSON: \u0027 + raw.substring(0, 200));\n}"
+                },
+                "id": "parse-json",
+                "name": "Parse AI JSON",
+                "type": "n8n-nodes-base.code",
+                "position": [
+                    900,
+                    300
+                ],
+                "typeVersion": 2
+            },
+            {
+                "parameters": {
+                    "operation": "executeQuery",
+                    "query": "UPDATE candidate_profile SET raw_data = \u0027{{ JSON.stringify($json.structured) }}\u0027 WHERE candidate_id = {{ $(\u0027Execute Workflow Trigger\u0027).first().json.candidate_id }};"
+                },
+                "id": "save-profile",
+                "name": "Save Structured Profile",
+                "type": "n8n-nodes-base.mySql",
+                "position": [
+                    1120,
+                    300
+                ],
+                "typeVersion": 2.4,
+                "credentials": {
+                    "mySql": {
+                        "name": "MySQL Emploi"
+                    }
+                }
+            }
+        ],
+        "connections": {
+            "Execute Workflow Trigger": {
+                "main": [
+                    [
+                        {
+                            "node": "Extract Text from CV",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Extract Text from CV": {
+                "main": [
+                    [
+                        {
+                            "node": "AI Router — Parse CV",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "AI Router — Parse CV": {
+                "main": [
+                    [
+                        {
+                            "node": "Parse AI JSON",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Parse AI JSON": {
+                "main": [
+                    [
+                        {
+                            "node": "Save Structured Profile",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            }
+        },
+        "settings": {
+            "executionOrder": "v1"
+        },
+        "tags": [
+            {
+                "name": "cv"
+            }
+        ]
+    },
+    {
+        "name": "[OFFRES] Search CamerJob",
+        "nodes": [
+            {
+                "parameters": {
+                    "inputSource": "passthrough"
+                },
+                "id": "trigger",
+                "name": "Execute Workflow Trigger",
+                "type": "n8n-nodes-base.executeWorkflowTrigger",
+                "position": [
+                    240,
+                    300
+                ],
+                "typeVersion": 1
+            },
+            {
+                "parameters": {
+                    "operation": "executeQuery",
+                    "query": "SELECT DISTINCT JSON_UNQUOTE(JSON_EXTRACT(raw_data, \u0027$.target_role\u0027)) as role, JSON_UNQUOTE(JSON_EXTRACT(raw_data, \u0027$.city\u0027)) as city FROM candidate_profile WHERE raw_data IS NOT NULL;"
+                },
+                "id": "load-search-params",
+                "name": "Load Search Params",
+                "type": "n8n-nodes-base.mySql",
+                "position": [
+                    460,
+                    300
+                ],
+                "typeVersion": 2.4,
+                "credentials": {
+                    "mySql": {
+                        "name": "MySQL Emploi"
+                    }
+                }
+            },
+            {
+                "parameters": {
+                    "url": "=https://www.camerjob.com/offres-emploi?q={{ encodeURIComponent($json.role) }}\u0026l={{ encodeURIComponent($json.city) }}",
+                    "options": {
+                        "response": {
+                            "response": {
+                                "fullResponse": false
+                            }
+                        },
+                        "timeout": 15000
+                    }
+                },
+                "id": "scrape-camerjob",
+                "name": "Scrape CamerJob",
+                "type": "n8n-nodes-base.httpRequest",
+                "position": [
+                    680,
+                    300
+                ],
+                "typeVersion": 4.2
+            },
+            {
+                "parameters": {
+                    "dataType": "html",
+                    "extractionValues": {
+                        "values": [
+                            {
+                                "key": "titles",
+                                "cssSelector": ".job-title, h2.title, .offer-title",
+                                "returnValue": "text",
+                                "returnArray": true
+                            },
+                            {
+                                "key": "companies",
+                                "cssSelector": ".company-name, .employer",
+                                "returnValue": "text",
+                                "returnArray": true
+                            },
+                            {
+                                "key": "cities",
+                                "cssSelector": ".job-location, .location",
+                                "returnValue": "text",
+                                "returnArray": true
+                            },
+                            {
+                                "key": "links",
+                                "cssSelector": "a.job-link, .offer-title a",
+                                "returnValue": "attribute",
+                                "attribute": "href",
+                                "returnArray": true
+                            }
+                        ]
+                    }
+                },
+                "id": "extract-offers",
+                "name": "Extract Offers",
+                "type": "n8n-nodes-base.htmlExtract",
+                "position": [
+                    900,
+                    300
+                ],
+                "typeVersion": 1.1
+            },
+            {
+                "parameters": {
+                    "jsCode": "const { titles, companies, cities, links } = $input.first().json;\nconst offers = (titles || []).map((title, i) =\u003e ({\n  source: \u0027camerjob\u0027,\n  external_id: (links?.[i] || \u0027\u0027).split(\u0027/\u0027).pop() || `camerjob-${i}`,\n  title: title?.trim(),\n  company: companies?.[i]?.trim() || null,\n  city: cities?.[i]?.trim() || null,\n  contact_email: null,\n  raw_data: JSON.stringify({ title, company: companies?.[i], city: cities?.[i], url: links?.[i] })\n})).filter(o =\u003e o.title);\nreturn offers.map(o =\u003e ({ json: o }));"
+                },
+                "id": "normalize-offers",
+                "name": "Normalize Offers",
+                "type": "n8n-nodes-base.code",
+                "position": [
+                    1120,
+                    300
+                ],
+                "typeVersion": 2
+            },
+            {
+                "parameters": {
+                    "operation": "executeQuery",
+                    "query": "INSERT IGNORE INTO job_offer (source, external_id, title, company, city, contact_email, raw_data) VALUES (\u0027{{ $json.source }}\u0027, \u0027{{ $json.external_id }}\u0027, \u0027{{ $json.title }}\u0027, \u0027{{ $json.company }}\u0027, \u0027{{ $json.city }}\u0027, \u0027{{ $json.contact_email }}\u0027, \u0027{{ $json.raw_data }}\u0027);"
+                },
+                "id": "insert-offers",
+                "name": "Insert Offers (ignore duplicates)",
+                "type": "n8n-nodes-base.mySql",
+                "position": [
+                    1340,
+                    300
+                ],
+                "typeVersion": 2.4,
+                "credentials": {
+                    "mySql": {
+                        "name": "MySQL Emploi"
+                    }
+                }
+            }
+        ],
+        "connections": {
+            "Execute Workflow Trigger": {
+                "main": [
+                    [
+                        {
+                            "node": "Load Search Params",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Load Search Params": {
+                "main": [
+                    [
+                        {
+                            "node": "Scrape CamerJob",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Scrape CamerJob": {
+                "main": [
+                    [
+                        {
+                            "node": "Extract Offers",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Extract Offers": {
+                "main": [
+                    [
+                        {
+                            "node": "Normalize Offers",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Normalize Offers": {
+                "main": [
+                    [
+                        {
+                            "node": "Insert Offers (ignore duplicates)",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            }
+        },
+        "settings": {
+            "executionOrder": "v1"
+        },
+        "tags": [
+            {
+                "name": "recherche-offres"
+            }
+        ]
+    },
+    {
+        "name": "[QUALIF] Score Offers",
+        "nodes": [
+            {
+                "parameters": {
+                    "inputSource": "passthrough"
+                },
+                "id": "trigger",
+                "name": "Execute Workflow Trigger",
+                "type": "n8n-nodes-base.executeWorkflowTrigger",
+                "position": [
+                    240,
+                    300
+                ],
+                "typeVersion": 1
+            },
+            {
+                "parameters": {
+                    "operation": "executeQuery",
+                    "query": "SELECT jo.*, c.id as candidate_id, cp.raw_data as profile FROM job_offer jo CROSS JOIN candidate c JOIN candidate_profile cp ON cp.candidate_id = c.id WHERE NOT EXISTS (SELECT 1 FROM application a WHERE a.candidate_id = c.id AND a.job_offer_id = jo.id) ORDER BY jo.scraped_at DESC LIMIT 50;"
+                },
+                "id": "load-new-offers",
+                "name": "Load New Offers",
+                "type": "n8n-nodes-base.mySql",
+                "position": [
+                    460,
+                    300
+                ],
+                "typeVersion": 2.4,
+                "credentials": {
+                    "mySql": {
+                        "name": "MySQL Emploi"
+                    }
+                }
+            },
+            {
+                "parameters": {
+                    "jsCode": "// Filtre dur : ville + contact email présent\nconst item = $input.first().json;\nconst profile = JSON.parse(item.profile || \u0027{}\u0027);\nconst cityMatch = !profile.city || (item.city || \u0027\u0027).toLowerCase().includes(profile.city.toLowerCase());\nconst hasContact = !!item.contact_email;\nif (!cityMatch || !hasContact) {\n  return [{ json: { ...item, score: 0, rejected: true, reject_reason: !cityMatch ? \u0027city_mismatch\u0027 : \u0027no_contact\u0027 } }];\n}\nreturn [{ json: { ...item, score: 50, rejected: false } }];"
+                },
+                "id": "hard-filter",
+                "name": "Hard Filter (rules)",
+                "type": "n8n-nodes-base.code",
+                "position": [
+                    680,
+                    300
+                ],
+                "typeVersion": 2
+            },
+            {
+                "parameters": {
+                    "conditions": {
+                        "conditions": [
+                            {
+                                "leftValue": "={{ $json.rejected }}",
+                                "rightValue": false,
+                                "operator": {
+                                    "type": "boolean",
+                                    "operation": "equals"
+                                }
+                            }
+                        ]
+                    }
+                },
+                "id": "passed-filter",
+                "name": "Passed Filter?",
+                "type": "n8n-nodes-base.if",
+                "position": [
+                    900,
+                    300
+                ],
+                "typeVersion": 2
+            },
+            {
+                "parameters": {
+                    "workflowId": {
+                        "__rl": true,
+                        "mode": "name",
+                        "value": "[CORE] AI Router"
+                    },
+                    "workflowInputs": {
+                        "values": [
+                            {
+                                "name": "model_hint",
+                                "value": "fast"
+                            },
+                            {
+                                "name": "system",
+                                "value": "Tu es un recruteur. Donne un score de 0 à 100 indiquant la compatibilité entre le profil et l\u0027offre. Réponds UNIQUEMENT avec un JSON : { score: number, reason: string }"
+                            },
+                            {
+                                "name": "prompt",
+                                "value": "=Profil : {{ $json.profile }}\nOffre : {{ $json.title }} chez {{ $json.company }} à {{ $json.city }}"
+                            }
+                        ]
+                    }
+                },
+                "id": "ai-score",
+                "name": "AI Router — Semantic Score",
+                "type": "n8n-nodes-base.executeWorkflow",
+                "position": [
+                    1120,
+                    200
+                ],
+                "typeVersion": 1.1
+            },
+            {
+                "parameters": {
+                    "jsCode": "const ai = $input.first().json;\ntry {\n  const parsed = JSON.parse(ai.result.replace(/```json|```/g, \u0027\u0027).trim());\n  return [{ json: { score: parsed.score, reason: parsed.reason } }];\n} catch { return [{ json: { score: 60, reason: \u0027parse_error\u0027 } }]; }"
+                },
+                "id": "parse-score",
+                "name": "Parse Score",
+                "type": "n8n-nodes-base.code",
+                "position": [
+                    1340,
+                    200
+                ],
+                "typeVersion": 2
+            },
+            {
+                "parameters": {
+                    "operation": "executeQuery",
+                    "query": "INSERT INTO application (candidate_id, job_offer_id, score, status) VALUES ({{ $(\u0027Load New Offers\u0027).first().json.candidate_id }}, {{ $(\u0027Load New Offers\u0027).first().json.id }}, {{ $json.score }}, IF({{ $json.score }} \u003e= 60, \u0027qualified\u0027, \u0027rejected\u0027));"
+                },
+                "id": "save-application",
+                "name": "Save Application",
+                "type": "n8n-nodes-base.mySql",
+                "position": [
+                    1560,
+                    300
+                ],
+                "typeVersion": 2.4,
+                "credentials": {
+                    "mySql": {
+                        "name": "MySQL Emploi"
+                    }
+                }
+            }
+        ],
+        "connections": {
+            "Execute Workflow Trigger": {
+                "main": [
+                    [
+                        {
+                            "node": "Load New Offers",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Load New Offers": {
+                "main": [
+                    [
+                        {
+                            "node": "Hard Filter (rules)",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Hard Filter (rules)": {
+                "main": [
+                    [
+                        {
+                            "node": "Passed Filter?",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Passed Filter?": {
+                "main": [
+                    [
+                        {
+                            "node": "AI Router — Semantic Score",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ],
+                    [
+                        {
+                            "node": "Save Application",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "AI Router — Semantic Score": {
+                "main": [
+                    [
+                        {
+                            "node": "Parse Score",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Parse Score": {
+                "main": [
+                    [
+                        {
+                            "node": "Save Application",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            }
+        },
+        "settings": {
+            "executionOrder": "v1"
+        },
+        "tags": [
+            {
+                "name": "qualification"
+            }
+        ]
+    },
+    {
+        "name": "[CANDIDATURE] Generate Cover Letter",
+        "nodes": [
+            {
+                "parameters": {
+                    "inputSource": "passthrough"
+                },
+                "id": "trigger",
+                "name": "Execute Workflow Trigger",
+                "type": "n8n-nodes-base.executeWorkflowTrigger",
+                "position": [
+                    240,
+                    300
+                ],
+                "typeVersion": 1
+            },
+            {
+                "parameters": {
+                    "operation": "executeQuery",
+                    "query": "SELECT a.id as application_id, a.candidate_id, a.job_offer_id, jo.title, jo.company, jo.city, jo.raw_data as offer_data, cp.raw_data as profile, c.full_name, c.email FROM application a JOIN job_offer jo ON jo.id = a.job_offer_id JOIN candidate c ON c.id = a.candidate_id JOIN candidate_profile cp ON cp.candidate_id = a.candidate_id WHERE a.status = \u0027qualified\u0027 AND a.cover_letter_minio_key IS NULL LIMIT 10;"
+                },
+                "id": "load-qualified",
+                "name": "Load Qualified Applications",
+                "type": "n8n-nodes-base.mySql",
+                "position": [
+                    460,
+                    300
+                ],
+                "typeVersion": 2.4,
+                "credentials": {
+                    "mySql": {
+                        "name": "MySQL Emploi"
+                    }
+                }
+            },
+            {
+                "parameters": {
+                    "workflowId": {
+                        "__rl": true,
+                        "mode": "name",
+                        "value": "[CORE] AI Router"
+                    },
+                    "workflowInputs": {
+                        "values": [
+                            {
+                                "name": "model_hint",
+                                "value": "quality"
+                            },
+                            {
+                                "name": "system",
+                                "value": "Tu es un expert en rédaction de lettres de motivation professionnelles pour le marché camerounais. Rédige une lettre percutante, personnalisée, en HTML structuré (balises p, strong). Ton = professionnel mais chaleureux. Max 350 mots. Réponds UNIQUEMENT avec le HTML."
+                            },
+                            {
+                                "name": "prompt",
+                                "value": "=Candidat : {{ $json.full_name }}\nProfil : {{ $json.profile }}\nPoste : {{ $json.title }} chez {{ $json.company }} à {{ $json.city }}\nDétails offre : {{ $json.offer_data }}"
+                            }
+                        ]
+                    }
+                },
+                "id": "ai-cover-letter",
+                "name": "AI Router — Write Cover Letter",
+                "type": "n8n-nodes-base.executeWorkflow",
+                "position": [
+                    680,
+                    300
+                ],
+                "typeVersion": 1.1
+            },
+            {
+                "parameters": {
+                    "method": "POST",
+                    "url": "http://weasyprint:5000/pdf",
+                    "sendBody": true,
+                    "contentType": "raw",
+                    "rawContentType": "text/html",
+                    "body": "={{ $json.result }}"
+                },
+                "id": "html-to-pdf",
+                "name": "HTML → PDF",
+                "type": "n8n-nodes-base.httpRequest",
+                "position": [
+                    900,
+                    300
+                ],
+                "typeVersion": 4.2
+            },
+            {
+                "parameters": {
+                    "method": "PUT",
+                    "url": "=http://minio:9000/emploi-letters/{{ $(\u0027Load Qualified Applications\u0027).first().json.application_id }}/cover_letter.pdf",
+                    "sendBody": true,
+                    "contentType": "binaryData",
+                    "inputDataFieldName": "data"
+                },
+                "id": "upload-minio",
+                "name": "Upload to MinIO",
+                "type": "n8n-nodes-base.httpRequest",
+                "position": [
+                    1120,
+                    300
+                ],
+                "typeVersion": 4.2
+            },
+            {
+                "parameters": {
+                    "operation": "executeQuery",
+                    "query": "UPDATE application SET cover_letter_minio_key = \u0027emploi-letters/{{ $(\u0027Load Qualified Applications\u0027).first().json.application_id }}/cover_letter.pdf\u0027 WHERE id = {{ $(\u0027Load Qualified Applications\u0027).first().json.application_id }};"
+                },
+                "id": "update-application",
+                "name": "Update Application",
+                "type": "n8n-nodes-base.mySql",
+                "position": [
+                    1340,
+                    300
+                ],
+                "typeVersion": 2.4,
+                "credentials": {
+                    "mySql": {
+                        "name": "MySQL Emploi"
+                    }
+                }
+            }
+        ],
+        "connections": {
+            "Execute Workflow Trigger": {
+                "main": [
+                    [
+                        {
+                            "node": "Load Qualified Applications",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Load Qualified Applications": {
+                "main": [
+                    [
+                        {
+                            "node": "AI Router — Write Cover Letter",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "AI Router — Write Cover Letter": {
+                "main": [
+                    [
+                        {
+                            "node": "HTML → PDF",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "HTML → PDF": {
+                "main": [
+                    [
+                        {
+                            "node": "Upload to MinIO",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Upload to MinIO": {
+                "main": [
+                    [
+                        {
+                            "node": "Update Application",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            }
+        },
+        "settings": {
+            "executionOrder": "v1"
+        },
+        "tags": [
+            {
+                "name": "candidature"
+            }
+        ]
+    },
+    {
+        "name": "[CANDIDATURE] Send Application",
+        "nodes": [
+            {
+                "parameters": {
+                    "inputSource": "passthrough"
+                },
+                "id": "trigger",
+                "name": "Execute Workflow Trigger",
+                "type": "n8n-nodes-base.executeWorkflowTrigger",
+                "position": [
+                    240,
+                    300
+                ],
+                "typeVersion": 1
+            },
+            {
+                "parameters": {
+                    "operation": "executeQuery",
+                    "query": "SELECT a.id as application_id, a.candidate_id, jo.contact_email, jo.title, jo.company, c.full_name, c.email as candidate_email, cp.cv_minio_key, a.cover_letter_minio_key FROM application a JOIN job_offer jo ON jo.id = a.job_offer_id JOIN candidate c ON c.id = a.candidate_id JOIN candidate_profile cp ON cp.candidate_id = a.candidate_id WHERE a.status = \u0027qualified\u0027 AND a.cover_letter_minio_key IS NOT NULL AND a.applied_at IS NULL AND jo.contact_email IS NOT NULL LIMIT 5;"
+                },
+                "id": "load-ready",
+                "name": "Load Ready Applications",
+                "type": "n8n-nodes-base.mySql",
+                "position": [
+                    460,
+                    300
+                ],
+                "typeVersion": 2.4,
+                "credentials": {
+                    "mySql": {
+                        "name": "MySQL Emploi"
+                    }
+                }
+            },
+            {
+                "parameters": {
+                    "url": "=http://minio:9000/{{ $json.cv_minio_key }}",
+                    "options": {}
+                },
+                "id": "fetch-cv",
+                "name": "Fetch CV from MinIO",
+                "type": "n8n-nodes-base.httpRequest",
+                "position": [
+                    680,
+                    200
+                ],
+                "typeVersion": 4.2
+            },
+            {
+                "parameters": {
+                    "url": "=http://minio:9000/{{ $json.cover_letter_minio_key }}",
+                    "options": {}
+                },
+                "id": "fetch-letter",
+                "name": "Fetch Cover Letter from MinIO",
+                "type": "n8n-nodes-base.httpRequest",
+                "position": [
+                    680,
+                    420
+                ],
+                "typeVersion": 4.2
+            },
+            {
+                "parameters": {
+                    "fromEmail": "={{ $json.candidate_email }}",
+                    "toEmail": "={{ $(\u0027Load Ready Applications\u0027).first().json.contact_email }}",
+                    "subject": "=Candidature — {{ $(\u0027Load Ready Applications\u0027).first().json.title }} | {{ $(\u0027Load Ready Applications\u0027).first().json.full_name }}",
+                    "emailType": "html",
+                    "message": "=\u003cp\u003eMadame, Monsieur,\u003c/p\u003e\u003cp\u003eVeuillez trouver ci-joint mon CV et ma lettre de motivation pour le poste de \u003cstrong\u003e{{ $(\u0027Load Ready Applications\u0027).first().json.title }}\u003c/strong\u003e au sein de \u003cstrong\u003e{{ $(\u0027Load Ready Applications\u0027).first().json.company }}\u003c/strong\u003e.\u003c/p\u003e\u003cp\u003eCordialement,\u003cbr\u003e{{ $(\u0027Load Ready Applications\u0027).first().json.full_name }}\u003c/p\u003e",
+                    "options": {
+                        "attachments": "cv,cover_letter"
+                    }
+                },
+                "id": "send-email",
+                "name": "Send Email",
+                "type": "n8n-nodes-base.emailSend",
+                "position": [
+                    900,
+                    300
+                ],
+                "typeVersion": 2.1,
+                "credentials": {
+                    "smtp": {
+                        "name": "SMTP Emploi"
+                    }
+                }
+            },
+            {
+                "parameters": {
+                    "operation": "executeQuery",
+                    "query": "UPDATE application SET status = \u0027applied\u0027, applied_at = NOW() WHERE id = {{ $(\u0027Load Ready Applications\u0027).first().json.application_id }};"
+                },
+                "id": "mark-applied",
+                "name": "Mark as Applied",
+                "type": "n8n-nodes-base.mySql",
+                "position": [
+                    1120,
+                    300
+                ],
+                "typeVersion": 2.4,
+                "credentials": {
+                    "mySql": {
+                        "name": "MySQL Emploi"
+                    }
+                }
+            },
+            {
+                "parameters": {
+                    "workflowId": {
+                        "__rl": true,
+                        "mode": "name",
+                        "value": "[NOTIF] WhatsApp Notify"
+                    },
+                    "workflowInputs": {
+                        "values": [
+                            {
+                                "name": "candidate_id",
+                                "value": "={{ $(\u0027Load Ready Applications\u0027).first().json.candidate_id }}"
+                            },
+                            {
+                                "name": "message",
+                                "value": "=✅ Candidature envoyée pour *{{ $(\u0027Load Ready Applications\u0027).first().json.title }}* chez *{{ $(\u0027Load Ready Applications\u0027).first().json.company }}*. Je te tiens au courant des réponses !"
+                            }
+                        ]
+                    }
+                },
+                "id": "notify-whatsapp",
+                "name": "→ WhatsApp Notify",
+                "type": "n8n-nodes-base.executeWorkflow",
+                "position": [
+                    1340,
+                    300
+                ],
+                "typeVersion": 1.1
+            }
+        ],
+        "connections": {
+            "Execute Workflow Trigger": {
+                "main": [
+                    [
+                        {
+                            "node": "Load Ready Applications",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Load Ready Applications": {
+                "main": [
+                    [
+                        {
+                            "node": "Fetch CV from MinIO",
+                            "type": "main",
+                            "index": 0
+                        },
+                        {
+                            "node": "Fetch Cover Letter from MinIO",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Fetch CV from MinIO": {
+                "main": [
+                    [
+                        {
+                            "node": "Send Email",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Fetch Cover Letter from MinIO": {
+                "main": [
+                    [
+                        {
+                            "node": "Send Email",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Send Email": {
+                "main": [
+                    [
+                        {
+                            "node": "Mark as Applied",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Mark as Applied": {
+                "main": [
+                    [
+                        {
+                            "node": "→ WhatsApp Notify",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            }
+        },
+        "settings": {
+            "executionOrder": "v1"
+        },
+        "tags": [
+            {
+                "name": "candidature"
+            }
+        ]
+    },
+    {
+        "name": "[SUIVI] Mail Watcher",
+        "nodes": [
+            {
+                "parameters": {
+                    "pollTimes": {
+                        "item": [
+                            {
+                                "mode": "everyMinute",
+                                "minute": 15
+                            }
+                        ]
+                    },
+                    "mailbox": "INBOX",
+                    "options": {
+                        "allowUnauthorizedCerts": false
+                    }
+                },
+                "id": "imap-trigger",
+                "name": "IMAP Trigger",
+                "type": "n8n-nodes-base.emailReadImap",
+                "position": [
+                    240,
+                    300
+                ],
+                "typeVersion": 2,
+                "credentials": {
+                    "imap": {
+                        "name": "IMAP Emploi"
+                    }
+                }
+            },
+            {
+                "parameters": {
+                    "operation": "executeQuery",
+                    "query": "SELECT a.id as application_id, a.candidate_id, jo.company, jo.title FROM application a JOIN job_offer jo ON jo.id = a.job_offer_id JOIN candidate c ON c.id = a.candidate_id WHERE c.email = \u0027{{ $json.from.value[0].address }}\u0027 AND a.status = \u0027applied\u0027 ORDER BY a.applied_at DESC LIMIT 1;"
+                },
+                "id": "find-application",
+                "name": "Find Application by Sender",
+                "type": "n8n-nodes-base.mySql",
+                "position": [
+                    460,
+                    300
+                ],
+                "typeVersion": 2.4,
+                "credentials": {
+                    "mySql": {
+                        "name": "MySQL Emploi"
+                    }
+                }
+            },
+            {
+                "parameters": {
+                    "conditions": {
+                        "conditions": [
+                            {
+                                "leftValue": "={{ $json.length }}",
+                                "rightValue": 0,
+                                "operator": {
+                                    "type": "number",
+                                    "operation": "gt"
+                                }
+                            }
+                        ]
+                    }
+                },
+                "id": "app-found",
+                "name": "Application Found?",
+                "type": "n8n-nodes-base.if",
+                "position": [
+                    680,
+                    300
+                ],
+                "typeVersion": 2
+            },
+            {
+                "parameters": {
+                    "workflowId": {
+                        "__rl": true,
+                        "mode": "name",
+                        "value": "[CORE] AI Router"
+                    },
+                    "workflowInputs": {
+                        "values": [
+                            {
+                                "name": "model_hint",
+                                "value": "fast"
+                            },
+                            {
+                                "name": "system",
+                                "value": "Classifie cet email de recruteur. Réponds UNIQUEMENT avec un JSON : { classification: \u0027entretien\u0027|\u0027refus\u0027|\u0027demande_info\u0027|\u0027test_technique\u0027|\u0027autre\u0027, summary: string }"
+                            },
+                            {
+                                "name": "prompt",
+                                "value": "=Objet : {{ $(\u0027IMAP Trigger\u0027).first().json.subject }}\nCorps : {{ $(\u0027IMAP Trigger\u0027).first().json.text?.substring(0, 1000) }}"
+                            }
+                        ]
+                    }
+                },
+                "id": "classify-email",
+                "name": "AI Router — Classify Email",
+                "type": "n8n-nodes-base.executeWorkflow",
+                "position": [
+                    900,
+                    200
+                ],
+                "typeVersion": 1.1
+            },
+            {
+                "parameters": {
+                    "jsCode": "const raw = $input.first().json.result;\ntry {\n  return [{ json: JSON.parse(raw.replace(/```json|```/g, \u0027\u0027).trim()) }];\n} catch { return [{ json: { classification: \u0027autre\u0027, summary: raw.substring(0, 200) } }]; }"
+                },
+                "id": "parse-classification",
+                "name": "Parse Classification",
+                "type": "n8n-nodes-base.code",
+                "position": [
+                    1120,
+                    200
+                ],
+                "typeVersion": 2
+            },
+            {
+                "parameters": {
+                    "operation": "executeQuery",
+                    "query": "INSERT INTO conversation (application_id, email_thread_id, last_message_at) VALUES ({{ $(\u0027Find Application by Sender\u0027).first().json.application_id }}, \u0027{{ $(\u0027IMAP Trigger\u0027).first().json.messageId }}\u0027, NOW()) ON DUPLICATE KEY UPDATE last_message_at = NOW();\nSET @conv_id = LAST_INSERT_ID();\nINSERT INTO message (conversation_id, direction, content, classification) VALUES (@conv_id, \u0027incoming\u0027, \u0027{{ $(\u0027IMAP Trigger\u0027).first().json.text?.substring(0, 2000).replace(/\u0027/g, \"\u0027\u0027\") }}\u0027, \u0027{{ $json.classification }}\u0027);\nUPDATE application SET status = \u0027{{ $json.classification === \u0027entretien\u0027 ? \u0027interview\u0027 : \u0027answered\u0027 }}\u0027 WHERE id = {{ $(\u0027Find Application by Sender\u0027).first().json.application_id }};"
+                },
+                "id": "save-message",
+                "name": "Save Message \u0026 Update Status",
+                "type": "n8n-nodes-base.mySql",
+                "position": [
+                    1340,
+                    200
+                ],
+                "typeVersion": 2.4,
+                "credentials": {
+                    "mySql": {
+                        "name": "MySQL Emploi"
+                    }
+                }
+            },
+            {
+                "parameters": {
+                    "workflowId": {
+                        "__rl": true,
+                        "mode": "name",
+                        "value": "[NOTIF] WhatsApp Notify"
+                    },
+                    "workflowInputs": {
+                        "values": [
+                            {
+                                "name": "candidate_id",
+                                "value": "={{ $(\u0027Find Application by Sender\u0027).first().json.candidate_id }}"
+                            },
+                            {
+                                "name": "message",
+                                "value": "=📬 Réponse reçue de *{{ $(\u0027Find Application by Sender\u0027).first().json.company }}* pour *{{ $(\u0027Find Application by Sender\u0027).first().json.title }}* : {{ $(\u0027Parse Classification\u0027).first().json.classification.toUpperCase() }} — {{ $(\u0027Parse Classification\u0027).first().json.summary }}"
+                            }
+                        ]
+                    }
+                },
+                "id": "notify-whatsapp",
+                "name": "→ WhatsApp Notify",
+                "type": "n8n-nodes-base.executeWorkflow",
+                "position": [
+                    1560,
+                    200
+                ],
+                "typeVersion": 1.1
+            }
+        ],
+        "connections": {
+            "IMAP Trigger": {
+                "main": [
+                    [
+                        {
+                            "node": "Find Application by Sender",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Find Application by Sender": {
+                "main": [
+                    [
+                        {
+                            "node": "Application Found?",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Application Found?": {
+                "main": [
+                    [
+                        {
+                            "node": "AI Router — Classify Email",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ],
+                    []
+                ]
+            },
+            "AI Router — Classify Email": {
+                "main": [
+                    [
+                        {
+                            "node": "Parse Classification",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Parse Classification": {
+                "main": [
+                    [
+                        {
+                            "node": "Save Message \u0026 Update Status",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Save Message \u0026 Update Status": {
+                "main": [
+                    [
+                        {
+                            "node": "→ WhatsApp Notify",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            }
+        },
+        "settings": {
+            "executionOrder": "v1"
+        },
+        "tags": [
+            {
+                "name": "suivi"
+            }
+        ]
+    },
+    {
+        "name": "[NOTIF] WhatsApp Notify",
+        "nodes": [
+            {
+                "parameters": {
+                    "inputSource": "passthrough"
+                },
+                "id": "trigger",
+                "name": "Execute Workflow Trigger",
+                "type": "n8n-nodes-base.executeWorkflowTrigger",
+                "position": [
+                    240,
+                    300
+                ],
+                "typeVersion": 1
+            },
+            {
+                "parameters": {
+                    "operation": "executeQuery",
+                    "query": "SELECT whatsapp_number FROM candidate WHERE id = {{ $json.candidate_id }} LIMIT 1;"
+                },
+                "id": "get-whatsapp",
+                "name": "Get WhatsApp Number",
+                "type": "n8n-nodes-base.mySql",
+                "position": [
+                    460,
+                    300
+                ],
+                "typeVersion": 2.4,
+                "credentials": {
+                    "mySql": {
+                        "name": "MySQL Emploi"
+                    }
+                }
+            },
+            {
+                "parameters": {
+                    "jsCode": "// Normalise le numéro : retire +, espaces, ajoute 237 si numéro camerounais sans indicatif\nlet num = ($input.first().json.whatsapp_number || \u0027\u0027).replace(/[^0-9]/g, \u0027\u0027);\nif (num.startsWith(\u00270\u0027)) num = \u0027237\u0027 + num.substring(1);\nif (!num.startsWith(\u0027237\u0027) \u0026\u0026 num.length === 9) num = \u0027237\u0027 + num;\nreturn [{ json: { to: num, message: $(\u0027Execute Workflow Trigger\u0027).first().json.message } }];"
+                },
+                "id": "normalize-number",
+                "name": "Normalize Number",
+                "type": "n8n-nodes-base.code",
+                "position": [
+                    680,
+                    300
+                ],
+                "typeVersion": 2
+            },
+            {
+                "parameters": {
+                    "method": "POST",
+                    "url": "=https://graph.facebook.com/v19.0/{{ $vars.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+                    "authentication": "genericCredentialType",
+                    "genericAuthType": "httpHeaderAuth",
+                    "sendHeaders": true,
+                    "headerParameters": {
+                        "parameters": [
+                            {
+                                "name": "Authorization",
+                                "value": "=Bearer {{ $vars.WHATSAPP_ACCESS_TOKEN }}"
+                            }
+                        ]
+                    },
+                    "sendBody": true,
+                    "specifyBody": "json",
+                    "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.to }}\",\n  \"type\": \"text\",\n  \"text\": { \"body\": \"{{ $json.message }}\" }\n}"
+                },
+                "id": "send-whatsapp",
+                "name": "Send WhatsApp (Meta Cloud API)",
+                "type": "n8n-nodes-base.httpRequest",
+                "position": [
+                    900,
+                    300
+                ],
+                "typeVersion": 4.2
+            },
+            {
+                "parameters": {
+                    "operation": "executeQuery",
+                    "query": "INSERT INTO notification (candidate_id, application_id, channel, content) VALUES ({{ $(\u0027Execute Workflow Trigger\u0027).first().json.candidate_id }}, {{ $(\u0027Execute Workflow Trigger\u0027).first().json.application_id || \u0027NULL\u0027 }}, \u0027whatsapp\u0027, \u0027{{ $(\u0027Execute Workflow Trigger\u0027).first().json.message.replace(/\u0027/g, \"\u0027\u0027\") }}\u0027);"
+                },
+                "id": "log-notification",
+                "name": "Log Notification",
+                "type": "n8n-nodes-base.mySql",
+                "position": [
+                    1120,
+                    300
+                ],
+                "typeVersion": 2.4,
+                "credentials": {
+                    "mySql": {
+                        "name": "MySQL Emploi"
+                    }
+                }
+            }
+        ],
+        "connections": {
+            "Execute Workflow Trigger": {
+                "main": [
+                    [
+                        {
+                            "node": "Get WhatsApp Number",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Get WhatsApp Number": {
+                "main": [
+                    [
+                        {
+                            "node": "Normalize Number",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Normalize Number": {
+                "main": [
+                    [
+                        {
+                            "node": "Send WhatsApp (Meta Cloud API)",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Send WhatsApp (Meta Cloud API)": {
+                "main": [
+                    [
+                        {
+                            "node": "Log Notification",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            }
+        },
+        "settings": {
+            "executionOrder": "v1"
+        },
+        "tags": [
+            {
+                "name": "notification"
+            }
+        ]
+    }
+]
