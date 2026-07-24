@@ -52,7 +52,7 @@ services:
     container_name: weasyprint
     restart: unless-stopped
     command: |
-      sh -c "pip install weasyprint flask --quiet && python -c \"
+      sh -c "apt-get update && apt-get install -y libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf2.0-0 libffi-dev shared-mime-info && pip install weasyprint flask --quiet && python -c \"
       from flask import Flask, request, send_file
       import weasyprint, io
       app = Flask(__name__)
