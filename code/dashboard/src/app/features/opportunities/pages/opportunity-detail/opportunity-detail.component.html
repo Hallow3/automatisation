@@ -1,0 +1,192 @@
+<div class="space-y-4 sm:space-y-6 p-3 sm:p-6 lg:p-8 max-w-full overflow-hidden">
+  <!-- Loading state -->
+  <div *ngIf="loading" class="space-y-4">
+    <app-skeleton customClass="h-8 w-1/3" />
+    <app-skeleton-card />
+    <app-skeleton-card />
+  </div>
+
+  <div *ngIf="!loading && opportunity" class="space-y-4 sm:space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2 mb-1">
+          <a routerLink="/opportunities" class="text-xs font-semibold text-brand-600 hover:underline">← Opportunités</a>
+          <span class="text-slate-300">/</span>
+          <span class="text-xs text-slate-400 truncate">{{ opportunity.company }}</span>
+        </div>
+        <h1 class="text-lg sm:text-xl font-bold text-slate-900 truncate">{{ opportunity.title }}</h1>
+        <p class="text-xs text-slate-400 mt-0.5 truncate">{{ opportunity.company }} {{ opportunity.city ? '· ' + opportunity.city : '' }}</p>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 shrink-0">
+        <button
+          type="button"
+          (click)="dismiss()"
+          [disabled]="actionLoading"
+          class="inline-flex h-8 sm:h-9 items-center justify-center rounded-xl border border-brand-100 bg-white px-3 text-xs sm:text-sm font-semibold text-slate-600 hover:bg-brand-50 hover:text-slate-900 transition">
+          Ignorer
+        </button>
+
+        <button
+          type="button"
+          (click)="viewOrGenerateLetter()"
+          class="inline-flex h-8 sm:h-9 items-center justify-center rounded-xl border border-brand-100 bg-white px-3 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-brand-50 transition shadow-sm">
+          Lettre de motivation
+        </button>
+
+        <button
+          type="button"
+          (click)="prepareApplication()"
+          class="inline-flex h-8 sm:h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 px-3.5 sm:px-4 text-xs sm:text-sm font-semibold text-white shadow-brand transition">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+          Préparer
+        </button>
+      </div>
+    </div>
+
+    <!-- Meta badges -->
+    <div class="flex flex-wrap items-center gap-2">
+      <app-status-badge [status]="opportunity.status" />
+      <span *ngIf="opportunity.source" class="text-2xs font-semibold px-2 py-0.5 rounded bg-brand-50 text-brand-600">
+        {{ opportunity.source }}
+      </span>
+      <span class="text-2xs sm:text-xs text-slate-400">
+        Publiée le {{ formatDate(opportunity.publishedAt) }}
+      </span>
+    </div>
+
+    <!-- Main Grid (2 cols gauche / 1 col droite) -->
+    <div class="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
+      
+      <!-- Colonne Gauche (Détail de l'offre - 2 cols) -->
+      <div class="lg:col-span-2 space-y-4 sm:space-y-6">
+        
+        <!-- Description de l'offre -->
+        <div class="rounded-xl sm:rounded-2xl border border-brand-100 bg-white p-4 sm:p-6 shadow-sm">
+          <h2 class="text-sm font-bold text-slate-900">Description de l’offre</h2>
+          <p class="text-xs text-slate-400 mt-0.5">Texte original extrait et analysé par l’agent IA.</p>
+
+          <div class="mt-4 whitespace-pre-line text-xs sm:text-sm leading-relaxed text-slate-700">
+            {{ opportunity.description || 'Aucune description fournie.' }}
+          </div>
+        </div>
+
+        <!-- Compétences détectées -->
+        <div *ngIf="skillsList.length > 0" class="rounded-xl sm:rounded-2xl border border-brand-100 bg-white p-4 sm:p-6 shadow-sm">
+          <h2 class="text-sm font-bold text-slate-900">Compétences requises</h2>
+          <p class="text-xs text-slate-400 mt-0.5">Compétences identifiées pour ce poste.</p>
+
+          <div class="mt-3.5 flex flex-wrap gap-1.5 sm:gap-2">
+            <span *ngFor="let skill of skillsList" class="rounded-lg bg-brand-50 border border-brand-100 px-2.5 py-1 text-xs font-semibold text-brand-700">
+              {{ skill }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Notes personnelles privées -->
+        <div class="rounded-xl sm:rounded-2xl border border-brand-100 bg-white p-4 sm:p-6 shadow-sm">
+          <h2 class="text-sm font-bold text-slate-900">Notes personnelles</h2>
+          <p class="text-xs text-slate-400 mt-0.5">Ces notes restent privées et ne sont transmises à aucun recruteur.</p>
+
+          <div class="mt-3 space-y-2">
+            <textarea
+              [(ngModel)]="decisionNotes"
+              rows="3"
+              placeholder="Ex : Vérifier les modalités de télétravail lors de l’entretien..."
+              class="w-full rounded-xl border border-brand-100 bg-white p-3 text-xs sm:text-sm text-slate-800 focus:border-brand-300 focus:outline-none transition"></textarea>
+            <div class="flex justify-end">
+              <button
+                type="button"
+                (click)="saveNotes()"
+                class="inline-flex h-8 items-center rounded-lg border border-brand-100 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-brand-50 shadow-sm transition">
+                Enregistrer
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Colonne Droite (Analyse IA & Match - 1 col) -->
+      <div class="space-y-4 sm:space-y-6">
+        <!-- Score Card -->
+        <div class="rounded-xl sm:rounded-2xl border border-brand-100 bg-white p-4 sm:p-6 shadow-sm">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xs sm:text-sm font-bold text-slate-900">Score de correspondance</h2>
+            <app-score-badge [score]="opportunity.score" size="lg" />
+          </div>
+
+          <div class="mt-4 rounded-xl border border-brand-100 bg-brand-50/50 p-3.5">
+            <p class="text-xs font-bold text-brand-700 flex items-center gap-1.5">
+              <svg class="h-3.5 w-3.5 text-brand-500 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+              </svg>
+              Analyse de l’adéquation
+            </p>
+            <p class="mt-1 text-xs leading-relaxed text-slate-700">
+              {{ matchExplanationText }}
+            </p>
+          </div>
+        </div>
+
+        <!-- CV Ciblé Card -->
+        <div class="rounded-xl sm:rounded-2xl border border-brand-100 bg-white p-4 sm:p-6 shadow-sm">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xs sm:text-sm font-bold text-slate-900">CV associé</h2>
+            <button type="button" (click)="openCvSelectModal()" class="text-xs font-bold text-brand-600 hover:underline">
+              Changer
+            </button>
+          </div>
+          <div class="mt-3 rounded-xl border border-brand-100 bg-brand-50/40 p-3">
+            <p class="text-xs font-bold text-slate-900 truncate">{{ selectedCvTitle }}</p>
+            <p class="text-2xs text-slate-400 mt-0.5 truncate">Modèle {{ selectedCvTemplate }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Choix du CV -->
+  <app-modal
+    *ngIf="cvModalOpen"
+    title="Sélectionner le CV pour cette offre"
+    (close)="closeCvSelectModal()">
+    <div class="space-y-2 max-h-60 overflow-y-auto">
+      <div
+        *ngFor="let cv of availableCvs"
+        (click)="selectCv(cv.id)"
+        [class]="'p-3 rounded-xl border cursor-pointer transition flex items-center justify-between ' + (selectedCvId === cv.id ? 'border-brand-600 bg-brand-50' : 'border-brand-100 hover:bg-brand-50/40')">
+        <div>
+          <p class="text-xs font-bold text-slate-900 truncate">{{ cv.title }}</p>
+          <p class="text-2xs text-slate-400 mt-0.5">Modèle {{ cv.template }}</p>
+        </div>
+        <span *ngIf="cv.isDefault" class="rounded-md bg-brand-100 px-2 py-0.5 text-2xs font-bold text-brand-700">
+          Défaut
+        </span>
+      </div>
+    </div>
+    <div slot="actions" class="flex justify-end gap-2 mt-4">
+      <app-button variant="secondary" (btnClick)="closeCvSelectModal()">Annuler</app-button>
+      <app-button variant="primary" (btnClick)="closeCvSelectModal()">Confirmer</app-button>
+    </div>
+  </app-modal>
+
+  <!-- Modal Lettre de Motivation -->
+  <app-modal
+    *ngIf="letterModalOpen"
+    title="Lettre de motivation générée"
+    (close)="closeLetterModal()">
+    <div *ngIf="coverLetterLoading" class="py-8 text-center text-xs text-slate-400">
+      Génération en cours…
+    </div>
+    <div *ngIf="!coverLetterLoading" class="whitespace-pre-line text-xs sm:text-sm text-slate-800 leading-relaxed max-h-80 overflow-y-auto p-1">
+      {{ coverLetterContent }}
+    </div>
+    <div slot="actions" class="flex justify-end gap-2 mt-4">
+      <app-button variant="secondary" (btnClick)="closeLetterModal()">Fermer</app-button>
+    </div>
+  </app-modal>
+</div>

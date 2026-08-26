@@ -1,0 +1,10 @@
+-- Migration V3 — Seed candidat par défaut
+--
+-- Ce seed était nécessaire avant l'implémentation de l'authentification JWT (V4)
+-- pour éviter des erreurs de contrainte FK sur les tables `cv` et `application`.
+--
+-- OBSOLÈTE depuis V4 : chaque candidat est désormais créé via l'endpoint
+-- POST /api/v1/auth/register avec email/mot de passe.
+-- Le cloisonnement des données est assuré par JWT (resolveCurrentCandidate()).
+--
+-- Le script est intentionnellement vide pour ne pas casser la chaîne Flyway.

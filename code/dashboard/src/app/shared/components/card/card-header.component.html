@@ -1,0 +1,9 @@
+<div [class]="'flex items-start justify-between gap-4 ' + customClass">
+  <div class="min-w-0">
+    <h2 class="text-[15px] font-semibold tracking-[-0.01em] text-ink">{{ title }}</h2>
+    <p *ngIf="description" class="mt-0.5 text-[13px] text-muted">{{ description }}</p>
+  </div>
+  <div class="shrink-0 flex items-center gap-2">
+    <ng-content select="[action]"></ng-content>
+  </div>
+</div>

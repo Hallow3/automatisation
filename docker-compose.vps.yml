@@ -50,6 +50,8 @@ services:
   weasyprint:
     image: python:3.12-slim
     container_name: weasyprint
+    ports:
+      - "5000:5000"
     restart: unless-stopped
     command: |
       sh -c "apt-get update && apt-get install -y libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf-xlib-2.0-0 libffi-dev shared-mime-info && pip install weasyprint flask --quiet && python -c \"
@@ -66,9 +68,8 @@ services:
       app.run(host='0.0.0.0', port=5000)
       \""
     expose:
-      - "5000"
-    networks:
-      - app-network
+      - "5000:5000"
+    networks: {}
 
   # --- OLLAMA (optionnel — décommenter si ton VPS a 16 Go+ RAM) ---
   # ollama:

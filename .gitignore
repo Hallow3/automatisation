@@ -1,14 +1,115 @@
-# Environnement
+# ── Environnement & Secrets (ne jamais committer) ──
 .env
 .env.*
+!.env.example
+!.env.example.*
+*.pem
+*.key
+*.crt
 
-# Données n8n locales (DB, logs, credentials chiffrés)
-n8n_data/
+# ── Données n8n locales (DB, logs, credentials chiffrés) ──
+/n8n_data/
 
-# Credentials en clair
-workflows/credentials/
-ressources/
+# Credentials en clair & ressources sensibles (seulement à la racine)
+/workflows/credentials/
+/ressources/
 
-# OS
+# ── Logs & sorties temporaires ──
+*.log
+build-output.txt
+ng-serve.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Scrap / dumps temporaires (fichiers de test locaux)
+doopinet.html
+*.dump
+code/backend/backup.sql
+*.h2.db
+*.mv.db
+*.trace.db
+
+# ── Docker overrides locaux ──
+local-docker-compose.yml
+docker-compose.override.yml
+
+# ── OS ──
 .DS_Store
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+.AppleDouble
+.LSOverride
+Icon
+
+# ── IDE ──
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.factorypath
+.settings/
+.springBeans
+.sts4-cache
+.apt_generated/
+nbproject/private/
+nbbuild/
+nbdist/
+/nbproject/load-impl.xml
+/nbproject/build-impl.xml
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/
+*.swp
+*.swo
+*~
+
+# ── Java / Maven ──
+target/
+code/backend/target/
+code/backend/.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+*.class
+*.jar
+*.war
+*.ear
+
+# ── Angular / Node ──
+node_modules/
+code/dashboard/node_modules/
+dist/
+code/dashboard/dist/
+tmp/
+code/dashboard/tmp/
+out-tsc/
+code/dashboard/out-tsc/
+.bazel-cache/
+/bazel-out
+.angular/
+code/dashboard/.angular/
+.sass-cache/
+coverage/
+code/dashboard/coverage/
+libpeerconnection.log
+typings/
+connect.lock
+.nyc_output/
+.parcel-cache/
+.cache/
+.turbo/
+npm-debug.log
+yarn-error.log
+
+# ── Misc ──
+*.tmp
+*.temp
+*.bak
+*.orig

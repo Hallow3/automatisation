@@ -1,0 +1,149 @@
+<div
+  [class]="'aspect-[1/1.414] w-full overflow-hidden rounded-md border border-slate-200 bg-white p-2.5 shadow-2xs ' + customClass"
+  aria-hidden="true">
+
+  <!-- Header-dark layout (Executive) -->
+  <div *ngIf="layout === 'header-dark'" class="flex h-full flex-col gap-1.5">
+    <div class="rounded-sm bg-slate-900 p-2 flex items-center justify-between">
+      <div class="space-y-1 w-2/3">
+        <span class="block h-1.5 w-3/4 rounded-xs bg-white"></span>
+        <span class="block h-1 w-1/2 rounded-xs" [style.backgroundColor]="accent"></span>
+      </div>
+      <span class="h-4 w-4 rounded-full border border-amber-400 bg-slate-800 shrink-0"></span>
+    </div>
+    <div class="flex-1 space-y-1.5 pt-1">
+      <span class="block h-1 w-1/4 rounded-xs" [style.backgroundColor]="accent"></span>
+      <span class="block h-1 w-full rounded-xs bg-slate-200"></span>
+      <span class="block h-1 w-5/6 rounded-xs bg-slate-200"></span>
+      <span class="mt-1 block h-1 w-1/4 rounded-xs" [style.backgroundColor]="accent"></span>
+      <span class="block h-1 w-full rounded-xs bg-slate-200"></span>
+      <span class="block h-1 w-4/5 rounded-xs bg-slate-200"></span>
+    </div>
+  </div>
+
+  <!-- Tech layout -->
+  <div *ngIf="layout === 'tech'" class="flex h-full flex-col gap-1.5">
+    <div class="border-b border-slate-200 pb-1.5 flex justify-between items-center">
+      <div class="space-y-1">
+        <span class="block h-2 w-28 rounded-xs bg-slate-800"></span>
+        <span class="block h-1 w-20 rounded-xs" [style.backgroundColor]="accent"></span>
+      </div>
+      <span class="h-3 w-8 rounded-xs bg-indigo-50 border border-indigo-200"></span>
+    </div>
+    <div class="flex gap-1 py-0.5">
+      <span class="h-1.5 w-6 rounded-xs bg-indigo-100"></span>
+      <span class="h-1.5 w-8 rounded-xs bg-indigo-100"></span>
+      <span class="h-1.5 w-6 rounded-xs bg-indigo-100"></span>
+    </div>
+    <div class="flex-1 space-y-1 pt-0.5">
+      <span class="block h-1 w-8 rounded-xs" [style.backgroundColor]="accent"></span>
+      <span class="block h-1 w-full rounded-xs bg-slate-200"></span>
+      <span class="block h-1 w-5/6 rounded-xs bg-slate-200"></span>
+      <span class="block h-1 w-8 rounded-xs" [style.backgroundColor]="accent"></span>
+      <span class="block h-1 w-full rounded-xs bg-slate-200"></span>
+    </div>
+  </div>
+
+  <!-- Minimal layout -->
+  <div *ngIf="layout === 'minimal'" class="flex h-full flex-col gap-2 p-1">
+    <div class="text-center space-y-1 border-b border-slate-100 pb-2">
+      <span class="mx-auto block h-1.5 w-24 rounded-xs bg-slate-700"></span>
+      <span class="mx-auto block h-1 w-16 rounded-xs" [style.backgroundColor]="accent"></span>
+    </div>
+    <div class="space-y-2 flex-1">
+      <div class="space-y-1">
+        <span class="block h-1 w-12 rounded-xs" [style.backgroundColor]="accent"></span>
+        <span class="block h-1 w-full rounded-xs bg-slate-200"></span>
+        <span class="block h-1 w-4/5 rounded-xs bg-slate-100"></span>
+      </div>
+      <div class="space-y-1">
+        <span class="block h-1 w-12 rounded-xs" [style.backgroundColor]="accent"></span>
+        <span class="block h-1 w-full rounded-xs bg-slate-200"></span>
+        <span class="block h-1 w-3/4 rounded-xs bg-slate-100"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Corporate / Prestige layout -->
+  <div *ngIf="layout === 'corporate'" class="flex h-full flex-col gap-1.5 border border-amber-200/60 p-1.5 rounded-xs">
+    <div class="border-b border-amber-300 pb-1.5">
+      <span class="block h-2 w-32 rounded-xs bg-slate-900"></span>
+      <span class="mt-0.5 block h-1 w-20 rounded-xs text-amber-700" [style.backgroundColor]="accent"></span>
+    </div>
+    <div class="flex-1 space-y-1.5">
+      <span class="block h-1 w-10 rounded-xs" [style.backgroundColor]="accent"></span>
+      <span class="block h-1 w-full rounded-xs bg-slate-200"></span>
+      <span class="block h-1 w-11/12 rounded-xs bg-slate-200"></span>
+      <span class="block h-1 w-10 rounded-xs" [style.backgroundColor]="accent"></span>
+      <span class="block h-1 w-full rounded-xs bg-slate-200"></span>
+    </div>
+  </div>
+
+  <!-- Sidebar layout -->
+  <div *ngIf="layout === 'sidebar'" class="flex h-full gap-2">
+    <div class="flex w-1/3 flex-col gap-1.5 rounded-xs p-1.5" [style.backgroundColor]="accent + '18'">
+      <span class="h-5 w-5 rounded-full" [style.backgroundColor]="accent"></span>
+      <span class="block h-1 rounded-xs bg-slate-400 w-[80%]"></span>
+      <span class="block h-1 rounded-xs bg-slate-200 w-[60%]"></span>
+      <span class="mt-1 block h-1 w-8 rounded-xs" [style.backgroundColor]="accent"></span>
+      <span class="block h-1 rounded-xs bg-slate-200 w-[90%]"></span>
+      <span class="block h-1 rounded-xs bg-slate-200 w-[70%]"></span>
+      <span class="block h-1 rounded-xs bg-slate-200 w-[85%]"></span>
+    </div>
+    <div class="flex flex-1 flex-col gap-1.5">
+      <span class="block h-1.5 rounded-xs bg-slate-700 w-[70%]"></span>
+      <span class="block h-1 rounded-xs bg-slate-300 w-[45%]"></span>
+      <span class="mt-1 block h-1 w-8 rounded-xs" [style.backgroundColor]="accent"></span>
+      <span class="block h-1 rounded-xs bg-slate-200 w-[100%]"></span>
+      <span class="block h-1 rounded-xs bg-slate-200 w-[95%]"></span>
+      <span class="block h-1 rounded-xs bg-slate-200 w-[88%]"></span>
+      <span class="mt-1 block h-1 w-8 rounded-xs" [style.backgroundColor]="accent"></span>
+      <span class="block h-1 rounded-xs bg-slate-200 w-[100%]"></span>
+      <span class="block h-1 rounded-xs bg-slate-200 w-[80%]"></span>
+    </div>
+  </div>
+
+  <!-- Editorial layout -->
+  <div *ngIf="layout === 'editorial'" class="flex h-full flex-col gap-1.5">
+    <div class="border-b-2 pb-1.5" [style.borderColor]="accent">
+      <span class="block h-2 w-2/3 rounded-xs bg-slate-900"></span>
+      <span class="mt-0.5 block h-1 w-1/3 rounded-xs" [style.backgroundColor]="accent"></span>
+    </div>
+    <div class="grid flex-1 grid-cols-3 gap-1.5">
+      <div class="col-span-2 flex flex-col gap-1">
+        <span class="block h-1 rounded-xs bg-slate-600 w-[40%]"></span>
+        <span class="block h-1 rounded-xs bg-slate-200 w-[100%]"></span>
+        <span class="block h-1 rounded-xs bg-slate-200 w-[94%]"></span>
+        <span class="block h-1 rounded-xs bg-slate-200 w-[88%]"></span>
+        <span class="mt-0.5 block h-1 rounded-xs bg-slate-600 w-[40%]"></span>
+        <span class="block h-1 rounded-xs bg-slate-200 w-[100%]"></span>
+        <span class="block h-1 rounded-xs bg-slate-200 w-[82%]"></span>
+      </div>
+      <div class="flex flex-col gap-1 bg-slate-50 p-1 rounded-xs">
+        <span class="block h-1 rounded-xs bg-slate-600 w-[70%]"></span>
+        <span class="block h-1 rounded-xs bg-slate-200 w-[100%]"></span>
+        <span class="block h-1 rounded-xs bg-slate-200 w-[80%]"></span>
+        <span class="block h-1 rounded-xs bg-slate-200 w-[90%]"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Classic / Compact layout -->
+  <div *ngIf="layout === 'classic' || layout === 'compact'" class="flex h-full flex-col gap-1.5">
+    <span class="block h-2 w-1/2 rounded-xs bg-slate-800"></span>
+    <span class="block h-1 rounded-xs bg-slate-400 w-[35%]"></span>
+    <span class="my-0.5 block h-px w-full bg-slate-200"></span>
+    <span class="block h-1 w-8 rounded-xs" [style.backgroundColor]="accent"></span>
+    <span class="block h-1 rounded-xs bg-slate-200 w-[100%]"></span>
+    <span class="block h-1 rounded-xs bg-slate-200 w-[92%]"></span>
+    <span *ngIf="layout !== 'compact'" class="block h-1 rounded-xs bg-slate-200 w-[86%]"></span>
+    <span class="mt-0.5 block h-1 w-8 rounded-xs" [style.backgroundColor]="accent"></span>
+    <span class="block h-1 rounded-xs bg-slate-200 w-[100%]"></span>
+    <span class="block h-1 rounded-xs bg-slate-200 w-[90%]"></span>
+    <div class="flex flex-wrap gap-1 mt-0.5">
+      <span class="h-1.5 w-[16px] rounded-xs bg-slate-100"></span>
+      <span class="h-1.5 w-[22px] rounded-xs bg-slate-100"></span>
+      <span class="h-1.5 w-[18px] rounded-xs bg-slate-100"></span>
+    </div>
+  </div>
+</div>

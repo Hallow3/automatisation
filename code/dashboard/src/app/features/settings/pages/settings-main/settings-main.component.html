@@ -1,0 +1,136 @@
+<div class="space-y-4 sm:space-y-6 p-3 sm:p-6 lg:p-8 max-w-full overflow-hidden">
+  <!-- Page Header -->
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div class="min-w-0">
+      <h1 class="text-lg sm:text-xl font-bold text-slate-900 truncate">Paramètres</h1>
+      <p class="text-xs text-slate-400 mt-0.5 truncate">Gérez les préférences du système, les seuils d’automatisation et vos intégrations.</p>
+    </div>
+
+    <div class="flex items-center gap-2 shrink-0">
+      <app-button variant="primary" (btnClick)="saveSettings()">
+        Enregistrer
+      </app-button>
+    </div>
+  </div>
+
+  <!-- Settings Navigation Tabs -->
+  <div class="rounded-xl sm:rounded-2xl border border-brand-100 bg-white px-3 pt-1 shadow-sm">
+    <app-tabs
+      [items]="tabs"
+      [value]="activeTab"
+      (tabChange)="setTab($event)" />
+  </div>
+
+  <!-- TAB: Notifications -->
+  <div *ngIf="activeTab === 'notifications'" class="space-y-4 sm:space-y-6">
+    <div class="rounded-xl sm:rounded-2xl border border-brand-100 bg-white p-4 sm:p-6 shadow-sm">
+      <h2 class="text-sm font-bold text-slate-900">Notifications & Alertes</h2>
+      <p class="text-xs text-slate-400 mt-0.5">Choisissez comment et quand vous souhaitez être notifié(e).</p>
+
+      <div class="mt-4 divide-y divide-brand-50">
+        <div class="flex items-center justify-between py-3">
+          <div class="min-w-0 pr-4">
+            <p class="text-xs sm:text-sm font-semibold text-slate-900 truncate">Nouvelles opportunités qualifiées</p>
+            <p class="text-2xs sm:text-xs text-slate-400 truncate">Recevoir une alerte lorsqu’une offre correspond à votre profil.</p>
+          </div>
+          <input type="checkbox" [(ngModel)]="notifications.emailNewOpportunities" class="h-4 w-4 rounded border-brand-200 text-brand-600 focus:ring-brand-500 shrink-0" />
+        </div>
+
+        <div class="flex items-center justify-between py-3">
+          <div class="min-w-0 pr-4">
+            <p class="text-xs sm:text-sm font-semibold text-slate-900 truncate">Rappels de candidature</p>
+            <p class="text-2xs sm:text-xs text-slate-400 truncate">Recevoir un rappel après plusieurs jours sans réponse.</p>
+          </div>
+          <input type="checkbox" [(ngModel)]="notifications.emailWeeklyReport" class="h-4 w-4 rounded border-brand-200 text-brand-600 focus:ring-brand-500 shrink-0" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: Automatisations & Intégrations -->
+  <div *ngIf="activeTab === 'automations'" class="space-y-4 sm:space-y-6">
+    <div class="rounded-xl sm:rounded-2xl border border-brand-100 bg-white p-4 sm:p-6 shadow-sm">
+      <h2 class="text-sm font-bold text-slate-900">Intégrations de flux & Scrapers</h2>
+      <p class="text-xs text-slate-400 mt-0.5">Connectez vos outils d’automatisation et plateformes de recrutement.</p>
+
+      <div class="mt-4 space-y-3">
+        <!-- n8n row -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-brand-100 bg-brand-50/30 p-3.5">
+          <div class="flex items-center gap-3 min-w-0">
+            <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-100 text-brand-700 font-bold text-xs shrink-0">
+              n8n
+            </span>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <p class="text-xs sm:text-sm font-bold text-slate-900 truncate">n8n Automation</p>
+                <span class="rounded-md bg-emerald-50 text-emerald-700 px-1.5 py-0.5 text-2xs font-bold ring-1 ring-emerald-200/50 shrink-0">Connecté</span>
+              </div>
+              <p class="text-2xs sm:text-xs text-slate-400 truncate">Automatise vos recherches et traitements d’offres.</p>
+            </div>
+          </div>
+          <app-button variant="secondary" size="sm" customClass="shrink-0">Configurer</app-button>
+        </div>
+
+        <!-- LinkedIn row -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-brand-100 bg-brand-50/30 p-3.5">
+          <div class="flex items-center gap-3 min-w-0">
+            <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50 text-brand-700 font-bold text-xs shrink-0 border border-brand-100">
+              in
+            </span>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <p class="text-xs sm:text-sm font-bold text-slate-900 truncate">LinkedIn</p>
+                <span class="rounded-md bg-slate-100 text-slate-600 px-1.5 py-0.5 text-2xs font-bold shrink-0">Actif</span>
+              </div>
+              <p class="text-2xs sm:text-xs text-slate-400 truncate">Recherche d’opportunités en continu.</p>
+            </div>
+          </div>
+          <app-button variant="secondary" size="sm" customClass="shrink-0">Paramètres</app-button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: Compte & Danger Zone -->
+  <div *ngIf="activeTab === 'account'" class="space-y-4 sm:space-y-6">
+    <div class="rounded-xl sm:rounded-2xl border border-brand-100 bg-white p-4 sm:p-6 shadow-sm">
+      <h2 class="text-sm font-bold text-slate-900">Informations du compte</h2>
+      <p class="text-xs text-slate-400 mt-0.5">Identifiants et formule active.</p>
+
+      <div class="mt-4 space-y-3.5 max-w-md">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700">Adresse email</label>
+          <input
+            type="email"
+            value="lea.bernard@mail.com"
+            disabled
+            class="mt-1 w-full rounded-xl border border-brand-100 bg-brand-50/50 px-3 py-2 text-xs sm:text-sm text-slate-500" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700">Formule actuelle</label>
+          <div class="mt-1 flex items-center justify-between rounded-xl border border-brand-100 bg-brand-50/40 p-3">
+            <div>
+              <p class="text-xs sm:text-sm font-bold text-slate-900">Formule Pro (Illimité)</p>
+              <p class="text-2xs text-slate-400">Renouvellement automatique</p>
+            </div>
+            <span class="rounded-full bg-brand-100 text-brand-700 px-2.5 py-0.5 text-2xs font-bold">Actif</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Danger Zone -->
+    <div class="rounded-xl sm:rounded-2xl border border-rose-100 bg-rose-50/30 p-4 sm:p-6">
+      <h2 class="text-sm font-bold text-rose-800">Zone de danger</h2>
+      <p class="text-xs text-rose-600 mt-0.5">Actions irréversibles relatives à votre compte.</p>
+
+      <div class="mt-4 flex items-center justify-between">
+        <div>
+          <p class="text-xs sm:text-sm font-semibold text-slate-900">Supprimer mon compte</p>
+          <p class="text-2xs sm:text-xs text-slate-400">Supprime définitivement toutes vos données et vos CVs.</p>
+        </div>
+        <app-button variant="destructive" size="sm">Supprimer</app-button>
+      </div>
+    </div>
+  </div>
+</div>

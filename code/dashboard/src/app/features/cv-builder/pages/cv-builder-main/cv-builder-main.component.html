@@ -1,0 +1,1311 @@
+<div class="space-y-6">
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       PHASE 1 : CHOIX DU MODÈLE (Galerie Multi-modèles & Pagination)
+  ═════════════════════════════════════════════════════════════════════════ -->
+  <div *ngIf="currentPhase === 'templates'" class="space-y-6">
+    
+    <!-- Top Header + Search Bar (Style Microsoft/Canva) -->
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2 text-2xs font-semibold text-slate-500 mb-1">
+            <a routerLink="/cvs" class="hover:text-brand-600 transition">Accueil</a>
+            <span>/</span>
+            <span class="text-slate-900 font-bold">Nouveau CV</span>
+          </div>
+          <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+            Galerie de Modèles de CV
+          </h1>
+          <p class="mt-1 text-xs sm:text-sm text-slate-600">
+            Sélectionnez une structure adaptée à votre niveau d'expérience (Junior, Confirmé, Senior, Exécutif) et votre secteur.
+          </p>
+        </div>
+
+        <!-- Search Input with icon -->
+        <div class="relative w-full md:w-80 shrink-0">
+          <svg class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            type="text"
+            [ngModel]="searchTemplateQuery()"
+            (ngModelChange)="onSearchTemplateChange($event)"
+            placeholder="Rechercher un modèle (senior, tech...)"
+            class="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-9 py-2 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100 transition shadow-2xs" />
+          <button
+            *ngIf="searchTemplateQuery()"
+            type="button"
+            (click)="onSearchTemplateChange('')"
+            class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+            ✕
+          </button>
+        </div>
+      </div>
+
+      <!-- Categories Filter Tabs (Scrollable on mobile) -->
+      <div class="mt-5 pt-4 border-t border-slate-100 flex items-center gap-2 overflow-x-auto scroll-slim pb-1">
+        <button
+          *ngFor="let cat of templateCategories"
+          type="button"
+          (click)="selectCategory(cat.id)"
+          [class]="'inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 py-1.5 text-xs font-bold transition shrink-0 ' + (selectedCategory() === cat.id ? 'bg-brand-600 text-white shadow-brand' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900')">
+          <span>{{ cat.label }}</span>
+          <span *ngIf="cat.id === 'all'" class="rounded-full bg-white/20 px-1.5 py-0.2 text-3xs font-bold">12</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Empty State if no template matches search -->
+    <div *ngIf="filteredTemplates().length === 0" class="rounded-2xl border border-slate-200 bg-white p-12 text-center">
+      <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 mb-3 text-xl">
+        🔍
+      </div>
+      <h3 class="text-sm font-bold text-slate-900">Aucun modèle ne correspond à votre recherche</h3>
+      <p class="mt-1 text-xs text-slate-500">Essayez un autre mot-clé ou réinitialisez les filtres.</p>
+      <button
+        type="button"
+        (click)="selectCategory('all'); onSearchTemplateChange('')"
+        class="mt-4 inline-flex items-center rounded-xl bg-slate-100 hover:bg-slate-200 px-4 py-2 text-xs font-bold text-slate-700 transition">
+        Réinitialiser les filtres
+      </button>
+    </div>
+
+    <!-- Template Cards Grid (Responsive 1/2/3 cols) -->
+    <div *ngIf="filteredTemplates().length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+      <div
+        *ngFor="let t of paginatedTemplates()"
+        (click)="selectTemplate(t.id)"
+        [class]="'group relative flex flex-col justify-between cursor-pointer rounded-2xl bg-white p-4 transition-all duration-200 ease-out shadow-xs hover:shadow-md ' + (selectedTemplate() === t.id ? 'border-2 border-brand-600 ring-4 ring-brand-50' : 'border border-slate-200 hover:border-brand-300')">
+        
+        <!-- Selection Badge -->
+        <div *ngIf="selectedTemplate() === t.id" class="absolute -top-3 right-4 z-10">
+          <span class="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-600 to-brand-500 px-3 py-1 text-2xs font-bold text-white shadow-brand">
+            <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            Modèle sélectionné
+          </span>
+        </div>
+
+        <div>
+          <!-- Miniature CV Preview Canvas -->
+          <div class="relative overflow-hidden rounded-xl bg-slate-50 p-2.5 border border-slate-100 transition-transform group-hover:scale-[1.01]">
+            <app-cv-thumbnail [layout]="t.layout" [accent]="t.accent" />
+            
+            <!-- Category / Level Badge -->
+            <div class="absolute top-4 left-4">
+              <span [class]="'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-bold shadow-2xs ' + (t.category === 'senior' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-white/95 text-slate-800 border border-slate-200 backdrop-blur-xs')">
+                {{ t.badge }}
+              </span>
+            </div>
+
+            <!-- Page hint -->
+            <div class="absolute bottom-4 right-4">
+              <span class="rounded-md bg-slate-900/80 backdrop-blur-xs px-2 py-0.5 text-3xs font-bold text-white shadow-2xs">
+                📄 {{ t.pages }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Info -->
+          <div class="mt-4">
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="text-base font-bold text-slate-900 group-hover:text-brand-600 transition truncate">
+                {{ t.name }}
+              </h3>
+            </div>
+            <p class="mt-0.5 text-xs font-semibold text-brand-600 truncate">{{ t.tag }}</p>
+            <p class="mt-1.5 text-xs leading-relaxed text-slate-500 line-clamp-2">{{ t.description }}</p>
+
+            <!-- Key Features -->
+            <ul class="mt-3 space-y-1 border-t border-slate-100 pt-2.5">
+              <li *ngFor="let f of t.features" class="flex items-center gap-1.5 text-2xs text-slate-600 truncate">
+                <svg class="h-3.5 w-3.5 text-emerald-500 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                <span class="truncate">{{ f }}</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Card bottom CTA -->
+        <div class="mt-4 pt-3 border-t border-slate-100">
+          <button
+            type="button"
+            (click)="$event.stopPropagation(); selectTemplate(t.id); goToEditor()"
+            [class]="'w-full inline-flex items-center justify-center gap-2 rounded-xl py-2 px-3 text-xs font-bold transition ' + (selectedTemplate() === t.id ? 'bg-brand-600 text-white shadow-brand hover:bg-brand-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200')">
+            <span>{{ selectedTemplate() === t.id ? 'Créer avec ce modèle →' : 'Choisir & Éditer' }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pagination Bar (Mobile First) -->
+    <div *ngIf="totalTemplatePages() > 1" class="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+      <p class="text-xs text-slate-500 font-medium">
+        Page <span class="font-bold text-slate-900">{{ templatePage() }}</span> sur <span class="font-bold text-slate-900">{{ totalTemplatePages() }}</span> ({{ filteredTemplates().length }} modèles au total)
+      </p>
+
+      <div class="flex items-center gap-1.5">
+        <button
+          type="button"
+          (click)="prevTemplatePage()"
+          [disabled]="templatePage() === 1"
+          class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition">
+          ← Précédent
+        </button>
+
+        <button
+          *ngFor="let p of templatePagesArray()"
+          type="button"
+          (click)="goToTemplatePage(p)"
+          [class]="'flex h-8 w-8 items-center justify-center rounded-xl text-xs font-bold transition ' + (templatePage() === p ? 'bg-brand-600 text-white shadow-brand' : 'bg-slate-100 text-slate-700 hover:bg-slate-200')">
+          {{ p }}
+        </button>
+
+        <button
+          type="button"
+          (click)="nextTemplatePage()"
+          [disabled]="templatePage() === totalTemplatePages()"
+          class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition">
+          Suivant →
+        </button>
+      </div>
+    </div>
+
+    <!-- Bottom Actions Toolbar (Floating / Responsive) -->
+    <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+      <a routerLink="/cvs" class="inline-flex h-9 items-center rounded-xl border border-slate-200 bg-white px-3.5 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
+        ← Mes CV
+      </a>
+
+      <div class="flex flex-wrap items-center gap-2 sm:gap-2.5">
+        <input
+          #fileInputBuilder
+          type="file"
+          accept=".pdf,.png,.jpg,.jpeg"
+          (change)="onFileSelected($event)"
+          class="hidden" />
+
+        <button
+          type="button"
+          (click)="fileInputBuilder.click()"
+          [disabled]="isImporting()"
+          class="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3.5 text-xs sm:text-sm font-semibold text-slate-700 shadow-2xs transition disabled:opacity-50">
+          <svg class="h-4 w-4 text-brand-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+          </svg>
+          {{ isImporting() ? 'Analyse en cours…' : 'Importer un CV' }}
+        </button>
+
+        <button
+          type="button"
+          (click)="goToEditor()"
+          class="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 px-3.5 text-xs sm:text-sm font-semibold text-slate-800 transition">
+          ✏️ Saisie manuelle
+        </button>
+
+        <button
+          type="button"
+          (click)="setPhase('wizard')"
+          class="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-amber-500 bg-amber-500 hover:bg-amber-600 px-3.5 text-xs sm:text-sm font-semibold text-white shadow-2xs transition">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+          </svg>
+          ✨ Questionnaire IA (Sans Micro)
+        </button>
+
+        <button
+          type="button"
+          (click)="setPhase('voice')"
+          class="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 px-4 text-xs sm:text-sm font-bold text-white shadow-brand transition">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+          </svg>
+          🎙️ Entretien Vocal IA
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       PHASE WIZARD : QUESTIONNAIRE IA GUIDÉ SANS MICRO (Chantier C)
+  ═════════════════════════════════════════════════════════════════════════ -->
+  <div *ngIf="currentPhase === 'wizard'" class="space-y-6 max-w-4xl mx-auto">
+    <!-- Wizard Header & Progress -->
+    <div class="rounded-2xl border border-border-default bg-surface-card p-5 shadow-card">
+      <div class="flex items-center justify-between gap-4 mb-4">
+        <div>
+          <span class="inline-flex items-center gap-1 rounded-full bg-brand-orange-50 px-2.5 py-0.5 text-2xs font-bold text-brand-orange-600">
+            ✨ Assistant Guidé IA
+          </span>
+          <h2 class="text-base sm:text-lg font-bold text-text-primary mt-1">
+            Étape {{ currentWizardStep() }} sur {{ wizardTotalSteps }} :
+            <span *ngIf="currentWizardStep() === 1">Vos coordonnées & Objectif</span>
+            <span *ngIf="currentWizardStep() === 2">Vos expériences professionnelles</span>
+            <span *ngIf="currentWizardStep() === 3">Votre formation & diplômes</span>
+            <span *ngIf="currentWizardStep() === 4">Vos compétences & langues</span>
+            <span *ngIf="currentWizardStep() === 5">Pitch & Résumé de votre profil</span>
+          </h2>
+        </div>
+        <button
+          type="button"
+          (click)="finishWizard()"
+          class="text-xs font-semibold text-text-muted hover:text-brand-navy-900 underline">
+          Passer directement à l'éditeur
+        </button>
+      </div>
+
+      <!-- Progress Bar -->
+      <div class="h-2 w-full overflow-hidden rounded-full bg-surface-soft">
+        <div
+          class="h-full bg-gradient-to-r from-brand-orange-500 to-brand-orange-600 transition-all duration-300"
+          [style.width.%]="(currentWizardStep() / wizardTotalSteps) * 100">
+        </div>
+      </div>
+    </div>
+
+    <!-- Wizard Form Content -->
+    <div class="rounded-2xl border border-border-default bg-white p-6 shadow-sm space-y-6" [formGroup]="editor.form">
+      
+      <!-- Étape 1 : Identité & Objectif -->
+      <div *ngIf="currentWizardStep() === 1" class="space-y-4">
+        <p class="text-xs text-text-muted">Indiquez vos informations de base pour en-tête de votre CV.</p>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2" formGroupName="identity">
+          <div>
+            <label class="block text-xs font-bold text-text-primary mb-1">Nom complet *</label>
+            <input type="text" formControlName="fullName" placeholder="Ex: Alex Moreau" class="w-full rounded-input border border-border-strong px-3 py-2 text-xs focus:border-brand-navy-700 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-text-primary mb-1">Email professionnel *</label>
+            <input type="email" formControlName="email" placeholder="alex.moreau@email.com" class="w-full rounded-input border border-border-strong px-3 py-2 text-xs focus:border-brand-navy-700 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-text-primary mb-1">Téléphone</label>
+            <input type="tel" formControlName="phone" placeholder="+33 6 12 34 56 78" class="w-full rounded-input border border-border-strong px-3 py-2 text-xs focus:border-brand-navy-700 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-text-primary mb-1">Ville / Région</label>
+            <input type="text" formControlName="city" placeholder="Paris, France" class="w-full rounded-input border border-border-strong px-3 py-2 text-xs focus:border-brand-navy-700 focus:outline-none" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-text-primary mb-1">Poste ou titre ciblé *</label>
+          <input type="text" formControlName="headline" placeholder="Ex: Développeur Full Stack Senior | Angular & Java" class="w-full rounded-input border border-border-strong px-3 py-2 text-xs focus:border-brand-navy-700 focus:outline-none" />
+        </div>
+      </div>
+
+      <!-- Étape 2 : Expériences -->
+      <div *ngIf="currentWizardStep() === 2" class="space-y-4">
+        <div class="flex items-center justify-between">
+          <p class="text-xs text-text-muted">Décrivez vos postes récents et vos missions majeures.</p>
+          <button type="button" (click)="addExperience()" class="inline-flex items-center gap-1 text-xs font-bold text-brand-navy-800 hover:underline">
+            + Ajouter un poste
+          </button>
+        </div>
+
+        <div formArrayName="experiences" class="space-y-4">
+          <div *ngFor="let exp of experiences.controls; let i = index" [formGroupName]="i" class="rounded-xl border border-border-default bg-surface-soft/60 p-4 space-y-3">
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-bold text-text-primary">Poste #{{ i + 1 }}</span>
+              <button type="button" (click)="removeExperience(i)" class="text-xs text-danger hover:underline">Supprimer</button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-2xs font-semibold text-text-muted mb-0.5">Intitulé du poste</label>
+                <input type="text" formControlName="position" placeholder="Ex: Ingénieur Logiciel" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
+              </div>
+              <div>
+                <label class="block text-2xs font-semibold text-text-muted mb-0.5">Entreprise</label>
+                <input type="text" formControlName="company" placeholder="Ex: TechCorp" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
+              </div>
+              <div>
+                <label class="block text-2xs font-semibold text-text-muted mb-0.5">Date début</label>
+                <input type="text" formControlName="startDate" placeholder="Ex: Janv 2022" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
+              </div>
+              <div>
+                <label class="block text-2xs font-semibold text-text-muted mb-0.5">Date fin</label>
+                <input type="text" formControlName="endDate" placeholder="Ex: Présent" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between items-center mb-1">
+                <label class="text-2xs font-semibold text-text-muted">Réalisations & responsabilités</label>
+                <button type="button" (click)="addResponsibility(i)" class="text-2xs font-bold text-brand-navy-800 hover:underline">+ Ajouter une puce</button>
+              </div>
+              <div formArrayName="responsibilities" class="space-y-1.5">
+                <div *ngFor="let _ of getResponsibilities(i).controls; let ri = index" class="flex gap-2">
+                  <input type="text" [formControlName]="ri" placeholder="Ex: Développement d'une architecture microservices..." class="flex-1 rounded-input border border-border-strong px-2.5 py-1 text-xs bg-white" />
+                  <button type="button" (click)="removeResponsibility(i, ri)" class="text-xs text-text-muted hover:text-danger px-1">✕</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div *ngIf="experiences.length === 0" class="py-6 text-center border-2 border-dashed border-border-default rounded-xl">
+            <p class="text-xs text-text-muted">Aucune expérience ajoutée pour l'instant.</p>
+            <button type="button" (click)="addExperience()" class="mt-2 text-xs font-bold text-brand-navy-800 hover:underline">+ Ajouter votre première expérience</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Étape 3 : Formation -->
+      <div *ngIf="currentWizardStep() === 3" class="space-y-4">
+        <div class="flex items-center justify-between">
+          <p class="text-xs text-text-muted">Vos diplômes, certifications ou formations clés.</p>
+          <button type="button" (click)="addEducation()" class="inline-flex items-center gap-1 text-xs font-bold text-brand-navy-800 hover:underline">
+            + Ajouter une formation
+          </button>
+        </div>
+
+        <div formArrayName="education" class="space-y-3">
+          <div *ngFor="let edu of education.controls; let i = index" [formGroupName]="i" class="rounded-xl border border-border-default bg-surface-soft/60 p-4 space-y-3">
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-bold text-text-primary">Formation #{{ i + 1 }}</span>
+              <button type="button" (click)="removeEducation(i)" class="text-xs text-danger hover:underline">Supprimer</button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-2xs font-semibold text-text-muted mb-0.5">Diplôme / Titre</label>
+                <input type="text" formControlName="degree" placeholder="Ex: Master Informatique" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
+              </div>
+              <div>
+                <label class="block text-2xs font-semibold text-text-muted mb-0.5">École / Université</label>
+                <input type="text" formControlName="school" placeholder="Ex: Université Paris Cité" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
+              </div>
+              <div>
+                <label class="block text-2xs font-semibold text-text-muted mb-0.5">Année ou Période</label>
+                <input type="text" formControlName="year" placeholder="Ex: 2020 - 2022" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
+              </div>
+            </div>
+          </div>
+          <div *ngIf="education.length === 0" class="py-6 text-center border-2 border-dashed border-border-default rounded-xl">
+            <p class="text-xs text-text-muted">Aucune formation ajoutée.</p>
+            <button type="button" (click)="addEducation()" class="mt-2 text-xs font-bold text-brand-navy-800 hover:underline">+ Ajouter une formation</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Étape 4 : Compétences & Langues -->
+      <div *ngIf="currentWizardStep() === 4" class="space-y-5">
+        <div>
+          <label class="block text-xs font-bold text-text-primary mb-1">Compétences techniques & professionnelles</label>
+          <div class="flex gap-2 mb-2">
+            <input type="text" [(ngModel)]="newSkillInput" [ngModelOptions]="{standalone: true}" placeholder="Ex: TypeScript, Spring Boot, Docker..." (keydown.enter)="addSkill()" class="flex-1 rounded-input border border-border-strong px-3 py-1.5 text-xs" />
+            <app-button size="sm" variant="secondary" (btnClick)="addSkill()">Ajouter</app-button>
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            <span *ngFor="let s of skills.controls; let i = index" class="inline-flex items-center gap-1.5 rounded-pill bg-surface-soft border border-border-default px-2.5 py-1 text-xs text-text-primary font-medium">
+              {{ s.value }}
+              <button type="button" (click)="removeSkill(i)" class="text-text-muted hover:text-danger">✕</button>
+            </span>
+          </div>
+        </div>
+
+        <div class="border-t border-border-default pt-4">
+          <div class="flex justify-between items-center mb-2">
+            <label class="block text-xs font-bold text-text-primary">Langues pratiquées</label>
+            <button type="button" (click)="addLanguage()" class="text-xs font-bold text-brand-navy-800 hover:underline">+ Ajouter une langue</button>
+          </div>
+          <div formArrayName="languages" class="space-y-2">
+            <div *ngFor="let _ of languages.controls; let i = index" [formGroupName]="i" class="flex gap-3 items-center">
+              <input type="text" formControlName="lang" placeholder="Ex: Anglais" class="flex-1 rounded-input border border-border-strong px-2.5 py-1.5 text-xs" />
+              <input type="text" formControlName="level" placeholder="Ex: Courant (C1)" class="w-40 rounded-input border border-border-strong px-2.5 py-1.5 text-xs" />
+              <button type="button" (click)="removeLanguage(i)" class="text-xs text-danger hover:underline px-1">Supprimer</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Étape 5 : Résumé / Pitch -->
+      <div *ngIf="currentWizardStep() === 5" class="space-y-4">
+        <div class="flex justify-between items-center">
+          <div>
+            <label class="block text-xs font-bold text-text-primary">Résumé professionnel / Profil</label>
+            <p class="text-2xs text-text-muted">Présentez votre valeur ajoutée et vos points forts en 3-4 lignes.</p>
+          </div>
+          <button
+            type="button"
+            (click)="sendAiMessage('Rédige une accroche professionnelle percutante de 3 phrases pour mon profil')"
+            class="inline-flex items-center gap-1 rounded-btn border border-brand-orange-500 bg-brand-orange-50 px-2.5 py-1 text-2xs font-bold text-brand-orange-700 hover:bg-brand-orange-100">
+            ⚡ Rédiger avec l'IA
+          </button>
+        </div>
+        <textarea
+          formControlName="summary"
+          rows="4"
+          placeholder="Ex: Développeur full-stack passionné avec 5 ans d'expérience dans la conception d'applications web scalables..."
+          class="w-full rounded-input border border-border-strong p-3 text-xs leading-relaxed focus:border-brand-navy-700 focus:outline-none"></textarea>
+      </div>
+
+      <!-- Wizard Navigation Buttons -->
+      <div class="flex items-center justify-between pt-4 border-t border-border-default">
+        <button
+          type="button"
+          *ngIf="currentWizardStep() > 1"
+          (click)="prevWizardStep()"
+          class="inline-flex h-8 sm:h-9 items-center rounded-xl border border-border-default bg-white px-4 text-xs font-semibold text-text-primary hover:bg-surface-soft">
+          ← Précédent
+        </button>
+        <span *ngIf="currentWizardStep() === 1"></span>
+
+        <button
+          type="button"
+          (click)="nextWizardStep()"
+          class="inline-flex h-8 sm:h-9 items-center justify-center gap-2 rounded-xl bg-brand-navy-900 hover:bg-brand-navy-800 px-5 text-xs sm:text-sm font-semibold text-white shadow-md transition">
+          {{ currentWizardStep() === wizardTotalSteps ? 'Finaliser et ouvrir l’éditeur →' : 'Étape suivante →' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       PHASE 2 : ÉDITEUR SPLIT-SCREEN (Section 18)
+  ═════════════════════════════════════════════════════════════════════════ -->
+  <div *ngIf="currentPhase === 'editor'" class="space-y-4 pb-24 lg:pb-0">
+    <!-- Editor Header Toolbar -->
+    <div class="rounded-[15px] border border-border-default bg-surface-card p-3.5 sm:px-4 sm:py-3 shadow-card space-y-2.5 sm:space-y-0 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
+      <div class="flex items-center justify-between sm:justify-start gap-2 sm:gap-3">
+        <button
+          type="button"
+          (click)="setPhase('templates')"
+          class="inline-flex items-center gap-1 text-xs font-semibold text-text-secondary hover:text-brand-navy-900 shrink-0">
+          <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          Modèles
+        </button>
+        <span class="text-border-strong hidden sm:inline">|</span>
+        <h1 class="text-xs sm:text-sm font-bold text-text-primary truncate">Édition & finalisation</h1>
+        <app-badge tone="brand">{{ getSelectedTemplateCard()?.name }}</app-badge>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-end gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-border-default/60">
+        <span class="text-2xs text-text-muted hidden md:inline">
+          {{ saveStatus() === 'saving' ? 'Enregistrement…' : saveStatus() === 'saved' ? 'Enregistré' : 'Modifications en attente' }}
+        </span>
+        
+        <button
+          type="button"
+          (click)="saveManually()"
+          class="inline-flex h-8 items-center gap-1 rounded-lg border border-border-strong bg-white px-2.5 sm:px-3 text-xs font-semibold text-slate-700 hover:bg-surface-soft shadow-xs transition">
+          <svg class="h-3.5 w-3.5 text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
+          </svg>
+          <span>Enregistrer</span>
+        </button>
+
+        <button
+          type="button"
+          (click)="downloadCurrentPdf()"
+          class="inline-flex h-8 items-center gap-1 rounded-lg border border-brand-navy-600 bg-white px-2.5 sm:px-3 text-xs font-semibold text-brand-navy-900 shadow-xs hover:bg-surface-soft transition">
+          <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          <span>PDF</span>
+        </button>
+
+        <button
+          type="button"
+          (click)="setPhase('voice')"
+          class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-brand-orange-500 bg-brand-orange-500 px-2.5 sm:px-3 text-xs font-semibold text-white shadow-xs hover:bg-brand-orange-600 transition">
+          <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+          </svg>
+          <span>Vocal</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Split Screen: Formulaire à gauche (50%) + Aperçu Papier A4 à droite (50% en desktop) -->
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
+      
+      <!-- Colonne Formulaire (Gauche - 6 cols) -->
+      <div class="lg:col-span-6 space-y-4">
+        <!-- Form Tabs Switcher -->
+        <div class="rounded-[15px] border border-border-default bg-surface-card px-3 pt-1 shadow-card">
+          <app-tabs
+            [items]="rightTabs"
+            [value]="activeRightTab"
+            (tabChange)="setRightTab($event)" />
+        </div>
+
+        <!-- TAB: Formulaire Sections -->
+        <div *ngIf="activeRightTab === 'sections'" [formGroup]="editor.form" class="space-y-3.5">
+          
+          <!-- Accordéon Identité -->
+          <div class="rounded-[15px] border border-border-default bg-surface-card shadow-card overflow-hidden">
+            <button
+              type="button"
+              (click)="toggleSection('identity')"
+              class="flex w-full items-center justify-between p-4 text-left font-bold text-[14px] text-text-primary hover:bg-surface-soft/60">
+              <span class="flex items-center gap-2">
+                <svg class="h-4 w-4 text-brand-navy-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+                Identité & Coordonnées
+              </span>
+              <svg [class]="'h-4 w-4 text-text-muted transition-transform ' + (expandedSections.identity ? 'rotate-180' : '')" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+
+            <div *ngIf="expandedSections.identity" class="p-4 pt-0 border-t border-border-default space-y-4">
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2" formGroupName="identity">
+                <div>
+                  <label class="block text-xs font-semibold text-text-secondary">Nom complet *</label>
+                  <input type="text" formControlName="fullName" placeholder="Ex : Mohamed B." class="mt-1 w-full rounded-input border border-border-strong bg-white px-3 py-1.5 text-sm text-text-primary focus:border-brand-600 focus:outline-none" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-text-secondary">Email professionnel *</label>
+                  <input type="email" formControlName="email" placeholder="mohamed@email.com" class="mt-1 w-full rounded-input border border-border-strong bg-white px-3 py-1.5 text-sm text-text-primary focus:border-brand-600 focus:outline-none" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-text-secondary">Téléphone</label>
+                  <input type="tel" formControlName="phone" placeholder="+33 6 12 34 56 78" class="mt-1 w-full rounded-input border border-border-strong bg-white px-3 py-1.5 text-sm text-text-primary focus:border-brand-600 focus:outline-none" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-text-secondary">Localisation / Ville</label>
+                  <input type="text" formControlName="city" placeholder="Douala, Cameroun" class="mt-1 w-full rounded-input border border-border-strong bg-white px-3 py-1.5 text-sm text-text-primary focus:border-brand-600 focus:outline-none" />
+                </div>
+              </div>
+
+              <!-- Liens & Réseaux personnalisables -->
+              <div class="pt-3 border-t border-slate-100 space-y-2.5">
+                <div class="flex items-center justify-between">
+                  <label class="block text-xs font-bold text-slate-800">
+                    Liens & Réseaux personnalisés (Portfolio, GitHub, LinkedIn, etc.)
+                  </label>
+                  <button
+                    type="button"
+                    (click)="addLink('Lien', '')"
+                    class="text-2xs font-bold text-brand-600 hover:text-brand-700">
+                    + Ajouter un lien
+                  </button>
+                </div>
+
+                <!-- Suggestions rapides -->
+                <div class="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    (click)="addLink('LinkedIn', 'linkedin.com/in/')"
+                    class="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-2xs font-medium text-slate-700 hover:bg-white hover:border-brand-300 transition">
+                    + LinkedIn
+                  </button>
+                  <button
+                    type="button"
+                    (click)="addLink('GitHub', 'github.com/')"
+                    class="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-2xs font-medium text-slate-700 hover:bg-white hover:border-brand-300 transition">
+                    + GitHub
+                  </button>
+                  <button
+                    type="button"
+                    (click)="addLink('Portfolio', 'https://')"
+                    class="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-2xs font-medium text-slate-700 hover:bg-white hover:border-brand-300 transition">
+                    + Portfolio
+                  </button>
+                  <button
+                    type="button"
+                    (click)="addLink('Site Web', 'https://')"
+                    class="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-2xs font-medium text-slate-700 hover:bg-white hover:border-brand-300 transition">
+                    + Site Web
+                  </button>
+                  <button
+                    type="button"
+                    (click)="addLink('Twitter / X', 'x.com/')"
+                    class="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-2xs font-medium text-slate-700 hover:bg-white hover:border-brand-300 transition">
+                    + Twitter / X
+                  </button>
+                </div>
+
+                <!-- Liste des liens avec nommage libre -->
+                <div formArrayName="links" class="space-y-2 mt-2">
+                  <div
+                    *ngFor="let linkCtrl of links.controls; let i = index"
+                    [formGroupName]="i"
+                    class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-2 transition hover:bg-white">
+                    
+                    <!-- Nom du lien (Libre) -->
+                    <div class="w-1/3 min-w-[110px]">
+                      <input
+                        type="text"
+                        formControlName="label"
+                        placeholder="Nom (ex: Portfolio)"
+                        class="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-brand-600 focus:outline-none" />
+                    </div>
+
+                    <!-- URL / Valeur du lien -->
+                    <div class="flex-1">
+                      <input
+                        type="text"
+                        formControlName="url"
+                        placeholder="URL (ex: github.com/username)"
+                        class="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-brand-600 focus:outline-none" />
+                    </div>
+
+                    <!-- Bouton supprimer -->
+                    <button
+                      type="button"
+                      (click)="removeLink(i)"
+                      title="Supprimer ce lien"
+                      class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition shrink-0">
+                      ✕
+                    </button>
+                  </div>
+
+                  <p *ngIf="links.length === 0" class="text-2xs text-slate-400 italic">
+                    Aucun lien personnalisé ajouté. Utilisez les boutons ci-dessus pour ajouter vos réseaux et portfolios.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Accordéon Titre & Résumé -->
+          <div class="rounded-[15px] border border-border-default bg-surface-card shadow-card overflow-hidden">
+            <button
+              type="button"
+              (click)="toggleSection('summary')"
+              class="flex w-full items-center justify-between p-4 text-left font-bold text-[14px] text-text-primary hover:bg-surface-soft/60">
+              <span class="flex items-center gap-2">
+                <svg class="h-4 w-4 text-brand-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                </svg>
+                Titre du profil & Résumé
+              </span>
+              <div class="flex items-center gap-1">
+                <button
+                  type="button"
+                  (click)="moveSectionUp('summary', $event)"
+                  [disabled]="isFirstSection('summary')"
+                  title="Monter cette section"
+                  class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-20 disabled:cursor-not-allowed transition">
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  (click)="moveSectionDown('summary', $event)"
+                  [disabled]="isLastSection('summary')"
+                  title="Descendre cette section"
+                  class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-20 disabled:cursor-not-allowed transition">
+                  ▼
+                </button>
+                <svg [class]="'h-4 w-4 text-text-muted transition-transform ' + (expandedSections.summary ? 'rotate-180' : '')" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </div>
+            </button>
+
+            <div *ngIf="expandedSections.summary" class="p-4 pt-0 border-t border-border-default space-y-3">
+              <div>
+                <label class="block text-xs font-semibold text-text-secondary">Titre professionnel ou poste ciblé</label>
+                <input type="text" formControlName="headline" placeholder="ex : Développeur Full-Stack Senior" class="mt-1 w-full rounded-input border border-border-strong bg-white px-3 py-1.5 text-sm text-text-primary focus:border-brand-600 focus:outline-none" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-text-secondary">Résumé professionnel</label>
+                <textarea
+                  formControlName="summary"
+                  rows="3"
+                  placeholder="Présentation synthétique de vos atouts et réalisations phares…"
+                  class="mt-1 w-full rounded-input border border-border-strong bg-white p-3 text-sm text-text-primary focus:border-brand-600 focus:outline-none"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Accordéon Expériences -->
+          <div class="rounded-[15px] border border-border-default bg-surface-card shadow-card overflow-hidden">
+            <button
+              type="button"
+              (click)="toggleSection('experiences')"
+              class="flex w-full items-center justify-between p-4 text-left font-bold text-[14px] text-text-primary hover:bg-surface-soft/60">
+              <span class="flex items-center gap-2">
+                <svg class="h-4 w-4 text-brand-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+                  <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+                </svg>
+                Expériences professionnelles ({{ experiences.length }})
+              </span>
+              <div class="flex items-center gap-1">
+                <button
+                  type="button"
+                  (click)="moveSectionUp('experiences', $event)"
+                  [disabled]="isFirstSection('experiences')"
+                  title="Monter cette section"
+                  class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-20 disabled:cursor-not-allowed transition">
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  (click)="moveSectionDown('experiences', $event)"
+                  [disabled]="isLastSection('experiences')"
+                  title="Descendre cette section"
+                  class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-20 disabled:cursor-not-allowed transition">
+                  ▼
+                </button>
+                <svg [class]="'h-4 w-4 text-text-muted transition-transform ' + (expandedSections.experiences ? 'rotate-180' : '')" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </div>
+            </button>
+
+            <div *ngIf="expandedSections.experiences" class="p-4 pt-0 border-t border-border-default space-y-4" formArrayName="experiences">
+              <div
+                *ngFor="let exp of experiences.controls; let i = index"
+                [formGroupName]="i"
+                class="rounded-xl border border-border-default bg-surface-soft/60 p-4 relative space-y-3">
+                <div class="flex justify-between items-center pr-6">
+                  <span class="text-xs font-bold text-text-primary">Poste #{{ i + 1 }}</span>
+                  <button
+                    type="button"
+                    (click)="removeExperience(i)"
+                    class="text-xs text-danger hover:underline font-semibold">
+                    Supprimer
+                  </button>
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label class="block text-2xs font-semibold text-text-secondary">Intitulé du poste</label>
+                    <input type="text" formControlName="position" placeholder="Ex : Ingénieur Logiciel" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                  </div>
+                  <div>
+                    <label class="block text-2xs font-semibold text-text-secondary">Entreprise</label>
+                    <input type="text" formControlName="company" placeholder="Ex : TechCorp" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                  </div>
+                  <div>
+                    <label class="block text-2xs font-semibold text-text-secondary">Date début</label>
+                    <input type="text" formControlName="startDate" placeholder="Ex : Janv 2022" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                  </div>
+                  <div>
+                    <label class="block text-2xs font-semibold text-text-secondary">Date fin</label>
+                    <input type="text" formControlName="endDate" placeholder="Ex : Présent" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                  </div>
+                </div>
+
+                <div>
+                  <div class="flex justify-between items-center mb-1">
+                    <label class="text-2xs font-semibold text-text-secondary">Missions & réalisations clés</label>
+                    <button type="button" (click)="addResponsibility(i)" class="text-2xs font-bold text-brand-600 hover:underline">+ Ajouter une puce</button>
+                  </div>
+                  <div formArrayName="responsibilities" class="space-y-1.5">
+                    <div *ngFor="let _ of getResponsibilities(i).controls; let ri = index" class="flex gap-2">
+                      <input type="text" [formControlName]="ri" placeholder="Ex: Conception d'une API REST scalant à 50k requêtes/s..." class="flex-1 rounded-input border border-border-strong bg-white px-2.5 py-1 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                      <button type="button" (click)="removeResponsibility(i, ri)" class="text-xs text-text-muted hover:text-danger px-1">✕</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                (click)="addExperience()"
+                class="w-full rounded-btn border border-dashed border-border-strong py-2 text-xs font-semibold text-brand-600 hover:border-brand-600 hover:bg-white transition-colors">
+                + Ajouter une expérience
+              </button>
+            </div>
+          </div>
+
+          <!-- Accordéon Formations -->
+          <div class="rounded-[15px] border border-border-default bg-surface-card shadow-card overflow-hidden">
+            <button
+              type="button"
+              (click)="toggleSection('education')"
+              class="flex w-full items-center justify-between p-4 text-left font-bold text-[14px] text-text-primary hover:bg-surface-soft/60">
+              <span class="flex items-center gap-2">
+                <svg class="h-4 w-4 text-brand-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+                  <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+                </svg>
+                Formations & Diplômes ({{ education.length }})
+              </span>
+              <div class="flex items-center gap-1">
+                <button
+                  type="button"
+                  (click)="moveSectionUp('education', $event)"
+                  [disabled]="isFirstSection('education')"
+                  title="Monter cette section"
+                  class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-20 disabled:cursor-not-allowed transition">
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  (click)="moveSectionDown('education', $event)"
+                  [disabled]="isLastSection('education')"
+                  title="Descendre cette section"
+                  class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-20 disabled:cursor-not-allowed transition">
+                  ▼
+                </button>
+                <svg [class]="'h-4 w-4 text-text-muted transition-transform ' + (expandedSections.education ? 'rotate-180' : '')" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </div>
+            </button>
+
+            <div *ngIf="expandedSections.education" class="p-4 pt-0 border-t border-border-default space-y-4" formArrayName="education">
+              <div
+                *ngFor="let edu of education.controls; let i = index"
+                [formGroupName]="i"
+                class="rounded-xl border border-border-default bg-surface-soft/60 p-4 relative space-y-3">
+                <div class="flex justify-between items-center pr-6">
+                  <span class="text-xs font-bold text-text-primary">Formation #{{ i + 1 }}</span>
+                  <button
+                    type="button"
+                    (click)="removeEducation(i)"
+                    class="text-xs text-danger hover:underline font-semibold">
+                    Supprimer
+                  </button>
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div>
+                    <label class="block text-2xs font-semibold text-text-secondary">Diplôme / Titre</label>
+                    <input type="text" formControlName="degree" placeholder="Ex : Master Informatique" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                  </div>
+                  <div>
+                    <label class="block text-2xs font-semibold text-text-secondary">École / Université</label>
+                    <input type="text" formControlName="school" placeholder="Ex : Université Paris Cité" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                  </div>
+                  <div>
+                    <label class="block text-2xs font-semibold text-text-secondary">Année / Période</label>
+                    <input type="text" formControlName="year" placeholder="Ex : 2020 - 2022" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                (click)="addEducation()"
+                class="w-full rounded-btn border border-dashed border-border-strong py-2 text-xs font-semibold text-brand-600 hover:border-brand-600 hover:bg-white transition-colors">
+                + Ajouter une formation
+              </button>
+            </div>
+          </div>
+
+          <!-- Accordéon Compétences -->
+          <div class="rounded-[15px] border border-border-default bg-surface-card shadow-card overflow-hidden">
+            <button
+              type="button"
+              (click)="toggleSection('skills')"
+              class="flex w-full items-center justify-between p-4 text-left font-bold text-[14px] text-text-primary hover:bg-surface-soft/60">
+              <span class="flex items-center gap-2">
+                <svg class="h-4 w-4 text-brand-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                Compétences techniques & clés ({{ skills.length }})
+              </span>
+              <div class="flex items-center gap-1">
+                <button
+                  type="button"
+                  (click)="moveSectionUp('skills', $event)"
+                  [disabled]="isFirstSection('skills')"
+                  title="Monter cette section"
+                  class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-20 disabled:cursor-not-allowed transition">
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  (click)="moveSectionDown('skills', $event)"
+                  [disabled]="isLastSection('skills')"
+                  title="Descendre cette section"
+                  class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-20 disabled:cursor-not-allowed transition">
+                  ▼
+                </button>
+                <svg [class]="'h-4 w-4 text-text-muted transition-transform ' + (expandedSections.skills ? 'rotate-180' : '')" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </div>
+            </button>
+
+            <div *ngIf="expandedSections.skills" class="p-4 pt-0 border-t border-border-default space-y-3">
+              <div class="flex flex-wrap gap-1.5">
+                <span
+                  *ngFor="let s of skills.controls; let i = index"
+                  class="inline-flex items-center gap-1 rounded-md border border-border-default bg-surface-soft px-2.5 py-1 text-xs font-semibold text-text-primary">
+                  {{ s.value }}
+                  <button type="button" (click)="removeSkill(i)" class="text-text-muted hover:text-danger">×</button>
+                </span>
+              </div>
+              <div class="flex gap-2">
+                <input
+                  type="text"
+                  [(ngModel)]="newSkillInput"
+                  [ngModelOptions]="{standalone: true}"
+                  placeholder="Nouvelle compétence (ex. : Angular, Docker…)"
+                  (keydown.enter)="handleAddSkill()"
+                  class="flex-1 rounded-input border border-border-strong bg-white px-3 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                <app-button variant="secondary" size="sm" (btnClick)="handleAddSkill()">Ajouter</app-button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Accordéon Langues -->
+          <div class="rounded-[15px] border border-border-default bg-surface-card shadow-card overflow-hidden">
+            <button
+              type="button"
+              (click)="toggleSection('languages')"
+              class="flex w-full items-center justify-between p-4 text-left font-bold text-[14px] text-text-primary hover:bg-surface-soft/60">
+              <span class="flex items-center gap-2">
+                <svg class="h-4 w-4 text-brand-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="2" y1="12" x2="22" y2="12"/>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+                Langues pratiquées ({{ languages.length }})
+              </span>
+              <div class="flex items-center gap-1">
+                <button
+                  type="button"
+                  (click)="moveSectionUp('languages', $event)"
+                  [disabled]="isFirstSection('languages')"
+                  title="Monter cette section"
+                  class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-20 disabled:cursor-not-allowed transition">
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  (click)="moveSectionDown('languages', $event)"
+                  [disabled]="isLastSection('languages')"
+                  title="Descendre cette section"
+                  class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-20 disabled:cursor-not-allowed transition">
+                  ▼
+                </button>
+                <svg [class]="'h-4 w-4 text-text-muted transition-transform ' + (expandedSections.languages ? 'rotate-180' : '')" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </div>
+            </button>
+
+            <div *ngIf="expandedSections.languages" class="p-4 pt-0 border-t border-border-default space-y-3" formArrayName="languages">
+              <div
+                *ngFor="let _ of languages.controls; let i = index"
+                [formGroupName]="i"
+                class="flex gap-3 items-center">
+                <input type="text" formControlName="lang" placeholder="Ex: Anglais" class="flex-1 rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                <input type="text" formControlName="level" placeholder="Ex: Courant (C1)" class="w-36 sm:w-44 rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                <button type="button" (click)="removeLanguage(i)" class="text-xs text-danger hover:underline px-1">✕</button>
+              </div>
+
+              <button
+                type="button"
+                (click)="addLanguage()"
+                class="w-full rounded-btn border border-dashed border-border-strong py-2 text-xs font-semibold text-brand-600 hover:border-brand-600 hover:bg-white transition-colors">
+                + Ajouter une langue
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: Assistant IA -->
+        <div *ngIf="activeRightTab === 'ai'" class="rounded-[15px] border border-border-default bg-surface-card p-4 shadow-card space-y-3.5">
+          <div class="flex items-center gap-2 border-b border-border-default pb-3">
+            <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-orange-500 text-white text-xs font-bold shadow-sm">
+              IA
+            </span>
+            <div>
+              <p class="text-xs font-bold text-text-primary">Assistant CV Intelligent</p>
+              <p class="text-2xs text-text-muted">Optimisation de phrases & impact ATS</p>
+            </div>
+          </div>
+
+          <!-- Messages feed -->
+          <div class="space-y-2.5 max-h-80 overflow-y-auto scroll-slim pr-1">
+            <div
+              *ngFor="let msg of aiMessages"
+              [class]="'flex gap-2 ' + (msg.role === 'user' ? 'justify-end' : 'justify-start')">
+              <div [class]="'max-w-[85%] rounded-[10px] p-3 text-xs leading-relaxed ' + (msg.role === 'user' ? 'bg-brand-orange-50 text-text-primary border border-brand-orange-100' : 'bg-brand-navy-50 text-text-primary border border-brand-navy-100')">
+                {{ msg.content }}
+              </div>
+            </div>
+
+            <div *ngIf="isAiLoading()" class="flex justify-start">
+              <div class="inline-flex items-center gap-2 rounded-[10px] bg-brand-navy-50 border border-brand-navy-100 p-3 text-xs text-text-muted">
+                <span class="inline-block h-2 w-2 animate-ping rounded-full bg-brand-navy-700"></span>
+                <span>Optimisation de votre CV en cours…</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick prompts -->
+          <div class="flex flex-wrap gap-1.5 pt-2 border-t border-border-default">
+            <button
+              type="button"
+              (click)="sendAiMessage('Rends mes puces d’expériences plus percutantes et chiffrées.')"
+              class="rounded-md border border-border-default bg-surface-soft px-2 py-1 text-2xs font-medium text-text-secondary hover:bg-white hover:text-brand-navy-900">
+              💡 Chiffrer mes réalisations
+            </button>
+            <button
+              type="button"
+              (click)="sendAiMessage('Optimise mon résumé professionnel pour le poste de Lead Tech.')"
+              class="rounded-md border border-border-default bg-surface-soft px-2 py-1 text-2xs font-medium text-text-secondary hover:bg-white hover:text-brand-navy-900">
+              ⚡ Résumé percutant
+            </button>
+          </div>
+
+          <!-- Input -->
+          <div class="flex gap-2">
+            <input
+              type="text"
+              [(ngModel)]="aiInput"
+              placeholder="Posez une question à l’assistant…"
+              (keydown.enter)="sendAiMessage()"
+              class="flex-1 rounded-input border border-border-strong bg-white px-3 py-1.5 text-xs text-text-primary focus:border-brand-navy-700 focus:outline focus:outline-2 focus:outline-brand-navy-100" />
+            <app-button variant="accent" size="sm" (btnClick)="sendAiMessage()">Envoyer</app-button>
+          </div>
+        </div>
+
+        <!-- TAB: Modèles -->
+        <div *ngIf="activeRightTab === 'template'" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
+          <div class="flex items-center justify-between">
+            <p class="text-xs font-bold text-slate-900">Changer de modèle en direct</p>
+            <span class="rounded-md bg-slate-100 px-2 py-0.5 text-2xs font-semibold text-slate-600">12 modèles</span>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-96 overflow-y-auto scroll-slim pr-1">
+            <div
+              *ngFor="let t of templateOptions"
+              (click)="selectTemplate(t.id)"
+              [class]="'cursor-pointer rounded-xl p-2 text-center transition-all ' + (selectedTemplate() === t.id ? 'border-2 border-brand-600 bg-brand-50/50 ring-2 ring-brand-100' : 'border border-slate-200 bg-slate-50 hover:bg-white hover:border-slate-300')">
+              <app-cv-thumbnail [layout]="t.layout" [accent]="t.accent" />
+              <p class="mt-1 text-2xs font-bold text-slate-900 truncate">{{ t.name }}</p>
+              <span class="text-3xs text-slate-500 block truncate">{{ t.badge }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Colonne Aperçu Papier A4 (Droite - 6 cols - Section 18 - Desktop uniquement) -->
+      <div class="hidden lg:block lg:col-span-6 sticky top-20">
+        <!-- Preview toolbar -->
+        <div class="flex items-center justify-between rounded-t-[15px] border border-b-0 border-border-default bg-surface-card px-4 py-2.5 shadow-card">
+          <div class="flex items-center gap-2">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <p class="text-xs font-bold text-slate-800">Aperçu en direct</p>
+            <span class="rounded-md bg-slate-100 px-2 py-0.5 text-2xs font-semibold text-slate-600">
+              📄 Multi-pages A4
+            </span>
+          </div>
+
+          <div class="flex items-center gap-1">
+            <button
+              type="button"
+              (click)="zoomOut()"
+              aria-label="Zoom arrière"
+              class="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition">
+              <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+            </button>
+            <span class="text-2xs font-semibold tabular-nums text-slate-600 px-1">{{ (zoomLevel() * 100) | number:'1.0-0' }}%</span>
+            <button
+              type="button"
+              (click)="zoomIn()"
+              aria-label="Zoom avant"
+              class="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition">
+              <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+            </button>
+            <button
+              type="button"
+              (click)="resetZoom()"
+              class="ml-1 text-2xs font-bold text-brand-600 hover:underline">
+              Reset
+            </button>
+          </div>
+        </div>
+
+        <!-- Paper Canvas (Fond #E8EDF3 - Section 18) -->
+        <div class="rounded-b-[15px] border border-border-default bg-[#E8EDF3] p-4 sm:p-6 overflow-auto flex justify-center shadow-inner min-h-[700px]">
+          <div [style.transform]="'scale(' + zoomLevel() + ')'" [style.width.px]="794" class="transition-transform duration-150 origin-top shadow-raised rounded-sm shrink-0">
+            <app-cv-preview [cv]="previewData()" [template]="selectedTemplate()" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         MOBILE : BARRE FIXE EN BAS + DRAWER/BOTTOM SHEET DROP-UP (Responsive)
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- ══════════════════════════════════════════════════════════════════════
+         MOBILE : BARRE FLOTTANTE PRO EN BAS + DRAWER/BOTTOM SHEET DROP-UP
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- Floating Bottom Dock on Mobile -->
+    <div class="fixed bottom-0 left-0 right-0 z-40 p-3 lg:hidden pointer-events-none">
+      <div class="max-w-md mx-auto pointer-events-auto">
+        <div class="flex items-center justify-between gap-2 rounded-2xl bg-slate-900/95 text-white p-2 pl-3.5 shadow-2xl backdrop-blur-lg border border-white/10 ring-1 ring-black/20">
+          
+          <!-- Live status & Click to view -->
+          <button
+            type="button"
+            (click)="openMobilePreview()"
+            class="flex items-center gap-2.5 flex-1 min-w-0 text-left group">
+            <span class="relative flex h-2.5 w-2.5 shrink-0">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
+            <div class="truncate">
+              <p class="text-xs font-bold text-white flex items-center gap-1 leading-tight">
+                Aperçu live
+                <svg class="h-3 w-3 text-emerald-400 transition-transform group-hover:-translate-y-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="18 15 12 9 6 15"/>
+                </svg>
+              </p>
+              <p class="text-2xs text-slate-400 truncate leading-tight mt-0.5">{{ getSelectedTemplateCard()?.name }}</p>
+            </div>
+          </button>
+
+          <!-- PDF Action -->
+          <button
+            type="button"
+            (click)="downloadCurrentPdf()"
+            title="Télécharger le PDF"
+            class="flex h-9 items-center justify-center gap-1.5 rounded-xl bg-white/10 hover:bg-white/15 active:scale-95 px-3 text-xs font-semibold text-white transition shrink-0">
+            <svg class="h-4 w-4 text-emerald-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            <span>PDF</span>
+          </button>
+
+          <!-- Primary Voir le CV Button -->
+          <button
+            type="button"
+            (click)="openMobilePreview()"
+            class="flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-orange-500 to-brand-orange-600 hover:from-brand-orange-600 hover:to-brand-orange-700 active:scale-95 px-3.5 text-xs font-bold text-white shadow-md shadow-brand-orange-500/20 transition shrink-0">
+            <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+            <span>Voir le CV</span>
+          </button>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Bottom Sheet Drawer Modal (Drop-up from bottom) -->
+    <div
+      *ngIf="showMobilePreview()"
+      class="fixed inset-0 z-50 flex flex-col justify-end lg:hidden animate-fade-in">
+      
+      <!-- Backdrop -->
+      <div
+        (click)="closeMobilePreview()"
+        class="fixed inset-0 bg-slate-900/70 backdrop-blur-xs transition-opacity">
+      </div>
+
+      <!-- Bottom Sheet Container -->
+      <div
+        class="relative z-10 flex flex-col max-h-[92vh] h-[92vh] w-full rounded-t-3xl bg-[#EEF2F6] shadow-2xl overflow-hidden animate-slide-up">
+        
+        <!-- Header Section -->
+        <div class="border-b border-slate-200 bg-white px-4 pt-2.5 pb-3 shrink-0 shadow-xs">
+          <!-- Drag pill bar -->
+          <div class="mx-auto mb-2 h-1.5 w-12 rounded-full bg-slate-300"></div>
+
+          <!-- Top Row: Title + Close -->
+          <div class="flex items-center justify-between gap-2 mb-2.5">
+            <div class="flex items-center gap-2">
+              <span class="relative flex h-2.5 w-2.5">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <h3 class="text-sm font-bold text-slate-900">Aperçu A4 en direct</h3>
+              <span class="rounded-md bg-brand-50 px-2 py-0.5 text-2xs font-semibold text-brand-600">
+                {{ getSelectedTemplateCard()?.name }}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              (click)="closeMobilePreview()"
+              class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition">
+              <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Controls Row: Segmented Switcher (Ajusté vs Lecture) + Zoom + Download -->
+          <div class="flex items-center justify-between gap-2">
+            
+            <!-- Mode Switcher (Ajusté à l'écran vs 100% Lecture) -->
+            <div class="flex items-center rounded-xl bg-slate-100 p-1 border border-slate-200">
+              <button
+                type="button"
+                (click)="setMobileScaleMode('fit')"
+                [class]="'rounded-lg px-2.5 py-1 text-2xs font-bold transition ' + (mobileScaleMode() === 'fit' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900')">
+                📱 Ajuster
+              </button>
+              <button
+                type="button"
+                (click)="setMobileScaleMode('read')"
+                [class]="'rounded-lg px-2.5 py-1 text-2xs font-bold transition ' + (mobileScaleMode() === 'read' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900')">
+                🔍 Lecture ({{ (mobileZoom() * 100) | number:'1.0-0' }}%)
+              </button>
+            </div>
+
+            <div class="flex items-center gap-1.5">
+              <!-- Zoom buttons -->
+              <div class="flex items-center rounded-xl bg-slate-100 p-0.5 border border-slate-200">
+                <button
+                  type="button"
+                  (click)="zoomOutMobile()"
+                  title="Zoom arrière"
+                  class="rounded-lg p-1 text-slate-600 hover:bg-white hover:text-slate-900 active:scale-95 transition">
+                  <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  (click)="zoomInMobile()"
+                  title="Zoom avant"
+                  class="rounded-lg p-1 text-slate-600 hover:bg-white hover:text-slate-900 active:scale-95 transition">
+                  <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Download PDF -->
+              <button
+                type="button"
+                (click)="downloadCurrentPdf()"
+                class="inline-flex h-8 items-center gap-1 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 px-2.5 text-xs font-bold text-white shadow-brand active:scale-95 transition">
+                <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                <span>PDF</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Canvas Body: Perfectly fitted & Centered without any clipping -->
+        <div class="flex-1 overflow-auto bg-[#DDE4EE] p-3 sm:p-4 flex justify-center items-start">
+          <div
+            class="relative bg-white shadow-2xl rounded-sm transition-all duration-150 my-2 origin-top"
+            [style.width.px]="794 * getMobileScale()"
+            [style.minHeight.px]="1123 * getMobileScale()">
+            <div
+              class="origin-top-left"
+              [style.transform]="'scale(' + getMobileScale() + ')'"
+              [style.width.px]="794">
+              <app-cv-preview [cv]="previewData()" [template]="selectedTemplate()" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

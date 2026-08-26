@@ -1,0 +1,520 @@
+<div class="space-y-4 sm:space-y-6 p-3 sm:p-6 lg:p-8 max-w-full overflow-hidden">
+  
+  <!-- Header Bar -->
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div class="min-w-0">
+      <div class="flex items-center gap-2.5">
+        <h1 class="text-lg sm:text-xl font-bold text-slate-900 truncate">Mes CV</h1>
+        <span *ngIf="!loading()" class="rounded-full bg-brand-50 border border-brand-100 px-2.5 py-0.5 text-xs font-bold text-brand-600">
+          {{ allCvs().length }}
+        </span>
+      </div>
+      <p class="text-xs text-slate-400 mt-0.5 truncate">Gérez, personnalisez et exportez vos différentes versions de CV.</p>
+    </div>
+
+    <!-- Top Action Buttons (Single clean source for new CV) -->
+    <div class="flex items-center gap-2 shrink-0">
+      <input
+        #fileInput
+        type="file"
+        accept=".pdf,.png,.jpg,.jpeg"
+        (change)="onFileSelected($event)"
+        class="hidden" />
+
+      <button
+        type="button"
+        (click)="fileInput.click()"
+        [disabled]="isImporting()"
+        class="inline-flex h-8 sm:h-9 items-center justify-center gap-1.5 rounded-xl border border-brand-200 bg-white hover:bg-brand-50 px-3 sm:px-4 text-xs sm:text-sm font-semibold text-slate-700 shadow-sm transition disabled:opacity-50">
+        <svg class="h-4 w-4 text-brand-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+        </svg>
+        {{ isImporting() ? 'Analyse en cours…' : 'Importer' }}
+      </button>
+
+      <a
+        routerLink="/cv-builder"
+        class="inline-flex h-8 sm:h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 px-3.5 sm:px-4 text-xs sm:text-sm font-semibold text-white shadow-brand active:scale-95 transition">
+        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        <span>Nouveau CV</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- Search & View Mode Switcher -->
+  <div *ngIf="!loading() && allCvs().length > 0" class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 rounded-xl bg-white border border-slate-200 p-2 sm:px-3.5 shadow-xs">
+    <!-- Search Bar -->
+    <div class="relative flex-1 max-w-md">
+      <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input
+        type="text"
+        [ngModel]="searchQuery()"
+        (ngModelChange)="onSearchChange($event)"
+        placeholder="Rechercher par titre ou modèle…"
+        class="w-full rounded-lg bg-slate-50 border border-slate-200 pl-8 pr-7 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-brand-500 focus:outline-none transition" />
+      <button
+        *ngIf="searchQuery()"
+        (click)="onSearchChange('')"
+        class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs">
+        ✕
+      </button>
+    </div>
+
+    <!-- View Mode Buttons -->
+    <div class="flex items-center gap-1 shrink-0 self-end sm:self-center">
+      <div class="flex items-center rounded-lg bg-slate-100 p-0.5 border border-slate-200">
+        <button
+          type="button"
+          (click)="setViewMode('grid')"
+          title="Vue Grille"
+          [class]="'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition ' + (viewMode() === 'grid' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900')">
+          <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"/>
+            <rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/>
+            <rect x="3" y="14" width="7" height="7"/>
+          </svg>
+          <span class="hidden xs:inline">Grille</span>
+        </button>
+
+        <button
+          type="button"
+          (click)="setViewMode('list')"
+          title="Vue Liste"
+          [class]="'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition ' + (viewMode() === 'list' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900')">
+          <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <line x1="8" y1="6" x2="21" y2="6"/>
+            <line x1="8" y1="12" x2="21" y2="12"/>
+            <line x1="8" y1="18" x2="21" y2="18"/>
+            <line x1="3" y1="6" x2="3.01" y2="6"/>
+            <line x1="3" y1="12" x2="3.01" y2="12"/>
+            <line x1="3" y1="18" x2="3.01" y2="18"/>
+          </svg>
+          <span class="hidden xs:inline">Liste</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loading()" class="grid grid-cols-1 gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    <div *ngFor="let _ of [1, 2, 3, 4, 5, 6]" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+      <div class="h-44 w-full animate-pulse rounded-xl bg-slate-100"></div>
+      <div class="mt-3.5 h-4 w-2/3 animate-pulse rounded bg-slate-100"></div>
+      <div class="mt-2 h-3 w-1/3 animate-pulse rounded bg-slate-100"></div>
+    </div>
+  </div>
+
+  <!-- Empty State (0 CV total) -->
+  <div *ngIf="!loading() && allCvs().length === 0" class="rounded-2xl border-2 border-dashed border-slate-200 bg-white p-8 sm:p-12 text-center max-w-lg mx-auto">
+    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 mb-4">
+      <svg class="h-7 w-7" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+    </div>
+    <h3 class="text-base font-bold text-slate-900">Aucun CV créé pour l'instant</h3>
+    <p class="mt-1 text-xs text-slate-500 leading-relaxed">Créez votre premier CV optimisé pour l'emploi ou importez votre fichier existant en quelques secondes.</p>
+    <div class="mt-5 flex flex-wrap items-center justify-center gap-2.5">
+      <a
+        routerLink="/cv-builder"
+        class="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-brand-navy-900 px-4 text-xs font-bold text-white shadow-sm hover:bg-brand-navy-800 transition">
+        Créer mon premier CV →
+      </a>
+      <button
+        type="button"
+        (click)="fileInput.click()"
+        class="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
+        Importer un fichier
+      </button>
+    </div>
+  </div>
+
+  <!-- Empty Search Result -->
+  <div *ngIf="!loading() && allCvs().length > 0 && filteredCvs().length === 0" class="rounded-xl border border-slate-200 bg-white p-8 text-center">
+    <p class="text-sm font-semibold text-slate-700">Aucun CV ne correspond à « {{ searchQuery() }} »</p>
+    <button
+      (click)="onSearchChange('')"
+      class="mt-2 text-xs font-bold text-brand-600 hover:underline">
+      Effacer la recherche
+    </button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       1. VUE GRILLE COMPACTE (Avec aperçu réel à l'intérieur)
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div *ngIf="!loading() && viewMode() === 'grid' && filteredCvs().length > 0" class="grid grid-cols-1 gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    
+    <article
+      *ngFor="let item of paginatedCvs()"
+      class="group flex flex-col rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs hover:border-brand-300 hover:shadow-md transition-all duration-150">
+      
+      <!-- Real CV Miniature Preview (Click to open visualizer) -->
+      <div
+        (click)="openPreviewModal(item, $event)"
+        class="cv-mini-preview-container group-hover:border-brand-400 transition cursor-pointer">
+        <div class="cv-mini-preview-wrapper">
+          <app-cv-preview [cv]="getCvData(item)" [template]="item.template" />
+        </div>
+      </div>
+
+      <!-- Card Information -->
+      <div class="mt-3 flex items-start justify-between gap-2">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-1.5">
+            <h3 class="truncate text-xs sm:text-sm font-bold text-slate-900 group-hover:text-brand-600 transition">
+              <a [routerLink]="['/cv-builder']" [queryParams]="{ action: 'editor', cvId: item.id }">
+                {{ item.title }}
+              </a>
+            </h3>
+          </div>
+          <p class="mt-0.5 text-2xs text-slate-400 truncate">
+            {{ item.templateLabel }} · Modifié le {{ item.updatedDate }}
+          </p>
+        </div>
+
+        <!-- Menu dropdown trigger -->
+        <div class="relative shrink-0">
+          <button
+            type="button"
+            (click)="toggleMenu(item.id, $event)"
+            aria-label="Actions du CV"
+            class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-800 transition">
+            <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="1"/>
+              <circle cx="12" cy="5" r="1"/>
+              <circle cx="12" cy="19" r="1"/>
+            </svg>
+          </button>
+
+          <!-- Dropdown popup (Clean text without icons, Traduire instead of Télécharger) -->
+          <div
+            *ngIf="menuOpenId === item.id"
+            class="absolute right-0 top-8 z-30 w-40 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg animate-fade-in">
+            <button
+              type="button"
+              (click)="openTranslateModal(item, $event)"
+              class="w-full px-3.5 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
+              Traduire
+            </button>
+            <button
+              type="button"
+              (click)="openRenameModal(item, $event)"
+              class="w-full px-3.5 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
+              Renommer
+            </button>
+            <button
+              type="button"
+              (click)="openDuplicateModal(item, $event)"
+              class="w-full px-3.5 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
+              Dupliquer
+            </button>
+            <div class="my-1 border-t border-slate-100"></div>
+            <button
+              type="button"
+              (click)="openDeleteModal(item, $event)"
+              class="w-full px-3.5 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 transition">
+              Supprimer
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons Row (Visualiser instead of PDF) -->
+      <div class="mt-3 flex items-center gap-1.5 border-t border-slate-100 pt-2.5">
+        <a
+          [routerLink]="['/cv-builder']"
+          [queryParams]="{ action: 'editor', cvId: item.id }"
+          class="flex-1 text-center inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs">
+          Modifier
+        </a>
+        <button
+          type="button"
+          (click)="openPreviewModal(item, $event)"
+          title="Visualiser le CV en grand"
+          class="inline-flex h-8 items-center justify-center rounded-lg border border-brand-200 bg-brand-50 hover:bg-brand-100 px-2.5 text-xs font-bold text-brand-700 transition">
+          Visualiser
+        </button>
+        <a
+          routerLink="/opportunities"
+          title="Associer à une offre"
+          class="inline-flex h-8 items-center justify-center rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 px-3 text-xs font-semibold text-white transition shadow-brand">
+          Associer
+        </a>
+      </div>
+    </article>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       2. VUE LISTE COMPACTE (Tableau moderne ultra-lisible)
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div *ngIf="!loading() && viewMode() === 'list' && filteredCvs().length > 0" class="rounded-2xl border border-slate-200 bg-white shadow-xs divide-y divide-slate-100 overflow-hidden">
+    
+    <div
+      *ngFor="let item of paginatedCvs()"
+      class="group flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 hover:bg-slate-50/80 transition">
+      
+      <!-- Left: Mini preview + Info -->
+      <div class="flex items-center gap-3.5 min-w-0 flex-1">
+        <!-- Thumbnail Row -->
+        <div
+          (click)="openPreviewModal(item, $event)"
+          class="cv-row-mini-preview group-hover:border-brand-400 transition cursor-pointer">
+          <div class="cv-row-mini-canvas">
+            <app-cv-preview [cv]="getCvData(item)" [template]="item.template" />
+          </div>
+        </div>
+
+        <!-- Metadata -->
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2">
+            <h3 class="truncate text-xs sm:text-sm font-bold text-slate-900 group-hover:text-brand-600 transition">
+              <a [routerLink]="['/cv-builder']" [queryParams]="{ action: 'editor', cvId: item.id }">
+                {{ item.title }}
+              </a>
+            </h3>
+            <span class="rounded-md bg-slate-100 px-2 py-0.5 text-2xs font-semibold text-slate-600 shrink-0">
+              {{ item.templateLabel }}
+            </span>
+          </div>
+          <p class="mt-0.5 text-2xs text-slate-400 truncate">
+            Dernière mise à jour : {{ item.updatedDate }} · {{ item.pages }} page{{ item.pages > 1 ? 's' : '' }}
+          </p>
+        </div>
+      </div>
+
+      <!-- Right: Action Buttons -->
+      <div class="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+        <a
+          [routerLink]="['/cv-builder']"
+          [queryParams]="{ action: 'editor', cvId: item.id }"
+          class="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs">
+          Modifier
+        </a>
+        <button
+          type="button"
+          (click)="openPreviewModal(item, $event)"
+          class="inline-flex h-8 items-center justify-center rounded-lg border border-brand-200 bg-brand-50 px-2.5 text-xs font-bold text-brand-700 hover:bg-brand-100 transition">
+          Visualiser
+        </button>
+        <a
+          routerLink="/opportunities"
+          class="inline-flex h-8 items-center justify-center rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 px-3 text-xs font-semibold text-white transition shadow-brand">
+          Associer
+        </a>
+
+        <!-- Menu dropdown trigger -->
+        <div class="relative shrink-0">
+          <button
+            type="button"
+            (click)="toggleMenu(item.id, $event)"
+            class="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-800 transition">
+            <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="1"/>
+              <circle cx="12" cy="5" r="1"/>
+              <circle cx="12" cy="19" r="1"/>
+            </svg>
+          </button>
+
+          <!-- Dropdown popup (Clean text without icons, Traduire instead of Télécharger) -->
+          <div
+            *ngIf="menuOpenId === item.id"
+            class="absolute right-0 top-9 z-30 w-40 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg animate-fade-in">
+            <button
+              type="button"
+              (click)="openTranslateModal(item, $event)"
+              class="w-full px-3.5 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
+              Traduire
+            </button>
+            <button
+              type="button"
+              (click)="openRenameModal(item, $event)"
+              class="w-full px-3.5 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
+              Renommer
+            </button>
+            <button
+              type="button"
+              (click)="openDuplicateModal(item, $event)"
+              class="w-full px-3.5 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
+              Dupliquer
+            </button>
+            <div class="my-1 border-t border-slate-100"></div>
+            <button
+              type="button"
+              (click)="openDeleteModal(item, $event)"
+              class="w-full px-3.5 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50 transition">
+              Supprimer
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       PAGINATION TOOLBAR
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div
+    *ngIf="!loading() && filteredCvs().length > 0"
+    class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-200 text-xs text-slate-500">
+    
+    <!-- Count Info -->
+    <div>
+      Affichage de
+      <span class="font-bold text-slate-800">{{ (currentPage() - 1) * pageSize() + 1 }}</span>
+      à
+      <span class="font-bold text-slate-800">{{ mathMin(currentPage() * pageSize(), filteredCvs().length) }}</span>
+      sur
+      <span class="font-bold text-slate-800">{{ filteredCvs().length }}</span>
+      CV{{ filteredCvs().length > 1 ? 's' : '' }}
+    </div>
+
+    <!-- Page Buttons -->
+    <div *ngIf="totalPages() > 1" class="flex items-center gap-1.5">
+      <button
+        type="button"
+        (click)="prevPage()"
+        [disabled]="currentPage() === 1"
+        class="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-2.5 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition">
+        ← Précédent
+      </button>
+
+      <div class="flex items-center gap-1">
+        <button
+          *ngFor="let p of pagesArray()"
+          type="button"
+          (click)="goToPage(p)"
+          [class]="'flex h-8 w-8 items-center justify-center rounded-lg font-bold text-xs transition ' + (currentPage() === p ? 'bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-brand' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50')">
+          {{ p }}
+        </button>
+      </div>
+
+      <button
+        type="button"
+        (click)="nextPage()"
+        [disabled]="currentPage() === totalPages()"
+        class="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-2.5 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition">
+        Suivant →
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       FULL PREVIEW / VISUALISER MODAL
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div
+    *ngIf="previewModalOpen() && selectedCvForPreview()"
+    class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-slate-900/70 backdrop-blur-xs animate-fade-in">
+    <div class="relative flex flex-col w-full max-w-4xl max-h-[94vh] h-[94vh] rounded-2xl bg-white shadow-2xl overflow-hidden animate-scale-up">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between gap-2.5 border-b border-slate-200 bg-white px-3 sm:px-5 py-3 shrink-0">
+        <div class="min-w-0">
+          <h3 class="text-xs sm:text-sm font-bold text-slate-900 truncate">{{ selectedCvForPreview()?.title }}</h3>
+          <p class="text-2xs text-slate-500 truncate">{{ selectedCvForPreview()?.templateLabel }} · Modifié le {{ selectedCvForPreview()?.updatedDate }}</p>
+        </div>
+
+        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <button
+            type="button"
+            (click)="downloadPdf(selectedCvForPreview()!, $event)"
+            class="inline-flex h-8 items-center gap-1 rounded-xl border border-brand-200 bg-brand-50 px-2.5 sm:px-3 text-xs font-bold text-brand-700 hover:bg-brand-100 transition">
+            <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            <span class="hidden xs:inline">Télécharger PDF</span>
+            <span class="xs:hidden">PDF</span>
+          </button>
+
+          <a
+            [routerLink]="['/cv-builder']"
+            [queryParams]="{ action: 'editor', cvId: selectedCvForPreview()?.id }"
+            (click)="closePreviewModal()"
+            class="inline-flex h-8 items-center gap-1 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 px-3 text-xs font-bold text-white shadow-brand transition">
+            Modifier
+          </a>
+
+          <button
+            type="button"
+            (click)="closePreviewModal()"
+            class="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition">
+            ✕
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Body Canvas -->
+      <div class="flex-1 overflow-auto bg-[#E8EDF3] p-3 sm:p-8 flex justify-center items-start">
+        <div class="bg-white shadow-2xl rounded-sm my-2 pointer-events-none origin-top" style="width: 794px; min-height: 1123px;">
+          <app-cv-preview [cv]="getCvData(selectedCvForPreview()!)" [template]="selectedCvForPreview()!.template" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       TRANSLATE MODAL
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <app-modal
+    *ngIf="translateModalOpen()"
+    title="Traduire le CV par l'IA"
+    (closeModal)="closeTranslateModal()">
+    <div class="space-y-4 p-4">
+      <div>
+        <p class="text-xs text-slate-500 mb-3">
+          Une copie complète de votre CV <strong class="text-slate-800">« {{ selectedCvForTranslate()?.title }} »</strong> sera créée et traduite automatiquement par l'IA.
+        </p>
+        <label class="block text-xs font-semibold text-slate-700 mb-1.5">Langue cible</label>
+        <select
+          [ngModel]="targetLanguage()"
+          (ngModelChange)="targetLanguage.set($event)"
+          class="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm text-slate-900 focus:border-brand-500 focus:outline-none bg-white">
+          <option value="Anglais">🇬🇧 Anglais (English)</option>
+          <option value="Espagnol">🇪🇸 Espagnol (Español)</option>
+          <option value="Allemand">🇩🇪 Allemand (Deutsch)</option>
+          <option value="Italien">🇮🇹 Italien (Italiano)</option>
+          <option value="Portugais">🇵🇹 Portugais (Português)</option>
+          <option value="Arabe">🇸🇦 Arabe (العربية)</option>
+        </select>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+        <app-button variant="secondary" size="sm" (btnClick)="closeTranslateModal()">Annuler</app-button>
+        <button
+          type="button"
+          (click)="executeTranslation()"
+          [disabled]="isTranslating()"
+          class="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 px-4 text-xs font-bold text-white shadow-brand transition disabled:opacity-50">
+          <span *ngIf="isTranslating()" class="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+          <span>{{ isTranslating() ? 'Traduction en cours…' : 'Traduire et dupliquer' }}</span>
+        </button>
+      </div>
+    </div>
+  </app-modal>
+
+  <!-- Rename Modal -->
+  <app-modal
+    *ngIf="renameModalOpen"
+    title="Renommer le CV"
+    (closeModal)="closeRenameModal()">
+    <div class="space-y-4 p-4">
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">Nouveau titre</label>
+        <input
+          type="text"
+          [(ngModel)]="newCvTitle"
+          (keydown.enter)="saveRename()"
+          class="w-full rounded-xl border border-slate-300 p-2.5 text-sm text-slate-900 focus:border-brand-500 focus:outline-none" />
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <app-button variant="secondary" size="sm" (btnClick)="closeRenameModal()">Annuler</app-button>
+        <app-button variant="primary" size="sm" (btnClick)="saveRename()">Enregistrer</app-button>
+      </div>
+    </div>
+  </app-modal>
+</div>

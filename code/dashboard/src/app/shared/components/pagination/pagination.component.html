@@ -1,0 +1,38 @@
+<div class="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3">
+  <p class="text-[13px] text-muted">
+    Page <span class="font-medium text-ink-soft">{{ page }}</span> sur {{ pageCount }} · {{ total }} résultats
+  </p>
+  <div class="flex items-center gap-1">
+    <button
+      type="button"
+      (click)="setPage(page - 1)"
+      [disabled]="page === 1"
+      aria-label="Page précédente"
+      class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line-strong bg-white text-muted transition-colors duration-150 ease-out hover:bg-slate-50 hover:text-ink disabled:opacity-40">
+      <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+      </svg>
+    </button>
+    
+    <button
+      *ngFor="let item of pages"
+      type="button"
+      (click)="setPage(item)"
+      [attr.aria-current]="item === page ? 'page' : null"
+      [class]="'inline-flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-[13px] font-medium tabular-nums transition-colors duration-150 ease-out ' + 
+               (item === page ? 'border-brand-600 bg-brand-600 text-white' : 'border-line-strong bg-white text-ink-soft hover:bg-slate-50')">
+      {{ item }}
+    </button>
+    
+    <button
+      type="button"
+      (click)="setPage(page + 1)"
+      [disabled]="page === pageCount"
+      aria-label="Page suivante"
+      class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line-strong bg-white text-muted transition-colors duration-150 ease-out hover:bg-slate-50 hover:text-ink disabled:opacity-40">
+      <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+      </svg>
+    </button>
+  </div>
+</div>

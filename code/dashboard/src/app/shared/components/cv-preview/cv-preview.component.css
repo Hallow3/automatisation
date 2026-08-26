@@ -1,0 +1,107 @@
+.cv-scale-wrapper {
+  display: block;
+  width: 794px;
+  min-width: 794px;
+  max-width: 794px;
+  transform-origin: top center;
+  transition: transform 0.2s ease-out;
+  margin: 0 auto;
+}
+
+.cv-page-sheet-container {
+  width: 794px;
+  min-width: 794px;
+  max-width: 794px;
+  margin: 0 auto;
+}
+
+/* Page A4 styling (Exact physical sheet) */
+.cv-paper {
+  display: block;
+  width: 794px;
+  min-width: 794px;
+  max-width: 794px;
+  min-height: 1123px; /* Exact 1 page A4 standard */
+  box-sizing: border-box;
+  background-color: #ffffff;
+  margin: 0 auto;
+  position: relative;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  .cv-scale-wrapper {
+    transform: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+  }
+
+  .cv-page-sheet-container {
+    page-break-after: always;
+    break-after: page;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+
+  .cv-paper {
+    box-shadow: none !important;
+    max-width: 100% !important;
+    height: 100vh !important;
+    margin: 0 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
+
+/* Règles anti-coupure pour CV 2 pages et export */
+.cv-section {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.cv-section-title {
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+.cv-item {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  .cv-paper {
+    box-shadow: none !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .cv-section,
+  .cv-item {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}

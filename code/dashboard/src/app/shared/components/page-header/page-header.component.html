@@ -1,0 +1,30 @@
+<header class="mb-5">
+  <!-- Fil d'Ariane -->
+  <nav *ngIf="breadcrumbs && breadcrumbs.length > 0" aria-label="Fil d’Ariane" class="mb-2">
+    <ol class="flex flex-wrap items-center gap-1 text-[13px] text-muted">
+      <li *ngFor="let crumb of breadcrumbs; let i = index" class="flex items-center gap-1">
+        <svg *ngIf="i > 0" class="h-3.5 w-3.5 text-muted-soft" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+        <a *ngIf="crumb.to" [routerLink]="crumb.to" class="rounded transition-colors duration-150 ease-out hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">
+          {{ crumb.label }}
+        </a>
+        <span *ngIf="!crumb.to" class="text-ink-soft">{{ crumb.label }}</span>
+      </li>
+    </ol>
+  </nav>
+
+  <!-- Titre & Actions -->
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div class="min-w-0">
+      <h1 class="text-xl font-semibold tracking-[-0.02em] text-ink">{{ title }}</h1>
+      <p *ngIf="description" class="mt-1 max-w-2xl text-[13px] leading-relaxed text-muted">{{ description }}</p>
+      <div class="mt-2">
+        <ng-content select="[meta]"></ng-content>
+      </div>
+    </div>
+    <div class="flex shrink-0 flex-wrap items-center gap-2">
+      <ng-content select="[actions]"></ng-content>
+    </div>
+  </div>
+</header>

@@ -1,0 +1,35 @@
+<div [class]="'flex items-start gap-3 rounded-[10px] border px-4 py-3 ' + wrapClass + ' ' + customClass">
+  <!-- Tone icons -->
+  <svg *ngIf="tone === 'info'" [class]="'mt-0.5 h-4 w-4 shrink-0 ' + iconColorClass" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <circle cx="12" cy="12" r="10"/>
+    <line x1="12" y1="16" x2="12" y2="12"/>
+    <line x1="12" y1="8" x2="12.01" y2="8"/>
+  </svg>
+  <svg *ngIf="tone === 'success'" [class]="'mt-0.5 h-4 w-4 shrink-0 ' + iconColorClass" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+  <svg *ngIf="tone === 'warning' || tone === 'danger'" [class]="'mt-0.5 h-4 w-4 shrink-0 ' + iconColorClass" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+  </svg>
+
+  <div class="min-w-0 flex-1">
+    <p class="text-[13px] font-semibold text-text-primary">{{ title }}</p>
+    <p *ngIf="description" class="mt-0.5 text-[13px] leading-relaxed text-text-secondary">{{ description }}</p>
+  </div>
+
+  <div class="shrink-0 flex items-center gap-2">
+    <ng-content select="[action]"></ng-content>
+  </div>
+
+  <button
+    *ngIf="dismissible"
+    type="button"
+    (click)="onDismiss()"
+    aria-label="Fermer"
+    class="shrink-0 rounded p-0.5 text-text-muted transition-colors duration-150 ease-out hover:bg-white/60 hover:text-text-primary">
+    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <line x1="18" y1="6" x2="6" y2="18"/>
+      <line x1="6" y1="6" x2="18" y2="18"/>
+    </svg>
+  </button>
+</div>
