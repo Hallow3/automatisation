@@ -1,27 +1,162 @@
 # ==============================================================================
-# Git Ignore - GetJob AI Root Repository
+# Git Ignore — FallaJobs Project (Root & Workspaces)
 # ==============================================================================
 
-# Clés et secrets sensibles
-ressources/clé nokash/
-ressources/**/clés.txt
+# ── 1. Environnements, Clés & Secrets (STRICTEMENT CONFIDENTIEL) ───────────────
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.env
+backend/.env
+backend/.env.*
+!backend/.env.example
+!backend/.env.*.example
+dashboard/.env
+dashboard/.env.*
+!dashboard/.env.example
+
+# Clés de sécurité, certificats & identifiants
 *.pem
 *.key
+*.crt
+*.p12
+*.pfx
+*.jks
+client_secret*.json
+credentials.json
+ressources/clé nokash/
+ressources/**/clés.txt
+**/clé*
+**/cle*
+/workflows/credentials/
 
-# Logs
+# ── 2. Java / Spring Boot (Backend) ────────────────────────────────────────────
+target/
+**/target/
+backend/target/
+*.class
+*.jar
+*.war
+*.ear
+hs_err_pid*
+replay_pid*
+maven-wrapper.jar
+!backend/.mvn/wrapper/maven-wrapper.jar
+
+# Bases de données locales, dumps & H2
+*.sql.gz
+*.dump
+*.dmp
+backup.sql
+**/backup.sql
+backend/backup.sql
+*.h2.db
+*.mv.db
+*.trace.db
+*.sqlite
+*.sqlite3
+*.db
+
+# ── 3. Angular / Node / TypeScript (Frontend) ─────────────────────────────────
+node_modules/
+**/node_modules/
+dashboard/node_modules/
+
+# Compilation & caches
+dist/
+**/dist/
+dashboard/dist/
+.angular/
+**/.angular/
+dashboard/.angular/
+.angular/cache/
+**/.angular/cache/
+out-tsc/
+**/out-tsc/
+dashboard/out-tsc/
+tmp/
+**/tmp/
+dashboard/tmp/
+.sass-cache/
+.parcel-cache/
+.turbo/
+.cache/
+typings/
+connect.lock
+
+# Rapports de couverture de tests
+coverage/
+**/coverage/
+dashboard/coverage/
+.nyc_output/
+
+# ── 4. Logs & Sorties Temporaires ──────────────────────────────────────────────
 *.log
+**/*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+libpeerconnection.log
+testem.log
+ng-serve.log
+build-output.txt
+doopinet.html
 
-# Fichiers d'environnement
-backend/.env
-backend/.env.local
-.env
-.env.local
+# ── 5. Archives & Fichiers Binaires Téléchargés ────────────────────────────────
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+dashboard/public/*.zip
+"dashboard/public/By SWAP.zip"
 
-# Builds
-backend/target/
-dashboard/.angular/
-dashboard/dist/
-dashboard/node_modules/
+# ── 6. IDEs & Éditeurs de Code ────────────────────────────────────────────────
+.idea/
+**/.idea/
+*.iml
+*.ipr
+*.iws
+
+# Eclipse / Spring Tool Suite (STS)
+.project
+.classpath
+.factorypath
+.settings/
+**/.settings/
+.springBeans
+.sts4-cache
+.apt_generated/
+nbproject/private/
+nbbuild/
+nbdist/
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/
+*.swp
+*.swo
+*~
+*.bak
+*.orig
+*.tmp
+*.temp
+
+# ── 7. Fichiers Systèmes (OS) ─────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/

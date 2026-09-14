@@ -1,66 +1,156 @@
-# ── Environnement & Secrets (ne jamais committer) ──
+# ==============================================================================
+# Git Ignore — FallaJobs Project (Root & Workspaces)
+# ==============================================================================
+
+# ── 1. Environnements, Clés & Secrets (STRICTEMENT CONFIDENTIEL) ───────────────
 .env
 .env.*
 !.env.example
-!.env.example.*
+!.env.*.example
+*.env
+code/.env
+code/.env.*
+!code/.env.example
+code/backend/.env
+code/backend/.env.*
+!code/backend/.env.example
+!code/backend/.env.*.example
+code/dashboard/.env
+code/dashboard/.env.*
+!code/dashboard/.env.example
+
+# Clés de sécurité, certificats, credentials
 *.pem
 *.key
 *.crt
+*.p12
+*.pfx
+*.jks
+client_secret*.json
+credentials.json
+/workflows/credentials/
+code/ressources/clé nokash/
+ressources/clé nokash/
+code/ressources/**/clés.txt
+ressources/**/clés.txt
+ressources/
+**/clé*
+**/cle*
 
-# ── Données n8n locales (DB, logs, credentials chiffrés) ──
+# ── 2. Données n8n locales ───────────────────────────────────────────────────
 /n8n_data/
 
-# Credentials en clair & ressources sensibles (seulement à la racine)
-/workflows/credentials/
-/ressources/
+# ── 3. Java / Spring Boot (Backend) ────────────────────────────────────────────
+target/
+**/target/
+code/backend/target/
+*.class
+*.jar
+*.war
+*.ear
+hs_err_pid*
+replay_pid*
+maven-wrapper.jar
+!code/backend/.mvn/wrapper/maven-wrapper.jar
 
-# ── Logs & sorties temporaires ──
-*.log
-build-output.txt
-ng-serve.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
-
-# Scrap / dumps temporaires (fichiers de test locaux)
-doopinet.html
+# Bases de données locales, dumps & H2
+*.sql.gz
 *.dump
+*.dmp
+backup.sql
+**/backup.sql
 code/backend/backup.sql
 *.h2.db
 *.mv.db
 *.trace.db
+*.sqlite
+*.sqlite3
+*.db
 
-# ── Docker overrides locaux ──
+# ── 4. Angular / Node / TypeScript (Frontend) ─────────────────────────────────
+node_modules/
+**/node_modules/
+code/dashboard/node_modules/
+
+# Compilation & caches
+dist/
+**/dist/
+code/dashboard/dist/
+.angular/
+**/.angular/
+code/dashboard/.angular/
+.angular/cache/
+**/.angular/cache/
+out-tsc/
+**/out-tsc/
+code/dashboard/out-tsc/
+tmp/
+**/tmp/
+code/dashboard/tmp/
+.sass-cache/
+.parcel-cache/
+.turbo/
+.cache/
+typings/
+connect.lock
+
+# Rapports de couverture de tests
+coverage/
+**/coverage/
+code/dashboard/coverage/
+.nyc_output/
+
+# ── 5. Logs & Sorties Temporaires ──────────────────────────────────────────────
+*.log
+**/*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+libpeerconnection.log
+testem.log
+ng-serve.log
+build-output.txt
+doopinet.html
+
+# ── 6. Archives & Fichiers Binaires Téléchargés ────────────────────────────────
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+code/dashboard/public/*.zip
+"code/dashboard/public/By SWAP.zip"
+dashboard/public/*.zip
+"dashboard/public/By SWAP.zip"
+
+# ── 7. Docker overrides locaux ────────────────────────────────────────────────
 local-docker-compose.yml
 docker-compose.override.yml
 
-# ── OS ──
-.DS_Store
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-.AppleDouble
-.LSOverride
-Icon
-
-# ── IDE ──
+# ── 8. IDEs & Éditeurs de Code ────────────────────────────────────────────────
 .idea/
+**/.idea/
 *.iml
 *.ipr
 *.iws
+
+# Eclipse / Spring Tool Suite (STS)
 .project
 .classpath
 .factorypath
 .settings/
+**/.settings/
 .springBeans
 .sts4-cache
 .apt_generated/
 nbproject/private/
 nbbuild/
 nbdist/
-/nbproject/load-impl.xml
-/nbproject/build-impl.xml
+
+# Visual Studio Code
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
@@ -70,46 +160,18 @@ nbdist/
 *.swp
 *.swo
 *~
-
-# ── Java / Maven ──
-target/
-code/backend/target/
-code/backend/.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
-*.class
-*.jar
-*.war
-*.ear
-
-# ── Angular / Node ──
-node_modules/
-code/dashboard/node_modules/
-dist/
-code/dashboard/dist/
-tmp/
-code/dashboard/tmp/
-out-tsc/
-code/dashboard/out-tsc/
-.bazel-cache/
-/bazel-out
-.angular/
-code/dashboard/.angular/
-.sass-cache/
-coverage/
-code/dashboard/coverage/
-libpeerconnection.log
-typings/
-connect.lock
-.nyc_output/
-.parcel-cache/
-.cache/
-.turbo/
-npm-debug.log
-yarn-error.log
-
-# ── Misc ──
-*.tmp
-*.temp
 *.bak
 *.orig
+*.tmp
+*.temp
+
+# ── 9. Fichiers Systèmes (OS) ─────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/

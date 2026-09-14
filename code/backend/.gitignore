@@ -11,9 +11,10 @@ target/
 .settings
 .springBeans
 .sts4-userId
+.sts4-cache
 
 ### IntelliJ IDEA ###
-.idea
+.idea/
 *.iws
 *.iml
 *.ipr
@@ -27,16 +28,37 @@ target/
 
 ### Environment variables & Secrets ###
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.crt
+*.p12
+*.jks
+credentials.json
+client_secret*.json
+
+### Logs & diagnostics ###
 *.log
-!**/src/main/**/target/
-ressources/clé nokash/
-ressources/**/clés.txt
+**/*.log
+hs_err_pid*
+replay_pid*
 maven-wrapper.jar
 
 ### Dump & local DB ###
 backup.sql
+*.dump
+*.dmp
+*.sql.gz
 *.h2.db
 *.mv.db
 *.trace.db
+*.sqlite
+*.sqlite3
+*.db
+
+### OS files ###
+.DS_Store
+Thumbs.db
+Desktop.ini
