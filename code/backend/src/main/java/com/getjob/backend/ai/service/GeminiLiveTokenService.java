@@ -1,6 +1,7 @@
 package com.getjob.backend.ai.service;
 
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -39,7 +40,10 @@ import java.util.stream.Collectors;
  */
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class GeminiLiveTokenService {
+
+    private final RestTemplate restTemplate;
 
     /**
      * Liste de clés séparées par virgule.
@@ -55,8 +59,12 @@ public class GeminiLiveTokenService {
     @Value("${gemini.api-key}")
     private String geminiApiKeySingle;
 
-    @Value("${gemini.live.model:gemini-2.0-flash-live-001}")
+    @Value("${gemini.live.model:gemini-3.1-flash-live-preview}")
     private String geminiModel;
+
+    @Value("${gemini.model:gemini-2.0-flash}")
+    private String geminiTextModel;
+
 
     /** Liste effective des clés valides chargées au démarrage. */
     private List<String> apiKeys = new ArrayList<>();
@@ -137,7 +145,7 @@ public class GeminiLiveTokenService {
     }
 
     /**
-     * Génère une réponse structurée (JSON) via Gemini 2.0 Flash avec rotation de clés et failover.
+     * Génère une réponse structurée (JSON) via Gemini 3.1 Flash avec rotation de clés et failover.
      */
     public String generateStructuredContent(String systemInstruction, String userPrompt) {
         if (apiKeys.isEmpty()) {
@@ -156,7 +164,7 @@ public class GeminiLiveTokenService {
             String key = apiKeys.get(idx);
 
             try {
-                String result = callGeminiGenerateContent(key, idx, systemInstruction, userPrompt);
+                String result = callGeminiGenerateContent(key, idx, systemInstruction, userPrompt, true);
                 currentKeyIndex.set((idx + 1) % total);
                 return result;
             } catch (KeyFailedException e) {
@@ -171,10 +179,44 @@ public class GeminiLiveTokenService {
         );
     }
 
-    private String callGeminiGenerateContent(String apiKey, int keyIndex, String systemInstruction, String userPrompt) {
+    /**
+     * Génère une réponse textuelle fluide en texte clair (ex: lettre de motivation) sans forcer le format JSON.
+     */
+    public String generatePlainTextContent(String systemInstruction, String userPrompt) {
+        if (apiKeys.isEmpty()) {
+            log.error("Gemini : aucune clé API disponible pour la génération de texte.");
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "Service IA indisponible : aucune clé API configurée."
+            );
+        }
+
+        int total = apiKeys.size();
+        int startIndex = currentKeyIndex.get() % total;
+
+        for (int attempt = 0; attempt < total; attempt++) {
+            int idx = (startIndex + attempt) % total;
+            String key = apiKeys.get(idx);
+
+            try {
+                String result = callGeminiGenerateContent(key, idx, systemInstruction, userPrompt, false);
+                currentKeyIndex.set((idx + 1) % total);
+                return result;
+            } catch (KeyFailedException e) {
+                log.warn("Gemini : clé [{}] a échoué ({}) lors de la génération texte — essai suivant.", idx, e.getReason());
+            }
+        }
+
+        log.error("Gemini : toutes les {} clé(s) ont échoué lors de la génération texte.", total);
+        throw new ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "Service IA temporairement indisponible. Veuillez réessayer."
+        );
+    }
+
+    private String callGeminiGenerateContent(String apiKey, int keyIndex, String systemInstruction, String userPrompt, boolean asJson) {
         try {
-            RestTemplate restTemplate = new RestTemplate();
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey;
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/" + geminiTextModel + ":generateContent?key=" + apiKey;
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -186,10 +228,16 @@ public class GeminiLiveTokenService {
             body.put("contents", List.of(
                     Map.of("role", "user", "parts", List.of(Map.of("text", userPrompt)))
             ));
-            body.put("generationConfig", Map.of(
-                    "responseMimeType", "application/json",
-                    "temperature", 0.2
-            ));
+            if (asJson) {
+                body.put("generationConfig", Map.of(
+                        "responseMimeType", "application/json",
+                        "temperature", 0.2
+                ));
+            } else {
+                body.put("generationConfig", Map.of(
+                        "temperature", 0.3
+                ));
+            }
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
 
@@ -261,8 +309,7 @@ public class GeminiLiveTokenService {
 
     private String callGeminiGenerateDocumentContent(String apiKey, int keyIndex, String systemInstruction, String userPrompt, String base64Data, String mimeType) {
         try {
-            RestTemplate restTemplate = new RestTemplate();
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey;
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/" + geminiTextModel + ":generateContent?key=" + apiKey;
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -334,7 +381,6 @@ public class GeminiLiveTokenService {
         log.info("Gemini : tentative de création token avec clé [{}] (modèle: {})", keyIndex, geminiModel);
 
         try {
-            RestTemplate restTemplate = new RestTemplate();
             String url = "https://generativelanguage.googleapis.com/v1beta/auth_tokens";
 
             HttpHeaders headers = new HttpHeaders();
@@ -342,11 +388,12 @@ public class GeminiLiveTokenService {
             // La clé API reste dans le header HTTP côté serveur — jamais transmise au client
             headers.set("x-goog-api-key", apiKey);
 
-            Instant now = Instant.now();
             Map<String, Object> body = new HashMap<>();
-            body.put("uses", 1);
-            body.put("expireTime", now.plus(Duration.ofMinutes(30)).toString());
-            body.put("newSessionExpireTime", now.plus(Duration.ofMinutes(2)).toString());
+            // On autorise jusqu'à 10 utilisations pour supporter les reconnexions réseau automatiques.
+            // On ne transmet PAS d'horodatage machine local (expireTime / newSessionExpireTime) afin d'éviter
+            // tout rejet "1011 Token has expired" causé par un décalage d'horloge entre le serveur et Google.
+            // Google applique son horodatage autoritaire par défaut (30 minutes).
+            body.put("uses", 10);
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
 

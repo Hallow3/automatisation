@@ -22,23 +22,19 @@
           </p>
         </div>
 
-        <!-- Search Input with icon -->
+        <!-- Search Input -->
         <div class="relative w-full md:w-80 shrink-0">
-          <svg class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
           <input
             type="text"
             [ngModel]="searchTemplateQuery()"
             (ngModelChange)="onSearchTemplateChange($event)"
             placeholder="Rechercher un modèle (senior, tech...)"
-            class="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-9 py-2 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100 transition shadow-2xs" />
+            class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 pr-9 py-2 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100 transition shadow-2xs" />
           <button
             *ngIf="searchTemplateQuery()"
             type="button"
             (click)="onSearchTemplateChange('')"
-            class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+            class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 font-bold text-xs">
             ✕
           </button>
         </div>
@@ -52,16 +48,13 @@
           (click)="selectCategory(cat.id)"
           [class]="'inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 py-1.5 text-xs font-bold transition shrink-0 ' + (selectedCategory() === cat.id ? 'bg-brand-600 text-white shadow-brand' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900')">
           <span>{{ cat.label }}</span>
-          <span *ngIf="cat.id === 'all'" class="rounded-full bg-white/20 px-1.5 py-0.2 text-3xs font-bold">12</span>
+          <span *ngIf="cat.id === 'all'" class="rounded-full bg-white/20 px-1.5 py-0.2 text-3xs font-bold">2</span>
         </button>
       </div>
     </div>
 
     <!-- Empty State if no template matches search -->
     <div *ngIf="filteredTemplates().length === 0" class="rounded-2xl border border-slate-200 bg-white p-12 text-center">
-      <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 mb-3 text-xl">
-        🔍
-      </div>
       <h3 class="text-sm font-bold text-slate-900">Aucun modèle ne correspond à votre recherche</h3>
       <p class="mt-1 text-xs text-slate-500">Essayez un autre mot-clé ou réinitialisez les filtres.</p>
       <button
@@ -72,114 +65,55 @@
       </button>
     </div>
 
-    <!-- Template Cards Grid (Responsive 1/2/3 cols) -->
-    <div *ngIf="filteredTemplates().length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+    <!-- Grille compacte des Modèles (Taille originale compacte 145px style Word) -->
+    <div *ngIf="filteredTemplates().length > 0" class="flex flex-wrap items-start gap-4">
       <div
-        *ngFor="let t of paginatedTemplates()"
+        *ngFor="let t of filteredTemplates()"
         (click)="selectTemplate(t.id)"
-        [class]="'group relative flex flex-col justify-between cursor-pointer rounded-2xl bg-white p-4 transition-all duration-200 ease-out shadow-xs hover:shadow-md ' + (selectedTemplate() === t.id ? 'border-2 border-brand-600 ring-4 ring-brand-50' : 'border border-slate-200 hover:border-brand-300')">
-        
-        <!-- Selection Badge -->
-        <div *ngIf="selectedTemplate() === t.id" class="absolute -top-3 right-4 z-10">
-          <span class="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-600 to-brand-500 px-3 py-1 text-2xs font-bold text-white shadow-brand">
-            <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
-            Modèle sélectionné
+        (dblclick)="selectTemplate(t.id); goToEditor()"
+        [class]="'group relative flex flex-col items-center cursor-pointer rounded-lg p-2 transition-all duration-150 w-[155px] ' + (selectedTemplate() === t.id ? 'bg-slate-200/90 ring-2 ring-brand-600 shadow-xs' : 'hover:bg-slate-100/90')">
+
+        <!-- Miniature CV Sheet (Taille originale compacte 145px × 205px) -->
+        <div class="relative w-[145px] h-[205px] bg-white rounded-[2px] shadow-sm border border-slate-300/80 overflow-hidden group-hover:shadow-md transition-shadow select-none">
+          <!-- Vraie miniature du CV rendu à l'échelle A4 exacte avec données complètes -->
+          <div class="pointer-events-none origin-top-left" style="width: 794px; height: 1123px; transform: scale(0.18262); transform-origin: 0 0;">
+            <app-cv-preview [cv]="sampleCvData" [template]="t.id" />
+          </div>
+
+          <!-- Boutons Aperçu & Choisir centrés sur le CV -->
+          <div
+            [class]="'absolute inset-0 bg-slate-900/50 backdrop-blur-2xs transition-opacity duration-150 flex flex-col items-center justify-center gap-2 p-2 ' + (selectedTemplate() === t.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')">
+            <button
+              type="button"
+              (click)="openTemplatePreview(t.id, $event)"
+              class="w-24 py-1.5 px-2 rounded-md bg-white hover:bg-slate-100 text-slate-900 font-bold text-[11px] shadow-md transition active:scale-95 text-center leading-tight">
+              Aperçu
+            </button>
+            <button
+              type="button"
+              (click)="$event.stopPropagation(); selectTemplate(t.id); goToEditor()"
+              class="w-24 py-1.5 px-2 rounded-md bg-brand-600 hover:bg-brand-700 text-white font-bold text-[11px] shadow-brand transition active:scale-95 text-center leading-tight">
+              Choisir
+            </button>
+          </div>
+        </div>
+
+        <!-- Titre & Tag compacts (aucun bouton en dessous) -->
+        <div class="mt-2 w-full text-center px-1">
+          <p class="text-[11px] font-medium text-slate-800 truncate group-hover:text-brand-700 leading-tight">
+            {{ t.name }}
+          </p>
+          <span class="text-[9px] text-slate-400 truncate block mt-0.5">
+            {{ t.tag }}
           </span>
         </div>
-
-        <div>
-          <!-- Miniature CV Preview Canvas -->
-          <div class="relative overflow-hidden rounded-xl bg-slate-50 p-2.5 border border-slate-100 transition-transform group-hover:scale-[1.01]">
-            <app-cv-thumbnail [layout]="t.layout" [accent]="t.accent" />
-            
-            <!-- Category / Level Badge -->
-            <div class="absolute top-4 left-4">
-              <span [class]="'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-bold shadow-2xs ' + (t.category === 'senior' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-white/95 text-slate-800 border border-slate-200 backdrop-blur-xs')">
-                {{ t.badge }}
-              </span>
-            </div>
-
-            <!-- Page hint -->
-            <div class="absolute bottom-4 right-4">
-              <span class="rounded-md bg-slate-900/80 backdrop-blur-xs px-2 py-0.5 text-3xs font-bold text-white shadow-2xs">
-                📄 {{ t.pages }}
-              </span>
-            </div>
-          </div>
-
-          <!-- Info -->
-          <div class="mt-4">
-            <div class="flex items-center justify-between gap-2">
-              <h3 class="text-base font-bold text-slate-900 group-hover:text-brand-600 transition truncate">
-                {{ t.name }}
-              </h3>
-            </div>
-            <p class="mt-0.5 text-xs font-semibold text-brand-600 truncate">{{ t.tag }}</p>
-            <p class="mt-1.5 text-xs leading-relaxed text-slate-500 line-clamp-2">{{ t.description }}</p>
-
-            <!-- Key Features -->
-            <ul class="mt-3 space-y-1 border-t border-slate-100 pt-2.5">
-              <li *ngFor="let f of t.features" class="flex items-center gap-1.5 text-2xs text-slate-600 truncate">
-                <svg class="h-3.5 w-3.5 text-emerald-500 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-                <span class="truncate">{{ f }}</span>
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <!-- Card bottom CTA -->
-        <div class="mt-4 pt-3 border-t border-slate-100">
-          <button
-            type="button"
-            (click)="$event.stopPropagation(); selectTemplate(t.id); goToEditor()"
-            [class]="'w-full inline-flex items-center justify-center gap-2 rounded-xl py-2 px-3 text-xs font-bold transition ' + (selectedTemplate() === t.id ? 'bg-brand-600 text-white shadow-brand hover:bg-brand-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200')">
-            <span>{{ selectedTemplate() === t.id ? 'Créer avec ce modèle →' : 'Choisir & Éditer' }}</span>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Pagination Bar (Mobile First) -->
-    <div *ngIf="totalTemplatePages() > 1" class="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
-      <p class="text-xs text-slate-500 font-medium">
-        Page <span class="font-bold text-slate-900">{{ templatePage() }}</span> sur <span class="font-bold text-slate-900">{{ totalTemplatePages() }}</span> ({{ filteredTemplates().length }} modèles au total)
-      </p>
-
-      <div class="flex items-center gap-1.5">
-        <button
-          type="button"
-          (click)="prevTemplatePage()"
-          [disabled]="templatePage() === 1"
-          class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition">
-          ← Précédent
-        </button>
-
-        <button
-          *ngFor="let p of templatePagesArray()"
-          type="button"
-          (click)="goToTemplatePage(p)"
-          [class]="'flex h-8 w-8 items-center justify-center rounded-xl text-xs font-bold transition ' + (templatePage() === p ? 'bg-brand-600 text-white shadow-brand' : 'bg-slate-100 text-slate-700 hover:bg-slate-200')">
-          {{ p }}
-        </button>
-
-        <button
-          type="button"
-          (click)="nextTemplatePage()"
-          [disabled]="templatePage() === totalTemplatePages()"
-          class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition">
-          Suivant →
-        </button>
       </div>
     </div>
 
     <!-- Bottom Actions Toolbar (Floating / Responsive) -->
     <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
       <a routerLink="/cvs" class="inline-flex h-9 items-center rounded-xl border border-slate-200 bg-white px-3.5 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
-        ← Mes CV
+        Mes CV
       </a>
 
       <div class="flex flex-wrap items-center gap-2 sm:gap-2.5">
@@ -192,40 +126,33 @@
 
         <button
           type="button"
-          (click)="fileInputBuilder.click()"
+          (click)="handleImportClick(fileInputBuilder)"
           [disabled]="isImporting()"
+          title="Nécessite un solde d'au moins 2 crédits Pro (aucun crédit déduit)"
           class="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3.5 text-xs sm:text-sm font-semibold text-slate-700 shadow-2xs transition disabled:opacity-50">
-          <svg class="h-4 w-4 text-brand-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-          </svg>
-          {{ isImporting() ? 'Analyse en cours…' : 'Importer un CV' }}
+          <span>{{ isImporting() ? 'Analyse en cours…' : 'Importer un CV' }}</span>
+          <span class="rounded-full bg-brand-50 text-brand-700 text-2xs px-1.5 py-0.5 border border-brand-200 font-bold">2 cr</span>
         </button>
 
         <button
           type="button"
           (click)="goToEditor()"
-          class="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 px-3.5 text-xs sm:text-sm font-semibold text-slate-800 transition">
-          ✏️ Saisie manuelle
+          class="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 px-3.5 text-xs sm:text-sm font-semibold text-slate-800 transition">
+          Saisie manuelle
         </button>
 
         <button
           type="button"
           (click)="setPhase('wizard')"
-          class="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-amber-500 bg-amber-500 hover:bg-amber-600 px-3.5 text-xs sm:text-sm font-semibold text-white shadow-2xs transition">
-          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-          </svg>
-          ✨ Questionnaire IA (Sans Micro)
+          class="inline-flex h-9 items-center justify-center rounded-xl border border-amber-500 bg-amber-500 hover:bg-amber-600 px-3.5 text-xs sm:text-sm font-semibold text-white shadow-2xs transition">
+          Questionnaire IA (Sans Micro)
         </button>
 
         <button
           type="button"
           (click)="setPhase('voice')"
-          class="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 px-4 text-xs sm:text-sm font-bold text-white shadow-brand transition">
-          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
-          </svg>
-          🎙️ Entretien Vocal IA
+          class="inline-flex h-9 items-center justify-center rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 px-4 text-xs sm:text-sm font-bold text-white shadow-brand transition">
+          Entretien Vocal IA
         </button>
       </div>
     </div>
@@ -277,24 +204,24 @@
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2" formGroupName="identity">
           <div>
             <label class="block text-xs font-bold text-text-primary mb-1">Nom complet *</label>
-            <input type="text" formControlName="fullName" placeholder="Ex: Alex Moreau" class="w-full rounded-input border border-border-strong px-3 py-2 text-xs focus:border-brand-navy-700 focus:outline-none" />
+            <input type="text" formControlName="fullName" maxlength="70" placeholder="Ex: Alex Moreau" class="w-full rounded-input border border-border-strong px-3 py-2 text-xs focus:border-brand-navy-700 focus:outline-none" />
           </div>
           <div>
             <label class="block text-xs font-bold text-text-primary mb-1">Email professionnel *</label>
-            <input type="email" formControlName="email" placeholder="alex.moreau@email.com" class="w-full rounded-input border border-border-strong px-3 py-2 text-xs focus:border-brand-navy-700 focus:outline-none" />
+            <input type="email" formControlName="email" maxlength="80" placeholder="alex.moreau@email.com" class="w-full rounded-input border border-border-strong px-3 py-2 text-xs focus:border-brand-navy-700 focus:outline-none" />
           </div>
           <div>
             <label class="block text-xs font-bold text-text-primary mb-1">Téléphone</label>
-            <input type="tel" formControlName="phone" placeholder="+33 6 12 34 56 78" class="w-full rounded-input border border-border-strong px-3 py-2 text-xs focus:border-brand-navy-700 focus:outline-none" />
+            <input type="tel" formControlName="phone" maxlength="30" placeholder="+33 6 12 34 56 78" class="w-full rounded-input border border-border-strong px-3 py-2 text-xs focus:border-brand-navy-700 focus:outline-none" />
           </div>
           <div>
             <label class="block text-xs font-bold text-text-primary mb-1">Ville / Région</label>
-            <input type="text" formControlName="city" placeholder="Paris, France" class="w-full rounded-input border border-border-strong px-3 py-2 text-xs focus:border-brand-navy-700 focus:outline-none" />
+            <input type="text" formControlName="city" maxlength="60" placeholder="Paris, France" class="w-full rounded-input border border-border-strong px-3 py-2 text-xs focus:border-brand-navy-700 focus:outline-none" />
           </div>
         </div>
         <div>
           <label class="block text-xs font-bold text-text-primary mb-1">Poste ou titre ciblé *</label>
-          <input type="text" formControlName="headline" placeholder="Ex: Développeur Full Stack Senior | Angular & Java" class="w-full rounded-input border border-border-strong px-3 py-2 text-xs focus:border-brand-navy-700 focus:outline-none" />
+          <input type="text" formControlName="headline" maxlength="90" placeholder="Ex: Développeur Full Stack Senior | Angular & Java" class="w-full rounded-input border border-border-strong px-3 py-2 text-xs focus:border-brand-navy-700 focus:outline-none" />
         </div>
       </div>
 
@@ -316,20 +243,25 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label class="block text-2xs font-semibold text-text-muted mb-0.5">Intitulé du poste</label>
-                <input type="text" formControlName="position" placeholder="Ex: Ingénieur Logiciel" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
+                <input type="text" formControlName="position" maxlength="80" placeholder="Ex: Ingénieur Logiciel" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
               </div>
               <div>
                 <label class="block text-2xs font-semibold text-text-muted mb-0.5">Entreprise</label>
-                <input type="text" formControlName="company" placeholder="Ex: TechCorp" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
+                <input type="text" formControlName="company" maxlength="80" placeholder="Ex: TechCorp" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
               </div>
               <div>
                 <label class="block text-2xs font-semibold text-text-muted mb-0.5">Date début</label>
-                <input type="text" formControlName="startDate" placeholder="Ex: Janv 2022" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
+                <input type="text" formControlName="startDate" maxlength="30" placeholder="Ex: Janv 2022" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
               </div>
               <div>
                 <label class="block text-2xs font-semibold text-text-muted mb-0.5">Date fin</label>
-                <input type="text" formControlName="endDate" placeholder="Ex: Présent" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
+                <input type="text" formControlName="endDate" maxlength="30" placeholder="Ex: Présent" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
               </div>
+            </div>
+
+            <div>
+              <label class="block text-2xs font-semibold text-text-muted mb-0.5">Description / Contexte du poste (optionnel)</label>
+              <textarea formControlName="description" maxlength="800" rows="2" placeholder="Contexte général, environnement technique ou objectifs de la mission..." class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white resize-none"></textarea>
             </div>
 
             <div>
@@ -339,7 +271,7 @@
               </div>
               <div formArrayName="responsibilities" class="space-y-1.5">
                 <div *ngFor="let _ of getResponsibilities(i).controls; let ri = index" class="flex gap-2">
-                  <input type="text" [formControlName]="ri" placeholder="Ex: Développement d'une architecture microservices..." class="flex-1 rounded-input border border-border-strong px-2.5 py-1 text-xs bg-white" />
+                  <input type="text" [formControlName]="ri" maxlength="350" placeholder="Ex: Développement d'une architecture microservices..." class="flex-1 rounded-input border border-border-strong px-2.5 py-1 text-xs bg-white" />
                   <button type="button" (click)="removeResponsibility(i, ri)" class="text-xs text-text-muted hover:text-danger px-1">✕</button>
                 </div>
               </div>
@@ -370,15 +302,15 @@
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label class="block text-2xs font-semibold text-text-muted mb-0.5">Diplôme / Titre</label>
-                <input type="text" formControlName="degree" placeholder="Ex: Master Informatique" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
+                <input type="text" formControlName="degree" maxlength="80" placeholder="Ex: Master Informatique" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
               </div>
               <div>
                 <label class="block text-2xs font-semibold text-text-muted mb-0.5">École / Université</label>
-                <input type="text" formControlName="school" placeholder="Ex: Université Paris Cité" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
+                <input type="text" formControlName="school" maxlength="80" placeholder="Ex: Université Paris Cité" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
               </div>
               <div>
                 <label class="block text-2xs font-semibold text-text-muted mb-0.5">Année ou Période</label>
-                <input type="text" formControlName="year" placeholder="Ex: 2020 - 2022" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
+                <input type="text" formControlName="year" maxlength="40" placeholder="Ex: 2020 - 2022" class="w-full rounded-input border border-border-strong px-2.5 py-1.5 text-xs bg-white" />
               </div>
             </div>
           </div>
@@ -394,7 +326,7 @@
         <div>
           <label class="block text-xs font-bold text-text-primary mb-1">Compétences techniques & professionnelles</label>
           <div class="flex gap-2 mb-2">
-            <input type="text" [(ngModel)]="newSkillInput" [ngModelOptions]="{standalone: true}" placeholder="Ex: TypeScript, Spring Boot, Docker..." (keydown.enter)="addSkill()" class="flex-1 rounded-input border border-border-strong px-3 py-1.5 text-xs" />
+            <input type="text" [(ngModel)]="newSkillInput" [ngModelOptions]="{standalone: true}" maxlength="40" placeholder="Ex: TypeScript, Spring Boot, Docker..." (keydown.enter)="addSkill()" class="flex-1 rounded-input border border-border-strong px-3 py-1.5 text-xs" />
             <app-button size="sm" variant="secondary" (btnClick)="addSkill()">Ajouter</app-button>
           </div>
           <div class="flex flex-wrap gap-1.5">
@@ -412,8 +344,8 @@
           </div>
           <div formArrayName="languages" class="space-y-2">
             <div *ngFor="let _ of languages.controls; let i = index" [formGroupName]="i" class="flex gap-3 items-center">
-              <input type="text" formControlName="lang" placeholder="Ex: Anglais" class="flex-1 rounded-input border border-border-strong px-2.5 py-1.5 text-xs" />
-              <input type="text" formControlName="level" placeholder="Ex: Courant (C1)" class="w-40 rounded-input border border-border-strong px-2.5 py-1.5 text-xs" />
+              <input type="text" formControlName="lang" maxlength="40" placeholder="Ex: Anglais" class="flex-1 rounded-input border border-border-strong px-2.5 py-1.5 text-xs" />
+              <input type="text" formControlName="level" maxlength="40" placeholder="Ex: Courant (C1)" class="w-40 rounded-input border border-border-strong px-2.5 py-1.5 text-xs" />
               <button type="button" (click)="removeLanguage(i)" class="text-xs text-danger hover:underline px-1">Supprimer</button>
             </div>
           </div>
@@ -436,6 +368,7 @@
         </div>
         <textarea
           formControlName="summary"
+          maxlength="1200"
           rows="4"
           placeholder="Ex: Développeur full-stack passionné avec 5 ans d'expérience dans la conception d'applications web scalables..."
           class="w-full rounded-input border border-border-strong p-3 text-xs leading-relaxed focus:border-brand-navy-700 focus:outline-none"></textarea>
@@ -466,6 +399,16 @@
        PHASE 2 : ÉDITEUR SPLIT-SCREEN (Section 18)
   ═════════════════════════════════════════════════════════════════════════ -->
   <div *ngIf="currentPhase === 'editor'" class="space-y-4 pb-24 lg:pb-0">
+
+    <!-- Notification Pro Toast -->
+    <div
+      *ngIf="proNotification()"
+      class="rounded-lg bg-slate-900 text-white px-3.5 py-2.5 text-xs font-medium flex items-center justify-between animate-fade-in border border-slate-800">
+      <span>{{ proNotification() }}</span>
+      <button type="button" (click)="proNotification.set(null)" class="text-slate-400 hover:text-white ml-2">✕</button>
+    </div>
+
+
     <!-- Editor Header Toolbar -->
     <div class="rounded-[15px] border border-border-default bg-surface-card p-3.5 sm:px-4 sm:py-3 shadow-card space-y-2.5 sm:space-y-0 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
       <div class="flex items-center justify-between sm:justify-start gap-2 sm:gap-3">
@@ -542,13 +485,7 @@
               type="button"
               (click)="toggleSection('identity')"
               class="flex w-full items-center justify-between p-4 text-left font-bold text-[14px] text-text-primary hover:bg-surface-soft/60">
-              <span class="flex items-center gap-2">
-                <svg class="h-4 w-4 text-brand-navy-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                  <circle cx="12" cy="7" r="4"/>
-                </svg>
-                Identité & Coordonnées
-              </span>
+              <span>Identité & Coordonnées</span>
               <svg [class]="'h-4 w-4 text-text-muted transition-transform ' + (expandedSections.identity ? 'rotate-180' : '')" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <polyline points="6 9 12 15 18 9"/>
               </svg>
@@ -558,19 +495,19 @@
               <div class="grid grid-cols-1 gap-3 sm:grid-cols-2" formGroupName="identity">
                 <div>
                   <label class="block text-xs font-semibold text-text-secondary">Nom complet *</label>
-                  <input type="text" formControlName="fullName" placeholder="Ex : Mohamed B." class="mt-1 w-full rounded-input border border-border-strong bg-white px-3 py-1.5 text-sm text-text-primary focus:border-brand-600 focus:outline-none" />
+                  <input type="text" formControlName="fullName" maxlength="70" placeholder="Ex : Mohamed B." class="mt-1 w-full rounded-input border border-border-strong bg-white px-3 py-1.5 text-sm text-text-primary focus:border-brand-600 focus:outline-none" />
                 </div>
                 <div>
                   <label class="block text-xs font-semibold text-text-secondary">Email professionnel *</label>
-                  <input type="email" formControlName="email" placeholder="mohamed@email.com" class="mt-1 w-full rounded-input border border-border-strong bg-white px-3 py-1.5 text-sm text-text-primary focus:border-brand-600 focus:outline-none" />
+                  <input type="email" formControlName="email" maxlength="80" placeholder="mohamed@email.com" class="mt-1 w-full rounded-input border border-border-strong bg-white px-3 py-1.5 text-sm text-text-primary focus:border-brand-600 focus:outline-none" />
                 </div>
                 <div>
                   <label class="block text-xs font-semibold text-text-secondary">Téléphone</label>
-                  <input type="tel" formControlName="phone" placeholder="+33 6 12 34 56 78" class="mt-1 w-full rounded-input border border-border-strong bg-white px-3 py-1.5 text-sm text-text-primary focus:border-brand-600 focus:outline-none" />
+                  <input type="tel" formControlName="phone" maxlength="30" placeholder="+33 6 12 34 56 78" class="mt-1 w-full rounded-input border border-border-strong bg-white px-3 py-1.5 text-sm text-text-primary focus:border-brand-600 focus:outline-none" />
                 </div>
                 <div>
                   <label class="block text-xs font-semibold text-text-secondary">Localisation / Ville</label>
-                  <input type="text" formControlName="city" placeholder="Douala, Cameroun" class="mt-1 w-full rounded-input border border-border-strong bg-white px-3 py-1.5 text-sm text-text-primary focus:border-brand-600 focus:outline-none" />
+                  <input type="text" formControlName="city" maxlength="60" placeholder="Douala, Cameroun" class="mt-1 w-full rounded-input border border-border-strong bg-white px-3 py-1.5 text-sm text-text-primary focus:border-brand-600 focus:outline-none" />
                 </div>
               </div>
 
@@ -634,6 +571,7 @@
                       <input
                         type="text"
                         formControlName="label"
+                        maxlength="40"
                         placeholder="Nom (ex: Portfolio)"
                         class="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-brand-600 focus:outline-none" />
                     </div>
@@ -643,6 +581,7 @@
                       <input
                         type="text"
                         formControlName="url"
+                        maxlength="150"
                         placeholder="URL (ex: github.com/username)"
                         class="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-brand-600 focus:outline-none" />
                     </div>
@@ -671,12 +610,7 @@
               type="button"
               (click)="toggleSection('summary')"
               class="flex w-full items-center justify-between p-4 text-left font-bold text-[14px] text-text-primary hover:bg-surface-soft/60">
-              <span class="flex items-center gap-2">
-                <svg class="h-4 w-4 text-brand-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                </svg>
-                Titre du profil & Résumé
-              </span>
+              <span>Titre du profil & Résumé</span>
               <div class="flex items-center gap-1">
                 <button
                   type="button"
@@ -703,12 +637,13 @@
             <div *ngIf="expandedSections.summary" class="p-4 pt-0 border-t border-border-default space-y-3">
               <div>
                 <label class="block text-xs font-semibold text-text-secondary">Titre professionnel ou poste ciblé</label>
-                <input type="text" formControlName="headline" placeholder="ex : Développeur Full-Stack Senior" class="mt-1 w-full rounded-input border border-border-strong bg-white px-3 py-1.5 text-sm text-text-primary focus:border-brand-600 focus:outline-none" />
+                <input type="text" formControlName="headline" maxlength="90" placeholder="ex : Développeur Full-Stack Senior" class="mt-1 w-full rounded-input border border-border-strong bg-white px-3 py-1.5 text-sm text-text-primary focus:border-brand-600 focus:outline-none" />
               </div>
               <div>
                 <label class="block text-xs font-semibold text-text-secondary">Résumé professionnel</label>
                 <textarea
                   formControlName="summary"
+                  maxlength="1200"
                   rows="3"
                   placeholder="Présentation synthétique de vos atouts et réalisations phares…"
                   class="mt-1 w-full rounded-input border border-border-strong bg-white p-3 text-sm text-text-primary focus:border-brand-600 focus:outline-none"></textarea>
@@ -722,13 +657,7 @@
               type="button"
               (click)="toggleSection('experiences')"
               class="flex w-full items-center justify-between p-4 text-left font-bold text-[14px] text-text-primary hover:bg-surface-soft/60">
-              <span class="flex items-center gap-2">
-                <svg class="h-4 w-4 text-brand-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
-                  <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
-                </svg>
-                Expériences professionnelles ({{ experiences.length }})
-              </span>
+              <span>Expériences professionnelles ({{ experiences.length }})</span>
               <div class="flex items-center gap-1">
                 <button
                   type="button"
@@ -770,20 +699,25 @@
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label class="block text-2xs font-semibold text-text-secondary">Intitulé du poste</label>
-                    <input type="text" formControlName="position" placeholder="Ex : Ingénieur Logiciel" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                    <input type="text" formControlName="position" maxlength="80" placeholder="Ex : Ingénieur Logiciel" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
                   </div>
                   <div>
                     <label class="block text-2xs font-semibold text-text-secondary">Entreprise</label>
-                    <input type="text" formControlName="company" placeholder="Ex : TechCorp" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                    <input type="text" formControlName="company" maxlength="80" placeholder="Ex : TechCorp" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
                   </div>
                   <div>
                     <label class="block text-2xs font-semibold text-text-secondary">Date début</label>
-                    <input type="text" formControlName="startDate" placeholder="Ex : Janv 2022" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                    <input type="text" formControlName="startDate" maxlength="30" placeholder="Ex : Janv 2022" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
                   </div>
                   <div>
                     <label class="block text-2xs font-semibold text-text-secondary">Date fin</label>
-                    <input type="text" formControlName="endDate" placeholder="Ex : Présent" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                    <input type="text" formControlName="endDate" maxlength="30" placeholder="Ex : Présent" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
                   </div>
+                </div>
+
+                <div>
+                  <label class="block text-2xs font-semibold text-text-secondary">Description / Résumé du poste (optionnel)</label>
+                  <textarea formControlName="description" maxlength="800" rows="2" placeholder="Contexte global du poste, rôle clé ou réalisations majeures..." class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none resize-none"></textarea>
                 </div>
 
                 <div>
@@ -793,7 +727,7 @@
                   </div>
                   <div formArrayName="responsibilities" class="space-y-1.5">
                     <div *ngFor="let _ of getResponsibilities(i).controls; let ri = index" class="flex gap-2">
-                      <input type="text" [formControlName]="ri" placeholder="Ex: Conception d'une API REST scalant à 50k requêtes/s..." class="flex-1 rounded-input border border-border-strong bg-white px-2.5 py-1 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                      <input type="text" [formControlName]="ri" maxlength="350" placeholder="Ex: Conception d'une API REST scalant à 50k requêtes/s..." class="flex-1 rounded-input border border-border-strong bg-white px-2.5 py-1 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
                       <button type="button" (click)="removeResponsibility(i, ri)" class="text-xs text-text-muted hover:text-danger px-1">✕</button>
                     </div>
                   </div>
@@ -815,13 +749,7 @@
               type="button"
               (click)="toggleSection('education')"
               class="flex w-full items-center justify-between p-4 text-left font-bold text-[14px] text-text-primary hover:bg-surface-soft/60">
-              <span class="flex items-center gap-2">
-                <svg class="h-4 w-4 text-brand-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
-                  <path d="M6 12v5c3 3 9 3 12 0v-5"/>
-                </svg>
-                Formations & Diplômes ({{ education.length }})
-              </span>
+              <span>Formations & Diplômes ({{ education.length }})</span>
               <div class="flex items-center gap-1">
                 <button
                   type="button"
@@ -863,15 +791,15 @@
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div>
                     <label class="block text-2xs font-semibold text-text-secondary">Diplôme / Titre</label>
-                    <input type="text" formControlName="degree" placeholder="Ex : Master Informatique" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                    <input type="text" formControlName="degree" maxlength="80" placeholder="Ex : Master Informatique" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
                   </div>
                   <div>
                     <label class="block text-2xs font-semibold text-text-secondary">École / Université</label>
-                    <input type="text" formControlName="school" placeholder="Ex : Université Paris Cité" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                    <input type="text" formControlName="school" maxlength="80" placeholder="Ex : Université Paris Cité" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
                   </div>
                   <div>
                     <label class="block text-2xs font-semibold text-text-secondary">Année / Période</label>
-                    <input type="text" formControlName="year" placeholder="Ex : 2020 - 2022" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                    <input type="text" formControlName="year" maxlength="40" placeholder="Ex : 2020 - 2022" class="mt-1 w-full rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
                   </div>
                 </div>
               </div>
@@ -891,12 +819,7 @@
               type="button"
               (click)="toggleSection('skills')"
               class="flex w-full items-center justify-between p-4 text-left font-bold text-[14px] text-text-primary hover:bg-surface-soft/60">
-              <span class="flex items-center gap-2">
-                <svg class="h-4 w-4 text-brand-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                </svg>
-                Compétences techniques & clés ({{ skills.length }})
-              </span>
+              <span>Compétences techniques & clés ({{ skills.length }})</span>
               <div class="flex items-center gap-1">
                 <button
                   type="button"
@@ -934,6 +857,7 @@
                   type="text"
                   [(ngModel)]="newSkillInput"
                   [ngModelOptions]="{standalone: true}"
+                  maxlength="40"
                   placeholder="Nouvelle compétence (ex. : Angular, Docker…)"
                   (keydown.enter)="handleAddSkill()"
                   class="flex-1 rounded-input border border-border-strong bg-white px-3 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
@@ -948,14 +872,7 @@
               type="button"
               (click)="toggleSection('languages')"
               class="flex w-full items-center justify-between p-4 text-left font-bold text-[14px] text-text-primary hover:bg-surface-soft/60">
-              <span class="flex items-center gap-2">
-                <svg class="h-4 w-4 text-brand-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="2" y1="12" x2="22" y2="12"/>
-                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-                </svg>
-                Langues pratiquées ({{ languages.length }})
-              </span>
+              <span>Langues pratiquées ({{ languages.length }})</span>
               <div class="flex items-center gap-1">
                 <button
                   type="button"
@@ -984,8 +901,8 @@
                 *ngFor="let _ of languages.controls; let i = index"
                 [formGroupName]="i"
                 class="flex gap-3 items-center">
-                <input type="text" formControlName="lang" placeholder="Ex: Anglais" class="flex-1 rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
-                <input type="text" formControlName="level" placeholder="Ex: Courant (C1)" class="w-36 sm:w-44 rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                <input type="text" formControlName="lang" maxlength="40" placeholder="Ex: Anglais" class="flex-1 rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
+                <input type="text" formControlName="level" maxlength="40" placeholder="Ex: Courant (C1)" class="w-36 sm:w-44 rounded-input border border-border-strong bg-white px-2.5 py-1.5 text-xs text-text-primary focus:border-brand-600 focus:outline-none" />
                 <button type="button" (click)="removeLanguage(i)" class="text-xs text-danger hover:underline px-1">✕</button>
               </div>
 
@@ -1057,21 +974,63 @@
           </div>
         </div>
 
-        <!-- TAB: Modèles -->
-        <div *ngIf="activeRightTab === 'template'" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
+        <!-- TAB: Modèles (Changer de modèle en direct) -->
+        <div *ngIf="activeRightTab === 'template'" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs space-y-4">
           <div class="flex items-center justify-between">
-            <p class="text-xs font-bold text-slate-900">Changer de modèle en direct</p>
-            <span class="rounded-md bg-slate-100 px-2 py-0.5 text-2xs font-semibold text-slate-600">12 modèles</span>
+            <div>
+              <p class="text-xs font-bold text-slate-900">Changer de modèle</p>
+              <p class="text-[11px] text-slate-500">Le contenu s'adapte instantanément au modèle sélectionné.</p>
+            </div>
+            <span class="rounded-md bg-brand-50 px-2 py-0.5 text-2xs font-bold text-brand-700 shrink-0">2 modèles officiels</span>
           </div>
 
-          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-96 overflow-y-auto scroll-slim pr-1">
+          <div class="flex flex-wrap items-start gap-4">
             <div
               *ngFor="let t of templateOptions"
               (click)="selectTemplate(t.id)"
-              [class]="'cursor-pointer rounded-xl p-2 text-center transition-all ' + (selectedTemplate() === t.id ? 'border-2 border-brand-600 bg-brand-50/50 ring-2 ring-brand-100' : 'border border-slate-200 bg-slate-50 hover:bg-white hover:border-slate-300')">
-              <app-cv-thumbnail [layout]="t.layout" [accent]="t.accent" />
-              <p class="mt-1 text-2xs font-bold text-slate-900 truncate">{{ t.name }}</p>
-              <span class="text-3xs text-slate-500 block truncate">{{ t.badge }}</span>
+              [class]="'group relative flex flex-col items-center cursor-pointer rounded-lg p-2 transition-all duration-150 w-[155px] ' + (selectedTemplate() === t.id ? 'bg-slate-200/90 ring-2 ring-brand-600 shadow-xs' : 'hover:bg-slate-100/90')">
+
+              <!-- Miniature CV Sheet (Taille originale compacte 145px × 205px) -->
+              <div class="relative w-[145px] h-[205px] bg-white rounded-[2px] shadow-sm border border-slate-300/80 overflow-hidden group-hover:shadow-md transition-shadow select-none">
+                <!-- Vraie miniature du CV rendu à l'échelle A4 exacte avec données complètes -->
+                <div class="pointer-events-none origin-top-left" style="width: 794px; height: 1123px; transform: scale(0.18262); transform-origin: 0 0;">
+                  <app-cv-preview [cv]="sampleCvData" [template]="t.id" />
+                </div>
+
+                <!-- Badge Actif subtil si déjà sélectionné -->
+                <div *ngIf="selectedTemplate() === t.id" class="absolute top-1.5 right-1.5 z-10 pointer-events-none">
+                  <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-600 text-white shadow-xs">
+                    Actif
+                  </span>
+                </div>
+
+                <!-- Boutons Aperçu & Choisir centrés sur le CV -->
+                <div
+                  [class]="'absolute inset-0 bg-slate-900/50 backdrop-blur-2xs transition-opacity duration-150 flex flex-col items-center justify-center gap-2 p-2 ' + (selectedTemplate() === t.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')">
+                  <button
+                    type="button"
+                    (click)="openTemplatePreview(t.id, $event)"
+                    class="w-24 py-1.5 px-2 rounded-md bg-white hover:bg-slate-100 text-slate-900 font-bold text-[11px] shadow-md transition active:scale-95 text-center leading-tight">
+                    Aperçu
+                  </button>
+                  <button
+                    type="button"
+                    (click)="$event.stopPropagation(); selectTemplate(t.id)"
+                    [class]="'w-24 py-1.5 px-2 rounded-md font-bold text-[11px] transition active:scale-95 text-center leading-tight ' + (selectedTemplate() === t.id ? 'bg-emerald-600 text-white shadow-xs' : 'bg-brand-600 hover:bg-brand-700 text-white shadow-brand')">
+                    {{ selectedTemplate() === t.id ? 'Actif' : 'Choisir' }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- Titre & Tag compacts (aucun bouton en dessous) -->
+              <div class="mt-2 w-full text-center px-1">
+                <p class="text-[11px] font-medium text-slate-800 truncate group-hover:text-brand-700 leading-tight">
+                  {{ t.name }}
+                </p>
+                <span class="text-[9px] text-slate-400 truncate block mt-0.5">
+                  {{ t.tag }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -1308,4 +1267,110 @@
       </div>
     </div>
   </div>
+<!-- Modale de Prévisualisation Grand Format (Accessible partout) -->
+<div
+  *ngIf="previewModalOpen()"
+  class="fixed inset-0 z-50 flex flex-col bg-slate-900/85 backdrop-blur-xs transition-opacity duration-200">
+  
+  <!-- Top Bar Modale -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-700 bg-slate-900 px-3.5 sm:px-6 py-2.5 sm:py-3 text-white shrink-0">
+    <div class="flex items-center justify-between sm:justify-start gap-2.5 min-w-0">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="h-2 w-2 rounded-full bg-emerald-400 shrink-0"></span>
+        <div class="min-w-0">
+          <h3 class="text-xs sm:text-sm font-bold text-white truncate">
+            {{ previewModalTemplate() === 'classic' ? 'CV Classique & ATS' : 'CV Moderne & Dynamique' }}
+          </h3>
+          <p class="text-[10px] text-slate-400 truncate hidden sm:block">Aperçu en taille réelle A4 (Profil Ingénieur en Génie Civil & BTP)</p>
+        </div>
+      </div>
+
+      <!-- Bouton Fermer sur Mobile (en haut à droite) -->
+      <button
+        type="button"
+        (click)="closeTemplatePreview()"
+        class="sm:hidden flex h-7 w-7 items-center justify-center rounded-lg bg-slate-800 text-slate-400 hover:text-white transition shrink-0">
+        ✕
+      </button>
+    </div>
+
+    <div class="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+      <!-- Switcher Mobile (Ajuster vs Lecture) -->
+      <div class="flex items-center rounded-lg bg-slate-800 p-0.5 border border-slate-700">
+        <button
+          type="button"
+          (click)="setPreviewModalScaleMode('fit')"
+          [class]="'rounded-md px-2 py-1 text-[11px] font-semibold transition ' + (previewModalScaleMode() === 'fit' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-300 hover:text-white')">
+          Ajuster
+        </button>
+        <button
+          type="button"
+          (click)="setPreviewModalScaleMode('read')"
+          [class]="'rounded-md px-2 py-1 text-[11px] font-semibold transition ' + (previewModalScaleMode() === 'read' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-300 hover:text-white')">
+          Lecture
+        </button>
+      </div>
+
+      <!-- Zoom Controls (Boutons + / -) -->
+      <div class="flex items-center rounded-lg bg-slate-800 p-0.5 border border-slate-700">
+        <button
+          type="button"
+          (click)="zoomOutTemplatePreview()"
+          title="Zoom arrière"
+          class="rounded-md px-1.5 py-1 text-slate-300 hover:text-white hover:bg-slate-700 transition text-xs font-bold">
+          -
+        </button>
+        <span class="px-1.5 text-[11px] font-bold text-slate-300 tabular-nums">
+          {{ (getPreviewModalScale() * 100) | number:'1.0-0' }}%
+        </span>
+        <button
+          type="button"
+          (click)="zoomInTemplatePreview()"
+          title="Zoom avant"
+          class="rounded-md px-1.5 py-1 text-slate-300 hover:text-white hover:bg-slate-700 transition text-xs font-bold">
+          +
+        </button>
+      </div>
+
+      <!-- Bouton Choisir -->
+      <button
+        type="button"
+        (click)="chooseTemplateFromPreview()"
+        class="inline-flex h-7 sm:h-8 items-center rounded-lg sm:rounded-xl bg-brand-600 hover:bg-brand-700 px-3 text-xs font-bold text-white shadow-brand transition shrink-0">
+        Choisir
+      </button>
+
+      <!-- Bouton Fermer sur Desktop -->
+      <button
+        type="button"
+        (click)="closeTemplatePreview()"
+        class="hidden sm:flex h-8 w-8 items-center justify-center rounded-xl bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition shrink-0">
+        ✕
+      </button>
+    </div>
+  </div>
+
+  <!-- Canvas A4 Scrollable avec centrage parfait et zéro débordement -->
+  <div class="flex-1 overflow-auto bg-[#DDE4EE] p-2.5 sm:p-6 flex justify-center items-start">
+    <div
+      class="relative bg-white shadow-2xl rounded-sm transition-all duration-150 my-1 origin-top"
+      [style.width.px]="794 * getPreviewModalScale()"
+      [style.minHeight.px]="1123 * getPreviewModalScale()">
+      <div
+        class="origin-top-left"
+        [style.transform]="'scale(' + getPreviewModalScale() + ')'"
+        [style.width.px]="794">
+        <app-cv-preview [cv]="sampleCvData" [template]="previewModalTemplate()" />
+      </div>
+    </div>
+  </div>
 </div>
+
+<!-- Modale de Paiement Mobile Money B2C (Déverrouillage PDF HD) -->
+<app-payment-modal
+  [open]="showPaymentModal()"
+  [cvId]="currentCvId"
+  [cvTitle]="previewData().name ? 'CV de ' + previewData().name : 'Mon CV Professionnel'"
+  (close)="showPaymentModal.set(false)"
+  (paymentSuccess)="onPaymentSuccess($event)">
+</app-payment-modal>

@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { GeminiLiveService } from '../../../../core/services/gemini-live.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { PdfExportService } from '../../../../core/services/pdf-export.service';
+import { PaymentService } from '../../../../core/services/payment.service';
 import { CvPreviewComponent, CvData } from '../../../../shared/components/cv-preview/cv-preview.component';
 import { PageHeaderComponent, Crumb } from '../../../../shared/components/page-header/page-header.component';
 import { ButtonComponent } from '../../../../shared/components/button/button.component';
@@ -40,9 +41,11 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
   public geminiService = inject(GeminiLiveService);
   private authService = inject(AuthService);
   private pdfService = inject(PdfExportService);
+  public paymentService = inject(PaymentService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
+
 
   cvId: string = 'cv_default';
   showConfirmModal = false;
@@ -59,16 +62,28 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
   draft = this.geminiService.currentDraft;
   errorMessage = this.geminiService.errorMessage;
   isQuotaReached = this.geminiService.isQuotaReached;
+  auditReport = this.geminiService.auditReport;
+  hasStarted = this.geminiService.hasStarted;
+  isStarting = this.geminiService.isStarting;
+  isWsReady = this.geminiService.isWsReady;
 
   readonly cvPreviewData = computed<CvData>(() => this.getCvPreviewData());
 
   isAiSpeaking = computed(() => this.state() === 'AI_SPEAKING');
   isUserSpeaking = computed(() => this.state() === 'LISTENING');
   isConnected = computed(() => this.state() === 'LISTENING' || this.state() === 'AI_SPEAKING');
-  audioBars = signal<number[]>([0.2, 0.5, 0.8, 0.3, 0.9, 0.6, 0.4, 0.7, 0.5, 0.3]);
+  audioBars = signal<number[]>([0.15, 0.2, 0.15, 0.2, 0.15, 0.2, 0.15, 0.2, 0.15, 0.2]);
+  private animInterval: any = null;
+
+  startInterview(): void {
+    this.geminiService.beginInterview();
+  }
 
   retrySession(): void {
-    this.geminiService.startSession(this.cvId);
+    const targetId = (this.geminiService.currentCvId && this.geminiService.currentCvId !== 'cv_default' && this.geminiService.currentCvId !== 'new')
+      ? this.geminiService.currentCvId
+      : this.cvId;
+    this.geminiService.prepareSession(targetId);
   }
 
   goToManualBuilder(): void {
@@ -132,8 +147,9 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
   }
 
   downloadPdf(): void {
-    this.pdfService.exportCvPdf(this.cvPreviewData());
+    this.pdfService.exportCvPdf(this.cvPreviewData(), 'moderne', true);
   }
+
 
   get draftSections(): DraftSectionItem[] {
     const d = this.draft();
@@ -158,6 +174,40 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
       this.cvId = idParam;
     }
 
+    let tick = 0;
+    this.animInterval = setInterval(() => {
+      tick++;
+      if (this.isAiSpeaking()) {
+        this.audioBars.set([
+          0.3 + 0.5 * Math.abs(Math.sin(tick * 0.4)),
+          0.4 + 0.6 * Math.abs(Math.cos(tick * 0.3)),
+          0.5 + 0.5 * Math.abs(Math.sin(tick * 0.5 + 1)),
+          0.2 + 0.7 * Math.abs(Math.cos(tick * 0.4 + 2)),
+          0.6 + 0.4 * Math.abs(Math.sin(tick * 0.6 + 0.5)),
+          0.4 + 0.5 * Math.abs(Math.cos(tick * 0.35)),
+          0.3 + 0.6 * Math.abs(Math.sin(tick * 0.45)),
+          0.5 + 0.4 * Math.abs(Math.cos(tick * 0.5)),
+          0.3 + 0.5 * Math.abs(Math.sin(tick * 0.3)),
+          0.2 + 0.4 * Math.abs(Math.cos(tick * 0.25))
+        ]);
+      } else if (this.isUserSpeaking()) {
+        this.audioBars.set([
+          0.2 + 0.4 * Math.abs(Math.sin(tick * 0.25)),
+          0.3 + 0.5 * Math.abs(Math.cos(tick * 0.2)),
+          0.4 + 0.5 * Math.abs(Math.sin(tick * 0.3 + 1)),
+          0.5 + 0.4 * Math.abs(Math.cos(tick * 0.35 + 2)),
+          0.3 + 0.5 * Math.abs(Math.sin(tick * 0.3 + 0.5)),
+          0.4 + 0.4 * Math.abs(Math.cos(tick * 0.25)),
+          0.2 + 0.5 * Math.abs(Math.sin(tick * 0.2)),
+          0.3 + 0.4 * Math.abs(Math.cos(tick * 0.3)),
+          0.2 + 0.3 * Math.abs(Math.sin(tick * 0.2)),
+          0.15 + 0.2 * Math.abs(Math.cos(tick * 0.15))
+        ]);
+      } else {
+        this.audioBars.set([0.15, 0.2, 0.15, 0.2, 0.15, 0.2, 0.15, 0.2, 0.15, 0.2]);
+      }
+    }, 100);
+
     this.geminiService.interviewCompleted$.pipe(
       takeUntilDestroyed(this.destroyRef)
     ).subscribe(() => {
@@ -165,15 +215,20 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
       this.router.navigate(['/cv-builder'], { queryParams: { action: 'editor', cvId: realCvId } });
     });
 
-    this.geminiService.startSession(this.cvId);
+    this.geminiService.prepareSession(this.cvId);
   }
 
   ngOnDestroy(): void {
+    if (this.animInterval) {
+      clearInterval(this.animInterval);
+    }
     this.geminiService.stopSession();
   }
 
+
   toggleMute(): void {
     this.isMuted.update(m => !m);
+    this.geminiService.setMuted(this.isMuted());
   }
 
   confirmQuit(): void {
@@ -198,7 +253,7 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
   }
 
   retryConnection(): void {
-    this.geminiService.startSession(this.cvId);
+    this.geminiService.prepareSession(this.cvId);
   }
 
   goToEditor(): void {

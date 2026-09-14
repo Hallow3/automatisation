@@ -16,7 +16,16 @@ public class ApplicationController {
     private final ApplicationService applicationService;
 
     @GetMapping
-    public ResponseEntity<List<ApplicationDto>> getApplications() {
+    public ResponseEntity<?> getApplications(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
+    ) {
+        if (page != null) {
+            int pageSize = size != null ? size : 10;
+            return ResponseEntity.ok(applicationService.getApplications(
+                    org.springframework.data.domain.PageRequest.of(page, pageSize, org.springframework.data.domain.Sort.by("id").descending())
+            ));
+        }
         return ResponseEntity.ok(applicationService.getApplications());
     }
 

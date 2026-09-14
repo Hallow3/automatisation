@@ -20,7 +20,7 @@
             <polygon points="22 2 15 22 11 13 2 9 22 2"/>
           </svg>
         </div>
-        <span class="text-[10px] sm:text-xs font-semibold text-white bg-white/15 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full ring-1 ring-white/20 flex items-center gap-0.5 sm:gap-1">
+        <span class="text-xs sm:text-xs font-semibold text-white bg-white/15 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full ring-1 ring-white/20 flex items-center gap-0.5 sm:gap-1">
           <svg class="h-2.5 w-2.5 sm:h-3 sm:w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
             <polyline points="18 15 12 9 6 15"/>
           </svg>
@@ -29,7 +29,7 @@
       </div>
       <div>
         <p class="text-xl sm:text-2xl font-extrabold text-white relative tabular-nums">{{ sentCount }}</p>
-        <p class="text-[11px] sm:text-xs text-brand-100 mt-0.5 sm:mt-1 relative font-medium truncate">Candidatures envoyées</p>
+        <p class="text-xs sm:text-xs text-brand-100 mt-0.5 sm:mt-1 relative font-medium truncate">Candidatures envoyées</p>
       </div>
     </div>
 
@@ -44,11 +44,11 @@
             <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/>
           </svg>
         </div>
-        <span class="text-[10px] sm:text-xs font-semibold text-slate-400 bg-slate-50 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full">Stable</span>
+        <span class="text-xs sm:text-xs font-semibold text-slate-400 bg-slate-50 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full">Stable</span>
       </div>
       <div>
         <p class="text-xl sm:text-2xl font-extrabold text-slate-900 tabular-nums">{{ pendingCount }}</p>
-        <p class="text-[11px] sm:text-xs text-slate-400 mt-0.5 sm:mt-1 font-medium truncate">En attente de réponse</p>
+        <p class="text-xs sm:text-xs text-slate-400 mt-0.5 sm:mt-1 font-medium truncate">En attente de réponse</p>
       </div>
     </div>
 
@@ -60,7 +60,7 @@
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
           </svg>
         </div>
-        <span class="text-[10px] sm:text-xs font-semibold text-brand-600 bg-brand-50 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full flex items-center gap-0.5 sm:gap-1">
+        <span class="text-xs sm:text-xs font-semibold text-brand-600 bg-brand-50 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full flex items-center gap-0.5 sm:gap-1">
           <svg class="h-2.5 w-2.5 sm:h-3 sm:w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
             <line x1="12" y1="5" x2="12" y2="19"/>
             <line x1="5" y1="12" x2="19" y2="12"/>
@@ -70,7 +70,7 @@
       </div>
       <div>
         <p class="text-xl sm:text-2xl font-extrabold text-slate-900 tabular-nums">{{ interviewCount }}</p>
-        <p class="text-[11px] sm:text-xs text-slate-400 mt-0.5 sm:mt-1 font-medium truncate">Entretiens obtenus</p>
+        <p class="text-xs sm:text-xs text-slate-400 mt-0.5 sm:mt-1 font-medium truncate">Entretiens obtenus</p>
       </div>
     </div>
 
@@ -83,29 +83,93 @@
             <polyline points="12 6 12 12 16 14"/>
           </svg>
         </div>
-        <span class="text-[10px] sm:text-xs font-semibold text-brand-600 bg-brand-50 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full">Bon</span>
+        <span class="text-xs sm:text-xs font-semibold text-brand-600 bg-brand-50 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full">Bon</span>
       </div>
       <div>
         <p class="text-xl sm:text-2xl font-extrabold text-slate-900 tabular-nums">{{ averageScore }}%</p>
-        <p class="text-[11px] sm:text-xs text-slate-400 mt-0.5 sm:mt-1 font-medium truncate">Score moyen</p>
+        <p class="text-xs sm:text-xs text-slate-400 mt-0.5 sm:mt-1 font-medium truncate">Score moyen</p>
       </div>
     </div>
 
   </div>
 
   <!-- ════════════════════════════════════════════════════════════════════════
-       MIDDLE ROW : CHART + AI RECOMMENDATIONS (3 cols)
+       MIDDLE ROW : CALL IA (CRÉATION DE CV) + GRAPHE ACTIVITÉ
   ═════════════════════════════════════════════════════════════════════════ -->
   <div class="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
     
-    <!-- Chart (2 cols) : Activité de candidature -->
+    <!-- Vedette 1 (1 col sur desktop, en 1ère position) : Call IA avec la Boule Animée Fluide -->
+    <div class="lg:col-span-1 bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 flex flex-col justify-between items-center text-center relative overflow-hidden text-white shadow-brand">
+      <!-- Glow ambient background -->
+      <div class="absolute -top-12 -right-12 w-44 h-44 bg-brand-500/20 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute -bottom-12 -left-12 w-44 h-44 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+      <!-- En-tête de mise en avant -->
+      <div class="relative z-10 w-full">
+        <h2 class="text-base sm:text-lg font-extrabold text-black animate-bounce  tracking-tight">
+          Faites votre CV au téléphone
+        </h2>
+        <p class="mt-1 text-xs text-black max-w-[260px] mx-auto leading-relaxed">
+          Échangez de vive voix avec notre IA. Elle structure, rédige et met en page votre CV en direct.
+        </p>
+      </div>
+
+      <!-- Centre : Living AI Animated Orb (Boule animée fluide vivante) -->
+      <div class="relative my-4 sm:my-5 flex items-center justify-center select-none">
+        <!-- Ambient Glowing Aura -->
+        <div class="ai-orb-aura absolute -inset-4 sm:-inset-5 rounded-full opacity-80"></div>
+
+        <!-- Shimmer Ripple Waves -->
+        <div class="ai-orb-ripple absolute inset-0 rounded-full border-2 border-indigo-400/40"></div>
+        <div class="ai-orb-ripple-delayed absolute -inset-2 rounded-full border border-pink-400/30"></div>
+
+        <!-- Interactive Animated Orb Button -->
+        <a
+          routerLink="/cvs/interview"
+          aria-label="Commencer l'entretien vocal IA pour créer votre CV"
+          class="ai-orb-container group relative flex h-24 w-24 sm:h-28 sm:w-28 cursor-pointer items-center justify-center transition-transform duration-300 active:scale-95 hover:scale-105">
+          
+          <!-- Fluid morphing gradient body -->
+          <div class="ai-orb-morph">
+            <div class="ai-orb-gradient-layer-1"></div>
+            <div class="ai-orb-gradient-layer-2"></div>
+            <div class="ai-orb-gradient-layer-3"></div>
+            <div class="ai-orb-specular"></div>
+          </div>
+
+          <!-- Glass Mic Core -->
+          <div class="relative z-10 flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-slate-900/50 backdrop-blur-md border border-white/30 text-white shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:bg-slate-900/70">
+            <svg class="h-5 w-5 sm:h-6 sm:w-6 text-white drop-shadow-md" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+            </svg>
+          </div>
+        </a>
+      </div>
+
+      <!-- Bas : Bouton pour aller faire mon CV -->
+      <div class="relative z-10 w-full pt-1 space-y-2">
+        <a
+          routerLink="/cvs/interview"
+          class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 py-2.5 sm:py-3 px-4 text-xs sm:text-sm font-bold text-white shadow-brand hover:shadow-lg transition active:scale-[0.98]">
+          <svg class="h-4 w-4 shrink-0 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+          </svg>
+          <span>Créer mon CV par appel IA</span>
+        </a>
+        <p class="text-[11px] text-slate-400">
+          Échange oral direct · Gratuit & sans formulaire fastidieux
+        </p>
+      </div>
+    </div>
+
+    <!-- Chart (2 cols sur desktop, en 2ème position) : Activité de candidature -->
     <div class="lg:col-span-2 bg-white rounded-xl sm:rounded-2xl border border-brand-100 p-4 sm:p-6 flex flex-col justify-between">
       <div class="flex items-center justify-between mb-3 sm:mb-4">
         <div class="min-w-0">
-          <h2 class="text-xs sm:text-sm font-bold text-slate-900 truncate">Activité de candidature</h2>
-          <p class="text-[10px] sm:text-xs text-slate-400 truncate">7 derniers jours</p>
+          <h2 class="text-sm font-bold text-slate-900 truncate">Activité de candidature</h2>
+          <p class="text-xs sm:text-xs text-slate-400 truncate">7 derniers jours</p>
         </div>
-        <div class="flex items-center gap-3 sm:gap-4 text-[10px] sm:text-xs font-medium shrink-0">
+        <div class="flex items-center gap-3 sm:gap-4 text-xs sm:text-xs font-medium shrink-0">
           <span class="flex items-center gap-1 sm:gap-1.5 text-slate-500">
             <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-brand-600"></span>
             Envoyées
@@ -156,7 +220,7 @@
         </svg>
 
         <!-- X-Axis Labels -->
-        <div class="flex justify-between pt-2 text-[10px] sm:text-[11px] font-semibold text-brand-400">
+        <div class="flex justify-between pt-2 text-xs sm:text-xs font-semibold text-brand-400">
           <span>Lun</span>
           <span>Mar</span>
           <span>Mer</span>
@@ -164,66 +228,6 @@
           <span>Ven</span>
           <span>Sam</span>
           <span>Dim</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- AI Suggestions (1 col) : Recommandations IA -->
-    <div class="bg-gradient-to-b from-brand-950 to-brand-900 rounded-xl sm:rounded-2xl p-4 sm:p-6 flex flex-col justify-between relative overflow-hidden text-white shadow-brand">
-      <div class="absolute -top-10 -right-10 w-40 h-40 bg-brand-500/20 rounded-full blur-3xl pointer-events-none"></div>
-
-      <div>
-        <div class="flex items-center gap-2 sm:gap-2.5 mb-3 sm:mb-4 relative">
-          <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center ring-1 ring-white/20 shadow-sm shrink-0">
-            <svg class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
-            </svg>
-          </div>
-          <h2 class="text-xs sm:text-sm font-bold text-white truncate">Recommandations IA</h2>
-        </div>
-
-        <div class="space-y-2.5 sm:space-y-3 relative">
-          <!-- Card 1 -->
-          <div class="p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-white/10 border border-white/10 backdrop-blur transition hover:bg-white/15">
-            <p class="text-xs font-semibold text-white mb-0.5 sm:mb-1 flex items-center gap-1.5 truncate">
-              <svg class="h-3.5 w-3.5 text-brand-300 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              3 offres à 92% de match
-            </p>
-            <p class="text-[11px] sm:text-xs text-brand-100/90 leading-relaxed line-clamp-2">Product Designer, UX Lead et 1 autre correspondent à votre profil.</p>
-            <a routerLink="/opportunities" class="mt-1.5 sm:mt-2 inline-block text-xs font-bold text-white hover:text-brand-200 underline underline-offset-2">
-              Voir les offres →
-            </a>
-          </div>
-
-          <!-- Card 2 -->
-          <div class="p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-white/10 border border-white/10 backdrop-blur transition hover:bg-white/15">
-            <p class="text-xs font-semibold text-white mb-0.5 sm:mb-1 flex items-center gap-1.5 truncate">
-              <svg class="h-3.5 w-3.5 text-brand-300 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              CV à optimiser
-            </p>
-            <p class="text-[11px] sm:text-xs text-brand-100/90 leading-relaxed line-clamp-2">Ajoutez 2 compétences clés pour améliorer votre score de correspondance.</p>
-            <a routerLink="/cv-builder" class="mt-1.5 sm:mt-2 inline-block text-xs font-bold text-white hover:text-brand-200 underline underline-offset-2">
-              Optimiser mon CV →
-            </a>
-          </div>
-
-          <!-- Card 3 -->
-          <div class="p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-white/10 border border-white/10 backdrop-blur transition hover:bg-white/15">
-            <p class="text-xs font-semibold text-white mb-0.5 sm:mb-1 flex items-center gap-1.5 truncate">
-              <svg class="h-3.5 w-3.5 text-brand-300 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
-              </svg>
-              Entraînez-vous
-            </p>
-            <p class="text-[11px] sm:text-xs text-brand-100/90 leading-relaxed line-clamp-2">Simulez un entretien vocal avant votre échange.</p>
-            <a routerLink="/cvs/interview" class="mt-1.5 sm:mt-2 inline-block text-xs font-bold text-white hover:text-brand-200 underline underline-offset-2">
-              Démarrer →
-            </a>
-          </div>
         </div>
       </div>
     </div>
@@ -238,30 +242,38 @@
     <!-- Candidatures récentes (2 cols) -->
     <div class="lg:col-span-2 bg-white rounded-xl sm:rounded-2xl border border-brand-100 overflow-hidden">
       <div class="flex items-center justify-between px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4 border-b border-brand-50">
-        <h2 class="text-xs sm:text-sm font-bold text-slate-900">Candidatures récentes</h2>
+        <h2 class="text-sm font-bold text-slate-900">Candidatures récentes</h2>
         <a routerLink="/applications" class="text-xs font-semibold text-brand-600 hover:text-brand-700 hover:underline">Voir tout</a>
       </div>
 
-      <div class="divide-y divide-brand-50">
+      <div class="divide-y divide-brand-50" *ngIf="recentApps.length > 0">
         <div
           *ngFor="let item of recentApps"
           class="flex items-center gap-2.5 sm:gap-4 px-4 sm:px-6 py-2.5 sm:py-3.5 hover:bg-brand-50/50 transition-colors duration-150">
           
-          <div [class]="'w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center font-bold text-xs sm:text-sm shadow-sm shrink-0 ' + item.initialBg">
+          <div [class]="'w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center font-bold text-sm shadow-sm shrink-0 ' + item.initialBg">
             {{ item.initial }}
           </div>
 
           <div class="flex-1 min-w-0">
-            <p class="text-xs sm:text-sm font-semibold text-slate-800 truncate">{{ item.title }}</p>
-            <p class="text-[10px] sm:text-xs text-slate-400 truncate">{{ item.company }} · {{ item.city }}</p>
+            <p class="text-sm font-semibold text-slate-800 truncate">{{ item.title }}</p>
+            <p class="text-xs sm:text-xs text-slate-400 truncate">{{ item.company }} · {{ item.city }}</p>
           </div>
 
-          <span [class]="'text-[10px] sm:text-xs font-semibold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full shrink-0 ' + item.statusClass">
+          <span [class]="'text-xs sm:text-xs font-semibold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full shrink-0 ' + item.statusClass">
             {{ item.status }}
           </span>
 
-          <span class="text-[10px] sm:text-xs text-slate-400 w-10 sm:w-16 text-right tabular-nums shrink-0">{{ item.timeAgo }}</span>
+          <span class="text-xs sm:text-xs text-slate-400 w-10 sm:w-16 text-right tabular-nums shrink-0">{{ item.timeAgo }}</span>
         </div>
+      </div>
+
+      <div *ngIf="recentApps.length === 0" class="p-8 text-center">
+        <p class="text-sm text-slate-500 font-medium">Aucune candidature pour le moment</p>
+        <p class="text-xs text-slate-400 mt-1">Vos candidatures envoyées ou en cours apparaîtront ici.</p>
+        <a routerLink="/opportunities" class="mt-3 inline-block text-xs font-semibold text-brand-600 hover:text-brand-700 underline">
+          Découvrir les opportunités →
+        </a>
       </div>
     </div>
 
@@ -269,7 +281,7 @@
     <div class="bg-white rounded-xl sm:rounded-2xl border border-brand-100 p-4 sm:p-6 flex flex-col justify-between">
       <div>
         <div class="flex items-center justify-between mb-3 sm:mb-4">
-          <h2 class="text-xs sm:text-sm font-bold text-slate-900">Offres recommandées</h2>
+          <h2 class="text-sm font-bold text-slate-900">Offres recommandées</h2>
           <svg class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-brand-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <line x1="4" y1="21" x2="4" y2="14"/>
             <line x1="4" y1="10" x2="4" y2="3"/>
@@ -283,7 +295,7 @@
           </svg>
         </div>
 
-        <div class="space-y-2.5 sm:space-y-3.5">
+        <div class="space-y-2.5 sm:space-y-3.5" *ngIf="recommendedJobs.length > 0">
           <div
             *ngFor="let job of recommendedJobs"
             [routerLink]="['/opportunities']"
@@ -291,26 +303,31 @@
             
             <div class="flex items-start justify-between gap-2 mb-1.5 sm:mb-2">
               <div class="flex items-center gap-2 sm:gap-2.5 min-w-0">
-                <div [class]="'w-7 h-7 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-br ' + job.gradient + ' flex items-center justify-center text-white font-bold text-2xs sm:text-xs shadow-sm shrink-0'">
+                <div [class]="'w-7 h-7 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-br ' + job.gradient + ' flex items-center justify-center text-white font-bold text-xs shadow-sm shrink-0'">
                   {{ job.initial }}
                 </div>
                 <div class="min-w-0">
-                  <p class="text-xs sm:text-sm font-semibold text-slate-800 truncate">{{ job.title }}</p>
-                  <p class="text-[10px] sm:text-xs text-slate-400 truncate">{{ job.company }} · {{ job.city }}</p>
+                  <p class="text-sm font-semibold text-slate-800 truncate">{{ job.title }}</p>
+                  <p class="text-xs sm:text-xs text-slate-400 truncate">{{ job.company }} · {{ job.city }}</p>
                 </div>
               </div>
 
-              <span class="shrink-0 text-[10px] sm:text-xs font-bold text-white bg-gradient-to-r from-brand-500 to-brand-600 px-1.5 py-0.5 sm:px-2 sm:py-0.5 rounded-full shadow-sm tabular-nums">
+              <span class="shrink-0 text-xs sm:text-xs font-bold text-white bg-gradient-to-r from-brand-500 to-brand-600 px-1.5 py-0.5 sm:px-2 sm:py-0.5 rounded-full shadow-sm tabular-nums">
                 {{ job.score }}%
               </span>
             </div>
 
             <div class="flex flex-wrap gap-1 sm:gap-1.5">
-              <span *ngFor="let tag of job.tags" class="text-[10px] sm:text-[11px] px-1.5 py-0.5 sm:px-2 sm:py-0.5 rounded-md bg-brand-50 text-brand-600 font-medium truncate">
+              <span *ngFor="let tag of job.tags" class="text-xs sm:text-xs px-1.5 py-0.5 sm:px-2 sm:py-0.5 rounded-md bg-brand-50 text-brand-600 font-medium truncate">
                 {{ tag }}
               </span>
             </div>
           </div>
+        </div>
+
+        <div *ngIf="recommendedJobs.length === 0" class="p-6 text-center">
+          <p class="text-sm text-slate-500 font-medium">Aucune offre qualifiée pour l'instant</p>
+          <p class="text-xs text-slate-400 mt-1">Lancez vos recherches d'offres pour obtenir des suggestions personnalisées.</p>
         </div>
       </div>
 

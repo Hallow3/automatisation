@@ -1,0 +1,11 @@
+<div class="cv-print-wrapper" [class.ready]="isReady()" id="cv-print-root">
+  <div *ngIf="loading()" class="print-loading-banner">
+    Chargement du document pour impression...
+  </div>
+  <app-cv-preview
+    *ngIf="cvData()"
+    [cv]="cvData()!"
+    [template]="template()"
+    [scale]="1"
+    [showPageBreaks]="false" />
+</div>

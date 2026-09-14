@@ -34,6 +34,7 @@ export class CvEditorService {
     'languages',
     'projects'
   ]);
+  readonly templateId = signal<string>('modern');
   public cvData!: WritableSignal<CvData>;
 
   private _currentCvId: string | null = null;
@@ -211,6 +212,10 @@ export class CvEditorService {
       this.links.push(this.newLink({ label: 'LinkedIn', url: d.identity?.linkedin || d.linkedin }));
     }
 
+    if (d.template) {
+      this.templateId.set(d.template);
+    }
+
     if (d.sectionOrder && Array.isArray(d.sectionOrder) && d.sectionOrder.length > 0) {
       this.sectionOrder.set(d.sectionOrder);
     }
@@ -221,8 +226,23 @@ export class CvEditorService {
     this.education.clear();
     (d.education || []).forEach((e: any) => this.education.push(this.newEducation(e)));
 
+    // Fusionner les compétences globales et les technologies extraites par l'OCR
+    const allSkills = new Set<string>();
+    (d.skills || []).forEach((s: any) => {
+      const str = typeof s === 'string' ? s.trim() : (s?.name || '').trim();
+      if (str) allSkills.add(str);
+    });
+    (d.experiences || []).forEach((exp: any) => {
+      if (Array.isArray(exp?.technologies)) {
+        exp.technologies.forEach((t: any) => {
+          const str = String(t || '').trim();
+          if (str) allSkills.add(str);
+        });
+      }
+    });
+
     this.skills.clear();
-    (d.skills || []).forEach((s: string) => this.skills.push(this.fb.control(s)));
+    allSkills.forEach((s: string) => this.skills.push(this.fb.control(s)));
 
     this.languages.clear();
     (d.languages || []).forEach((l: any) => this.languages.push(this.newLanguage(l)));
@@ -248,12 +268,19 @@ export class CvEditorService {
   }
 
   newExperience(data?: any): FormGroup {
-    const rawBullets = data?.responsibilities || data?.achievements || data?.bullets || [];
-    let bullets: string[] = [];
-    if (Array.isArray(rawBullets)) {
-      bullets = rawBullets.map(String).filter((b: string) => b && b.trim());
-    } else if (typeof rawBullets === 'string' && rawBullets.trim()) {
-      bullets = [rawBullets.trim()];
+    const rawBullets = [
+      ...(Array.isArray(data?.responsibilities) ? data.responsibilities : (typeof data?.responsibilities === 'string' && data.responsibilities.trim() ? [data.responsibilities] : [])),
+      ...(Array.isArray(data?.achievements) ? data.achievements : (typeof data?.achievements === 'string' && data.achievements.trim() ? [data.achievements] : [])),
+      ...(Array.isArray(data?.bullets) ? data.bullets : (typeof data?.bullets === 'string' && data.bullets.trim() ? [data.bullets] : []))
+    ];
+    const seen = new Set<string>();
+    const bullets: string[] = [];
+    for (const b of rawBullets) {
+      const s = String(b || '').trim();
+      if (s && !seen.has(s)) {
+        seen.add(s);
+        bullets.push(s);
+      }
     }
 
     if (data?.context && bullets.length === 0) {
@@ -261,10 +288,12 @@ export class CvEditorService {
     }
 
     return this.fb.group({
-      company:   [data?.company  || ''],
-      position:  [data?.position || data?.role || data?.title || ''],
-      startDate: [data?.startDate || (data?.period ? data.period.split('-')[0]?.trim() : '') || ''],
-      endDate:   [data?.endDate   || (data?.period ? data.period.split('-')[1]?.trim() : '') || ''],
+      company:     [data?.company  || ''],
+      position:    [data?.position || data?.role || data?.title || ''],
+      city:        [data?.city || ''],
+      description: [data?.description || (bullets.length === 0 && data?.context ? data.context : '') || ''],
+      startDate:   [data?.startDate || (data?.period ? data.period.split('-')[0]?.trim() : '') || ''],
+      endDate:     [data?.endDate   || (data?.period ? data.period.split('-')[1]?.trim() : '') || ''],
       responsibilities: this.fb.array(
         bullets.map((r: string) => this.fb.control(r))
       )
@@ -335,12 +364,14 @@ export class CvEditorService {
           url: l.url.trim()
         })),
       experiences: (v.experiences || [])
-        .filter((e: any) => e?.position?.trim() || e?.company?.trim() || (e?.responsibilities && e.responsibilities.length > 0))
+        .filter((e: any) => e?.position?.trim() || e?.company?.trim() || (e?.responsibilities && e.responsibilities.length > 0) || e?.description?.trim())
         .map((e: any) => ({
-          role:    e.position || '',
-          company: e.company  || '',
-          period:  [e.startDate, e.endDate || (e.startDate ? 'Présent' : '')].filter(Boolean).join(' - '),
-          bullets: (e.responsibilities || []).filter((r: string) => r && r.trim())
+          role:        e.position || '',
+          company:     e.company  || '',
+          city:        e.city     || '',
+          period:      [e.startDate, e.endDate || (e.startDate ? 'Présent' : '')].filter(Boolean).join(' - '),
+          description: e.description || '',
+          bullets:     (e.responsibilities || []).filter((r: string) => r && r.trim())
         })),
       education: (v.education || [])
         .filter((edu: any) => edu?.degree?.trim() || edu?.school?.trim())
@@ -375,12 +406,16 @@ export class CvEditorService {
       education:    v.education,
       skills:       (v.skills || []).filter((s: string) => s?.trim()),
       languages:    v.languages,
-      sectionOrder: this.sectionOrder()
+      sectionOrder: this.sectionOrder(),
+      template:     this.templateId()
     };
   }
 
-  saveDraft(cvId: string) {
+  saveDraft(cvId: string, template?: string) {
     this._currentCvId = cvId;
+    if (template) {
+      this.templateId.set(template);
+    }
     return this.cvApi.saveDraft(cvId, this._toApiPayload());
   }
 }

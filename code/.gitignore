@@ -1,0 +1,27 @@
+# ==============================================================================
+# Git Ignore - GetJob AI Root Repository
+# ==============================================================================
+
+# Clés et secrets sensibles
+ressources/clé nokash/
+ressources/**/clés.txt
+*.pem
+*.key
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Fichiers d'environnement
+backend/.env
+backend/.env.local
+.env
+.env.local
+
+# Builds
+backend/target/
+dashboard/.angular/
+dashboard/dist/
+dashboard/node_modules/

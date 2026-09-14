@@ -72,6 +72,17 @@ public class CandidateEntity {
     @Column(name = "ai_interviews_reset_date")
     private java.time.LocalDate aiInterviewsResetDate;
 
+    @Column(name = "pro_credits", nullable = false)
+    @Builder.Default
+    private Integer proCredits = 0;
+
+    @Column(name = "is_pro_agent", nullable = false)
+    @Builder.Default
+    private boolean isProAgent = false;
+
+    @Column(name = "agent_shop_name")
+    private String agentShopName;
+
     @Column(name = "created_at", insertable = false, updatable = false)
     private Instant createdAt;
 }

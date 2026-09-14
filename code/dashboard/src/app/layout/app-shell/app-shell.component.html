@@ -32,3 +32,9 @@
     </main>
   </div>
 </div>
+
+<!-- Global Top-Level Forfaits & Credits Modal -->
+<app-agent-pack-modal
+  [open]="paymentService.isPackModalOpen()"
+  (close)="paymentService.closePackModal()">
+</app-agent-pack-modal>

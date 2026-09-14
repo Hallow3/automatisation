@@ -17,5 +17,6 @@ public record AuthResponse(
         String role,
         String phone,
         String city,
-        String targetRole
+        String targetRole,
+        Integer proCredits
 ) {}

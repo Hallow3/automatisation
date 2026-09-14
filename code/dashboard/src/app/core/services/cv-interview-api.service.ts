@@ -37,4 +37,8 @@ export class CvInterviewApiService {
   synthesize(cvId: string, transcript: string): Observable<any> {
     return this.http.post<any>(`${this.base}/${cvId}/synthesize`, { transcript });
   }
+
+  getCv(cvId: string): Observable<any> {
+    return this.http.get<any>(`${this.base}/${cvId}`);
+  }
 }

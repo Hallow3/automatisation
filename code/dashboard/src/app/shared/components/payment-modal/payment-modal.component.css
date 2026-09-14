@@ -1,0 +1,4 @@
+/* Styles spécifiques au composant de paiement si nécessaire */
+:host {
+  display: block;
+}

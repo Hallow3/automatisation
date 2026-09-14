@@ -31,7 +31,8 @@ export class OpportunityApiService {
     return this.http.post<{ success: boolean }>(`${this.base}/${id}/submit`, {});
   }
 
-  getCoverLetter(id: string): Observable<{ url: string }> {
-    return this.http.get<{ url: string }>(`${this.base}/${id}/cover-letter`);
+  getCoverLetter(id: string): Observable<{ content?: string; status?: string; url?: string }> {
+    return this.http.get<{ content?: string; status?: string; url?: string }>(`${this.base}/${id}/cover-letter`);
   }
 }
+

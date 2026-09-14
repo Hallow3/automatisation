@@ -1,5 +1,585 @@
 # CHANGELOG — Suivi de Développement & Intégration
 
+## [1.2.0] - 2026-09-13
+
+### 💳 Migration vers NotchPay (Paiements Programmatiques) & Résilience avec Fallback WhatsApp
+
+#### 1. Remplacement Intégral de Nokash par NotchPay
+- **API Programmatique `POST https://api.notchpay.co/payments`** : Création programmatique de sessions de paiement avec référence interne unique (`PAY-XXXX`), montant (500 ou 1 200 FCFA), devises `XAF`, coordonnées du client et URL de retour.
+- **Redirection Automatique** : Redirection fluide vers `authorization_url` hébergé par NotchPay pour paiement sécurisé Mobile Money (Orange, MTN) ou carte bancaire.
+- **Sécurité Webhook & Idempotence** :
+  - Endpoint `POST /webhooks/notchpay` (et alias `/api/v1/payments/webhooks/notchpay`).
+  - Validation cryptographique stricte par signature HMAC-SHA256 (`X-Notch-Signature`) calculée sur le corps brut (*raw body*).
+  - Gestion de l'idempotence via la nouvelle table Flyway V10 `notchpay_webhook_event` stockant les identifiants d'événements (`evt_...`).
+  - **Double vérification obligatoire** : Appel sortant `GET https://api.notchpay.co/payments/{reference}` pour contrôler le statut et le montant effectif avant tout déverrouillage ou crédit pro.
+
+#### 2. Couche de Résilience & Observabilité ([`NotchPayClient.java`](file:///D:/automatisation/code/backend/src/main/java/com/getjob/backend/payment/client/NotchPayClient.java))
+- **Timeouts Dédiés** : Connect timeout 3 000ms, Read timeout 5 000ms.
+- **Retry avec Backoff Exponentiel** : 2 à 3 tentatives uniquement sur erreurs transitoires (timeouts réseau, erreurs 5xx). Zéro retry sur erreurs client 4xx.
+- **Circuit Breaker Autonome ([`NotchPayCircuitBreaker.java`](file:///D:/automatisation/code/backend/src/main/java/com/getjob/backend/payment/resilience/NotchPayCircuitBreaker.java))** : Bascule en état `OPEN` après 3 échecs consécutifs, évitant de surcharger une API en panne et basculant instantanément les nouveaux paiements vers le fallback WhatsApp.
+- **Traçabilité & Métriques** : Logs structurés `[NOTCHPAY_METRICS]` traçant la durée, le code HTTP et le statut de chaque appel.
+
+#### 3. Fallback Défensif : Paiement Assisté par WhatsApp
+- **Zéro Blocage Candidat** : En cas d'indisponibilité de NotchPay ou de circuit breaker ouvert, l'utilisateur se voit proposer une finalisation directe sur WhatsApp (`+237 698 76 55 88`).
+- **Pré-remplissage Contextuel** : Message prêt à l'envoi avec référence de commande, montant, forfait et nom du candidat.
+- **Traçabilité Métier (`FALLBACK_WHATSAPP`)** : Nouveau statut de commande et endpoint `POST /api/v1/payments/fallback-whatsapp/{reference}`.
+- **Expérience Utilisateur Empathique** : Modales réactives et ergonomiques conformes aux standards `Mobile-First`.
+
+#### 4. Migration Base de Données Flyway V10 ([`V10__notchpay_integration_and_webhook_events.sql`](file:///D:/automatisation/code/backend/src/main/resources/db/migration/V10__notchpay_integration_and_webhook_events.sql))
+- Élargissement de la colonne `status` de `payment_transaction` à `VARCHAR(32)` pour intégrer `FALLBACK_WHATSAPP`.
+- Ajout de la colonne `gateway` (`NOTCHPAY`).
+- Création de la table d'idempotence `notchpay_webhook_event`.
+
+---
+
+## [1.1.0] - 2026-09-12
+
+### ✨ Nouvelle Landing Page Éditoriale & Expérience d'Accueil (Inspiration Anthropic)
+
+#### 1. Page d'Accueil par Défaut (`path: ''`) & Navigation Préservée ([`app.routes.ts`](file:///D:/automatisation/code/dashboard/src/app/app.routes.ts))
+- **Route Racine Publique** : La racine `/` dirige désormais vers `LandingComponent` avec `pathMatch: 'full'` au lieu de rediriger directement vers `/dashboard` (ou `/login`).
+- **Structure Interne Intacte** : Tous les chemins applicatifs (`/dashboard`, `/opportunities`, `/cvs`, `/cv-builder`, `/settings`, etc.) restent inchangés et sécurisés par l'`authGuard`.
+- **Bouton d'Action Intelligent** : Le header redirige automatiquement les utilisateurs connectés vers leur tableau de bord personnel (`/dashboard`) et propose un accès « Connexion / Commencer » aux nouveaux visiteurs.
+
+#### 2. Direction Artistique & Minimalisme Éditorial ([`landing.component.html`](file:///D:/automatisation/code/dashboard/src/app/features/landing/landing.component.html) & [`landing.component.css`](file:///D:/automatisation/code/dashboard/src/app/features/landing/landing.component.css))
+- **Inspiration Anthropic** : Teintes ivoire chaud (`#FAF9F5`), typographie à empattements éditoriale (`Newsreader` serif), texte anthracite doux (`#141413`) et accents terracotta (`#CC785C`).
+- **Respiration & Clarté** : Mise en page épurée axée sur la conviction, la promesse d'émancipation par le travail et l'absence de jargon superflu.
+
+#### 3. Vitrine Vidéo & Animation Ambiante Canvas ([`landing.component.ts`](file:///D:/automatisation/code/dashboard/src/app/features/landing/landing.component.ts))
+- **Animation Ambiante Canvas Organique** : Reproduction de l'effet de dégradé céleste/terracotta ondoyant en arrière-plan avec gradients radiaux et variations sinusoïdales à 60 FPS.
+- **Cadre Vidéo Prêt à l'Emploi** : Structure `<video>` intégrée pour accueillir la vidéo finale de présentation, avec fallback visuel élégant sur `warman_preview.jpg`, bouton play stylisé avec onde de pulsation et pastille de démonstration.
+
+#### 4. Parcours en 4 Étapes avec Flèches « Corde Molle » (Slack Rope Curves)
+- **Diagramme de Flux** : Décomposition claire du parcours candidat :
+  1. *Étape 01 : Préparer son CV d'élite* (vocal ou import).
+  2. *Étape 02 : Configurer ses critères d'ambition*.
+  3. *Étape 03 : Laisser Warman chercher 24h/24*.
+  4. *Étape 04 : Recevoir les offres directement sur WhatsApp*.
+- **Connecteurs « Corde Molle » SVG** : Flèches en courbes de Bézier affaissées sous l'effet de la gravité (`M 0,15 C 16,42 32,42 46,20`), pointillés dynamiques animés et perle de lumière glissante.
+
+#### 5. Section Métiers Démocratisée : « Vendre le Rêve à Tous »
+- **Inclusivité Totale** : Mise en avant de 5 grands secteurs (Tech & Numérique, Commerce & Vente, Ingénierie & BTP, Santé & Services, Finance & Administration) pour briser l'idée reçue que Warman ne s'adresse qu'aux développeurs.
+- **Témoignages & Cas d'Usage Réels** : Focus sur la réussite sans « piston », la formalisation automatique même sans expérience de rédaction de CV, et la recherche en toute discrétion.
+
+#### 6. Pied de Page Garanti Zéro Lien Factice
+- **Liens 100% Vérifiés & Opérationnels** : Liens internes directs vers `/opportunities`, `/cv-builder`, `/cvs/interview`, `/login`, assistance WhatsApp directe et adresse e-mail de contact.
+
+---
+
+## [1.0.9] - 2026-09-12
+
+### 💳 Contrôle d'Éligibilité OCR : Réservé aux Comptes avec ≥ 2 Crédits Pro (0 Débit)
+
+#### 1. Sécurisation Backend ([`CvService.java`](file:///D:/automatisation/code/backend/src/main/java/com/getjob/backend/cv/service/CvService.java))
+- **Condition de Solde Strict (`proCredits >= 2`)** : L'endpoint `POST /api/v1/cvs/import` vérifie que le candidat connecté possède au moins 2 crédits Pro (`candidate.getProCredits() >= 2`).
+- **Zéro Déduction** : Aucun crédit n'est déduit lors de l'import. Les 2 crédits restent intégralement disponibles pour déverrouiller et exporter les CV ultérieurement.
+- **Réponse HTTP 402** : Si le solde est insuffisant (< 2), renvoie l'erreur `INSUFFICIENT_CREDITS`.
+
+#### 2. Contrôle Ergonomique Frontend ([`cv-list.component.ts`](file:///D:/automatisation/code/dashboard/src/app/features/cvs/pages/cv-list/cv-list.component.ts) & [`cv-builder-main.component.ts`](file:///D:/automatisation/code/dashboard/src/app/features/cv-builder/pages/cv-builder-main/cv-builder-main.component.ts))
+- **Vérification Amont (`handleImportClick`)** : Avant même d'ouvrir l'explorateur de fichiers, le frontend contrôle le solde. Si le candidat possède moins de 2 crédits, la modale de recharge des packs s'ouvre automatiquement.
+- **Badge & Indicateur Visuel** : Ajout d'une pastille discrète `2 cr` sur les boutons « Importer » dans la liste des CVs et dans le créateur.
+
+---
+
+## [1.0.8] - 2026-09-12
+
+### 📄 Pipeline OCR Multimodal & Édition / Chat IA sur CV Téléversé
+
+#### 1. Intégrité Complète de l'Extraction OCR vers les Templates ([`cv-editor.service.ts`](file:///D:/automatisation/code/dashboard/src/app/core/services/cv-editor.service.ts))
+- **Préservation Intégrale des Réalisations** : `newExperience()` fusionne désormais de façon dédoublonnée à la fois les missions (`responsibilities`) et les accomplissements chiffrés (`achievements`), sans perte d'information.
+- **Enrichissement Automatique des Compétences** : Les technologies et outils identifiés par l'OCR dans chaque bloc d'expérience sont automatiquement injectés et fusionnés dans la section globale des compétences (`skills`).
+
+#### 2. Flux Complet Téléversement ➔ Template ➔ Édition Manuelle ➔ Chat IA
+- **Bouton d'importation** : Disponible sur la liste des CVs (`/cvs`) et dans le créateur (`/cv-builder`).
+- **Analyse OCR Gemini** : Extraction multimodale sans perte depuis PDF ou Image.
+- **Remplissage automatique du Template** : Redirection directe vers l'éditeur avec prévisualisation en temps réel sur le template choisi.
+- **Édition bivalente** :
+  - Modification manuelle directe sur tous les champs (auto-sauvegarde).
+  - Onglet **« Assistant IA »** permettant de chatter avec Gemini pour optimiser les phrases, chiffrer les réalisations et perfectionner le CV en direct.
+
+---
+
+## [1.0.7] - 2026-09-12
+
+### 🔍 Nouvel Outil Déterministe `audit_cv_integrity` : Détection Proactive des Anomalies & Incohérences
+
+#### 1. Moteur d'Audit Algorithmique Temps Réel ([`cv-audit-engine.service.ts`](file:///D:/automatisation/code/dashboard/src/app/core/services/cv-audit-engine.service.ts))
+- **Chevauchements Chronologiques (`OVERLAP`)** : Analyse fine des intervalles de dates (années/mois) entre toutes les expériences. Détecte les cumuls suspects (> 2 mois d'intersection simultanée) et formule une question orale prête pour Bray (*« J'ai remarqué que tes postes chez X et Y se croisent... Était-ce un freelance ou une coquille de dates ? »*).
+- **Dates Inversées (`CHRONOLOGY`)** : Détection des anomalies où `startDate > endDate`.
+- **Détection des Doublons (`DUPLICATE`)** : Repérage des expériences dupliquées (même entreprise/poste) et compétences redondantes (ex: *React* et *React.js*).
+- **Incomplétudes (`INCOMPLETE`)** : Signalement des expériences sans réalisations concrètes (`achievements` vides), sans technologies (`technologies` vides), ou diplômes sans années d'obtention.
+- **Score Global de Cohérence** : Notation dynamique de 0 à 100% avec pénalités pondérées selon la criticité.
+
+#### 2. Déclaration du Tool Multimodal Gemini Live ([`gemini-live-ws-client.service.ts`](file:///D:/automatisation/code/dashboard/src/app/core/services/gemini-live-ws-client.service.ts))
+- Ajout de la fonction déclarative `audit_cv_integrity` dans le handshake `setup` de Gemini Live, avec exécution instantanée en mémoire côté client sans appel réseau supplémentaire.
+
+#### 3. Guidance Proactive de l'IA & Élimination des Doutes ([`interview-algorithm.prompt.ts`](file:///D:/automatisation/code/dashboard/src/app/core/prompts/cv-interview/interview-algorithm.prompt.ts))
+- L'algorithme d'entretien ordonne à Bray de déclencher systématiquement `audit_cv_integrity` dès que les expériences principales sont réunies ou avant de proposer la finalisation.
+- En cas d'anomalie détectée, Bray prend l'initiative de poser une question bienveillante et constructive pour clarifier la situation avant de figer le CV.
+
+#### 4. Affichage Visuel Live pour le Candidat ([`cv-interview.component.html`](file:///D:/automatisation/code/dashboard/src/app/features/cvs/pages/cv-interview/cv-interview.component.html))
+- Intégration d'une carte d'audit en direct dans l'interface d'entretien affichant le score de cohérence (ex: 95%) et les points d'éclaircissement en cours de traitement.
+
+---
+
+## [1.0.6] - 2026-09-12
+
+### 🛡️ Stabilisation de l'Entretien Vocal & Fiabilisation du CV (Version 1.0.6)
+
+#### 1. Mise à Jour Rétroactive des Sections sans Régression (`mergeDraft` In-Memory)
+- **Préservation des Acquis** : L'IA peut modifier à n'importe quel moment une expérience, formation ou compétence évoquée 10 minutes plus tôt.
+- **Algorithme de Fusion Atomique** : `mergeDraft()` applique une mise à jour ciblée (par `company + position` pour les expériences, `school + degree` pour les formations, union `Set` pour les compétences) sans écraser ni démultiplier les éléments déjà validés.
+
+#### 2. Datation Strictement Obligatoire des Expériences & Formations
+- **Règles Strictes de Validation** : Dans [`draft-tool-rules.prompt.ts`](file:///D:/automatisation/code/dashboard/src/app/core/prompts/cv-interview/draft-tool-rules.prompt.ts) et [`interview-algorithm.prompt.ts`](file:///D:/automatisation/code/dashboard/src/app/core/prompts/cv-interview/interview-algorithm.prompt.ts), interdiction formelle d'appeler `update_cv_draft` pour une expérience sans dates (`startDate` et `endDate` ou « Présent »).
+- **Relance Systématique** : Si le candidat omet de situer une expérience ou un diplôme dans le temps, Bray lui demande systématiquement la période avant d'intégrer la section dans le CV.
+
+#### 3. Résilience Réseau & Reprise Immédiate sans Perte après Coupure
+- **Sauvegarde Continue & Cache Local (10 min)** : Le brouillon et la transcription sont synchronisés en continu dans [`InterviewSessionCacheService.ts`](file:///D:/automatisation/code/dashboard/src/app/core/services/interview-session-cache.service.ts).
+- **Accueil de Reprise Intelligent** : En cas de reconnexion, `buildStartTrigger` génère une salutation fraternelle adaptée (« Rebonjour [Prénom] ! Rassure-toi, toutes nos notes sont bien sauvegardées... ») et réinjecte le résumé des acquis pour que Bray sache immédiatement où en était l'échange.
+- **Protection Anti-Double Décompte du Quota Backend** : Dans [`CvService.java`](file:///D:/automatisation/code/backend/src/main/java/com/getjob/backend/cv/service/CvService.java), détection de session active (`isResumingActiveSession`). Reconnecter après une coupure ne consomme aucun quota additionnel et n'est jamais bloqué même si le candidat est à sa 3e session du jour.
+
+#### 4. Gestion Bienveillante des Voix Inaudibles & Bruits Parasites
+- **Zéro Hallucination** : Si le son coupe ou est incompréhensible, l'IA ne devine pas. Elle demande gentiment : « Excuse-moi [Prénom], le son a légèrement coupé / je n'ai pas bien entendu ta dernière phrase. Peux-tu me la répéter s'il te plaît ? ».
+
+#### 5. Transparence Totale des Quotas & Gratuité de l'Édition Manuelle
+- **Création & Édition Manuelle 100% Gratuites** : L'éditeur de CV manuel (`/cv-builder`) ne consomme ni les 3 entretiens vocaux IA quotidiens, ni les `proCredits`. Les `proCredits` sont réservés à l'exportation PDF finale sans filigrane / déverrouillage de template Pro.
+
+---
+
+## [1.0.5] - 2026-09-12
+
+### 👤 Salutation Nominative Personnalisée : « Bonjour [Prénom] ! »
+
+#### 1. Accueil Personnalisé Dès la Première Seconde
+- **Extraction automatique du prénom** : Ajout de la méthode `extractCandidateFirstName()` dans [`gemini-live.service.ts`](file:///D:/automatisation/code/dashboard/src/app/core/services/gemini-live.service.ts) analysant le compte connecté (`authService.currentUser()`) ou le brouillon courant.
+- **Instruction impérative au démarrage** : La fonction `buildStartTrigger(firstName)` dans [`index.ts`](file:///D:/automatisation/code/dashboard/src/app/core/prompts/cv-interview/index.ts) ordonne explicitement à l'IA d'ouvrir l'entretien par « Bonjour [Prénom] ! » plutôt qu'un « Bonjour » impersonnel.
+- **Injection dans l'identité du candidat (`setup`)** : Le prénom est transmis lors du handshake initial dans [`gemini-live-ws-client.service.ts`](file:///D:/automatisation/code/dashboard/src/app/core/services/gemini-live-ws-client.service.ts) pour que Bray s'adresse au candidat par son prénom de manière naturelle et respectueuse tout au long de la conversation.
+
+---
+
+## [1.0.4] - 2026-09-12
+
+### 🌍 Personnalisation Vocale : Voix Africaine Chaleureuse, Modèle Charon & Calibrage Acoustique Posé
+
+#### 1. Transition vers la Voix `Charon`
+- Remplacement du profil vocal de base `Puck` par **`Charon`** dans [`gemini-live-ws-client.service.ts`](file:///D:/automatisation/code/dashboard/src/app/core/services/gemini-live-ws-client.service.ts). Cette voix offre un timbre masculin plus grave, mature, chaleureux et posé, idéal pour une posture d'aîné ou de mentor professionnel.
+
+#### 2. Prosodie Africaine Francophone & Posture de Mentor
+- Mise à jour du System Prompt dans [`recruiter-persona.prompt.ts`](file:///D:/automatisation/code/dashboard/src/app/core/prompts/cv-interview/recruiter-persona.prompt.ts) et du déclencheur d'accueil dans [`index.ts`](file:///D:/automatisation/code/dashboard/src/app/core/prompts/cv-interview/index.ts) :
+  - Intonation naturelle, chantante, chaleureuse et posée d'Afrique francophone (style subsaharien / ouest-africain moderne, élégant, convivial et respectueux).
+  - Posture de grand frère recruteur senior ou mentor d'élite, alliant bienveillance sincère et exigence professionnelle.
+  - Débit de parole détendu, réfléchi et articulé, avec respirations naturelles.
+
+#### 3. Calibrage du Débit & Égalisation Acoustique Chaleureuse
+- **Débit à 0.96x** dans [`AudioPcmEngineService.ts`](file:///D:/automatisation/code/dashboard/src/app/core/services/audio-pcm-engine.service.ts) avec synchronisation mathématique du pointeur temporel `nextPlayTime += duration / 0.96` pour éviter toute précipitation.
+- **Filtre acoustique Warm EQ (`BiquadFilterNode`)** : Rehaussement subtil des bas-médiums (+2.5 dB à 320 Hz) pour donner de la rondeur, du corps et une présence studio naturelle à la voix diffusée.
+
+---
+
+## [1.0.3] - 2026-09-12
+
+### 🎙️ Résolution Définitive des Voix Parallèles Gemini Live au Lancement de l'Entretien
+
+#### 1. Sas Acoustique Initial & Verrouillage du Microphone au Handshake
+- **Cause racine** : Lors du handshake WebSocket (`onSetupComplete`), le frontend passait immédiatement l'état à `'LISTENING'` et envoyait le prompt textuel `CV_INTERVIEW_START_TRIGGER`. Pendant les 1 à 2 secondes où Google préparait l'accueil oral de Bray, le microphone était actif et envoyait des chunks audio continus (`realtimeInput`) à Google. Le modèle Gemini Live recevant simultanément le prompt textuel et le flux audio ambiant du micro déclenchait **deux générations concurrentes**. De plus, les premiers mots de l'IA diffusés par les haut-parleurs étaient captés par le micro avant la mise à jour de l'état, provoquant un feedback acoustique immédiat.
+- **Solution implémentée (`gemini-live.service.ts`)** :
+  - Mise en place d'un sas acoustique hermétique au démarrage (`initialGreetingPending = true`).
+  - Le microphone est **physiquement verrouillé et muté côté client** dès la connexion et pendant toute la durée où l'IA génère et énonce son accueil introductif.
+  - Le micro ne s'ouvre pour écouter le candidat qu'**après** la fin effective de la lecture audio des haut-parleurs (`onAudioEnd`) suivie d'un délai d'extinction de réverbération de 400 ms.
+
+#### 2. Verrou d'Exclusion Mutuelle Anti-Double Session (`isSessionStarting`)
+- Ajout d'un mutex booléen strict empêchant tout déclenchement concurrent de `startSession()` lors de double-clics, navigations rapides ou cycles de vie Angular.
+
+---
+
+## [1.0.2] - 2026-09-12
+
+### 🛡️ Blindage Backend Production Ready : Monétisation, Anti-IDOR, Concurrence BDD & Isolation Transactions
+
+#### 1. Monétisation & Éradication du Crédit Gratuit
+- **Solde Initial à 0** : Suppression définitive du crédit gratuit par défaut dans `CandidateEntity` (`proCredits = 0`) et dans le mapper `toAuthResponse()` (`candidate.getProCredits() != null ? candidate.getProCredits() : 0`). Tout déverrouillage de CV en haute définition requiert désormais obligatoirement un achat effectif via Nokash (500 FCFA) ou un pack pro.
+
+#### 2. Sécurisation Webhook & Contrôle Cryptographique HMAC-SHA256
+- **Vérification Multi-Format en Temps Constant** : Implémentation de `verifyWebhookSignature` dans `PaymentService` prenant en charge à la fois la comparaison en temps constant (`MessageDigest.isEqual`) et le calcul HMAC-SHA256 (format hexadécimal et base64) de la référence avec `NOKASH_WEBHOOK_SECRET`.
+- **Idempotence & Verrouillage Pessimiste** : Utilisation de `findByReferenceForUpdate` avec `PESSIMISTIC_WRITE` dans `PaymentTransactionRepository` pour garantir qu'aucun callback dupliqué ou concurrent ne puisse double-créditer un candidat.
+
+#### 3. Protection Anti-IDOR & Atomicité des Crédits Pro
+- **Contrôle d'Appartenance Strict du CV** : Vérification systématique que `cv.getCandidateId().equals(candidateId)` dans `initiatePayment` et `useProCredit`. Aucune transaction ou déverrouillage ne peut être initié sur le CV d'un tiers.
+- **Déduction Atomique en Base de Données** : Implémentation de `decrementProCreditIfAvailable` avec `UPDATE candidate SET proCredits = proCredits - 1 WHERE id = :id AND proCredits > 0` pour éliminer toute faille de concurrence (race condition) et de double dépense lors de clics simultanés.
+
+#### 4. Résolution de l'Erreur 500 sur Login Non Vérifié & Sécurisation Google OAuth
+- **Capture Propre de `DisabledException`** : Ajout d'un intercepteur dans `AuthService.login()` et d'un gestionnaire dédié dans `GlobalExceptionHandler` renvoyant une réponse RFC 7807 403 Forbidden explicite (`EMAIL_NOT_VERIFIED`) avec réémission automatique d'un code de validation si expiré.
+- **Validation d'Audience Google Obligatoire** : Rejet immédiat avec HTTP 503 si `GOOGLE_CLIENT_ID` n'est pas configuré, empêchant l'acceptation de jetons Google ID tiers non autorisés.
+
+#### 5. Libération des Connexions HikariCP & Anti-Starvation
+- **Isolation des Appels IA Hors Transactions SQL** : Suppression de `@Transactional` sur `synthesizeCvFromTranscript`, `aiEditCv`, `importCvFromFile` (`CvService`) et `prepareApplication` (`OpportunityService`). Les appels réseau vers l'API Google Gemini (3 à 25s) ne bloquent plus aucune connexion MySQL dans le pool HikariCP. La persistance est isolée dans des méthodes transactionnelles courtes et ciblées.
+- **Génération Texte Fluide (Lettres de Motivation)** : Ajout de `generatePlainTextContent` dans `GeminiLiveTokenService` pour générer des lettres de motivation en texte clair sans conflit avec le mode JSON.
+
+#### 6. Sécurisation des Routes Vocales & Hygiène de Production
+- **Bridage de `RealtimeVoiceController`** : Suppression de la route `GET /session` avec effets de bord et délégation de `POST /session` à `CvService.createInterviewSession("latest")` pour appliquer le quota journalier de 3 entretiens par candidat.
+- **Détection IP Proxy dans `RateLimitFilter`** : Extraction prioritaire de `X-Forwarded-For` pour éviter les faux positifs de blocage massif derrière un reverse proxy Nginx ou Docker.
+- **Flyway & Logging** : Configuration conditionnelle de `flyway.repair()` via `spring.flyway.repair-on-migrate: false` et passage du niveau de log applicatif à `INFO` par défaut.
+- **Uniformisation de la Marque** : Remplacement des mentions résiduelles `JobPilot` par `GetJob AI` dans `AuthEmailService` et les modèles d'environnement.
+
+---
+
+## [1.0.1] - 2026-09-12
+
+### 🎙️ Audio Live & Transcription Ligne par Ligne : Résolution Multi-Voix, Écho et Rendu Textuel Fluide
+
+#### 1. Résolution du Chevauchement de Voix Multiples (Anti-Larsen & Isolation WebSocket)
+- **Boucle Acoustique de Rétroaction (Effet Larsen Virtuel)** :
+  - *Cause racine* : Lorsque l'IA parlait, sa voix diffusée par les haut-parleurs de l'ordinateur était recapturée à 16 kHz par le micro et renvoyée en continu à Gemini Live via `sendAudioChunk()`. Le VAD serveur de Google (`START_OF_ACTIVITY_INTERRUPTS`) interprétait le son des haut-parleurs comme une interruption humaine, coupait le tour en cours et déclenchait une nouvelle réponse en parallèle, provoquant une cascade de voix simultanées.
+  - *Solution fonctionnelle* : Mise en place d'un sas acoustique semi-duplex dynamique. Dès que l'IA prend la parole (`state === 'AI_SPEAKING'`), la transmission des paquets audio microphone vers le WebSocket est totalement coupée. Lorsque l'IA termine sa phrase, un délai d'extinction (hangover cooldown de 400 ms) est appliqué pour absorber la réverbération de la pièce avant de réouvrir le canal microphone.
+- **Fuites de Connexions WebSocket (Zombie Sockets)** :
+  - *Cause racine* : En cas de reconnexion, de retry utilisateur ou de cycle de vie Angular (double `ngOnInit` / HMR), l'ancienne socket WebSocket n'était pas fermée avant la création de la nouvelle, entraînant la coexistence de plusieurs flux audio joués concurremment dans le même `AudioContext`.
+  - *Solution fonctionnelle* : Appel strict et systématique à `this.disconnect()` dans `GeminiLiveWsClientService.connect()` et `this.stopSession()` au début de `GeminiLiveService.startSession()`, avec purge intégrale des écouteurs d'événements.
+- **Interruption Nette & Purge des Chunks Résiduels** :
+  - *Cause racine* : Lors d'une interruption (`onInterrupted`), des chunks audio en transit sur le réseau continuaient d'arriver et de se chaîner au playback.
+  - *Solution fonctionnelle* : Réinitialisation immédiate du pointeur temporel `nextPlayTime = 0`, détachement des callbacks `onended` et arrêt forcé de tous les `AudioBufferSourceNode` actifs dans `AudioPcmEngineService.interruptPlayback()`.
+- **Câblage Réel du Bouton Mute** :
+  - *Cause racine* : Le signal `isMuted` n'était que visuel dans `CvInterviewComponent`.
+  - *Solution fonctionnelle* : Liaison bidirectionnelle avec `geminiService.setMuted()` et `audioEngine.setMuted()`, bloquant l'émission de paquets audio dès l'activation du mode muet.
+
+#### 2. Restauration de la Transcription en Direct (Input & Output ASR)
+- *Cause racine* : Lors de la migration vers `gemini-live-ws-client.service.ts`, les blocs de configuration `inputAudioTranscription: {}` et `outputAudioTranscription: {}` avaient été omis du payload de `setup`, et les messages `serverContent.inputTranscription` et `serverContent.outputTranscription` n'étaient plus interceptés.
+- *Solution fonctionnelle* : Réintégration des déclarations de transcription dans le handshake WebSocket et traitement dédié dans `handleServerMessage()`.
+
+#### 3. Rendu de la Transcription Ligne par Ligne (Éradication du Sautillement Mot par Mot)
+- *Cause racine* : La transcription brute envoyée par l'API arrivait par micro-fragments (1 à 2 mots) et déclenchait une mise à jour immédiate du signal Angular `transcript`, entraînant un clignotement permanent de l'interface et un comportement de machine à écrire saccadé.
+- *Solution fonctionnelle* : Implémentation d'un buffer de lignes (`lineBuffers`) avec découpage syntaxique sur la ponctuation forte (`.`, `?`, `!`, `:`, `\n`). Les phrases ne sont affichées dans la bulle de discussion que lorsqu'elles sont complètes, avec un flush de secours temporisé à 800 ms lors des pauses d'élocution. Ajout de `whitespace-pre-line` dans le template HTML pour une mise en page aérée et naturelle.
+
+---
+
+## [1.0.0-rc1] - 2026-09-11
+
+### 🛡️ Sécurisation Intégrale, Liens de Paiement Nokash, Gemini 2.0 Officiel & Vrai Scoring d'Opportunités
+
+#### 1. Sécurisation & Intégration Réelle des Liens de Paiement Nokash
+- **Liens de Paiement Hébergés Prédéfinis** : Redirection transparente vers la page de paiement officielle avec montants configurés :
+  - **1 CV (Unitaire)** : 500 FCFA (`PAYMENT_LINK_PACK_1`).
+  - **Pack 3 CVs** : 1 200 FCFA (`PAYMENT_LINK_PACK_3`, remise de 20%).
+- **Sécurisation Cryptographique du Webhook (`X-Signature`)** :
+  - Validation de la signature HMAC-SHA256 sur l'endpoint `/api/v1/payments/webhook` à l'aide de `NOKASH_WEBHOOK_SECRET`.
+  - Contrôle strict du statut transmis (`SUCCESS` ou `PAID`) avant déverrouillage ou allocation de crédits pro.
+- **Éradication des Fautes de Sécurité & Contournements Client** :
+  - Suppression définitive du bypass hors-ligne (`catchError` qui accordait les déverrouillages gratuitement en cas d'erreur réseau).
+  - Élimination de l'endpoint de simulation d'approbation `/verify/{reference}` au profit d'un endpoint de consultation en lecture seule `/api/v1/payments/status/{reference}`.
+  - Initialisation défensive du solde de crédits pro à 0 en cas de profil non initialisé.
+- **Protection des Clés & Secrets** :
+  - Ajout des chemins `ressources/clé nokash/` et `clés.txt` dans le `.gitignore` racine et backend.
+  - Centralisation des configurations de paiement dans `.env` et `.env.example`.
+
+#### 2. Protection Renforcée de l'Export PDF & Filigrane Inamovible
+- **Verrouillage par Défaut** : `isUnlocked` initialisé à `false` par défaut dans `PdfExportService.ts`.
+- **Validation Serveur Obligatoire** : Interrogation systématique de `paymentService.isCvUnlocked(cvId)` depuis `CvListComponent` et `CvBuilderMainComponent` avant tout export non filigrané.
+- **Neutralisation du Contournement par Impression** : Désactivation de l'appel `window.print()` lorsque le CV n'a pas été déverrouillé côté serveur.
+
+#### 3. Modèles Google Gemini (Live 3.1 & Multimodal Flash)
+- **Modèle Live Audio 3.1** :
+  - WebSocket Audio Bidirectionnel : `gemini-3.1-flash-live-preview` (modèle Google Gemini Live de référence retenu pour les sessions vocales interactives).
+  - Génération Textuelle & Multimodale : `gemini-2.0-flash`.
+- **Alignement Fullstack** : Configuration synchronisée dans `application.yml`, `GeminiLiveTokenService.java`, `.env`, `.env.example`, et le fallback WebSocket de `gemini-live.service.ts`.
+
+#### 4. Algorithme Dynamique de Scoring d'Opportunités & Élimination du Spam BD
+- **Suppression du Score Statique de 85%** : Calcul dynamique de l'affinité compétences/intitulés entre le profil du candidat et chaque offre (`computeMatching`), produisant un score réaliste entre 45% et 95%.
+- **Éradication de l'Injection Massive de Candidatures** : Suppression définitive de `ensureInitialApplicationsForCandidate()` qui spammait des dizaines d'enregistrements d'applications en base de données lors d'une simple requête `GET /api/v1/opportunities`.
+
+#### 5. Vraie Génération de Lettres de Motivation & Persistance MySQL (Flyway V9)
+- **Migration Flyway V9** : Création de `V9__add_cover_letter_text_to_application.sql` ajoutant la colonne `cover_letter_text LONGTEXT` à la table `application`.
+- **Génération IA Réelle** : Appel à `geminiLiveTokenService.generateStructuredContent` lors de `prepareApplication` pour générer une lettre personnalisée stockée directement en base de données.
+- **Endpoint Dédié** : `GET /api/v1/opportunities/{id}/cover-letter` renvoyant le texte réel pour affichage dans la vue de détail.
+- **Suppression des Fausses Références MinIO** : Abandon de l'infrastructure S3/MinIO fictive au profit du stockage relationnel optimisé.
+
+#### 6. Stabilisation Frontend & Visualiseur Réactif
+- **Nettoyage de `CvInterviewComponent`** : Suppression des méthodes dupliquées `ngOnInit` et `setupAudioVisualizer`.
+- **Visualiseur d'Ondes Réactif** : Visualiseur animé réagissant en temps réel aux signaux `isAiSpeaking()` et `isUserSpeaking()`.
+- **Validation TypeScript** : Compilation `npx tsc --noEmit` validée avec 0 erreur.
+
+---
+
+## [0.9.4] - 2026-09-01
+
+### 💳 Simplification Intégrale des Forfaits & Tunnel de Paiement (Focus Cameroun : 1 CV / 3 CVs)
+
+#### 1. Simplification du Parcours & Forfaits (Mobile-First)
+- **Ciblage Exclusif Cameroun (+237, FCFA)** : Élimination du sélecteur multi-pays superflu et focalisation sur les paiements locaux.
+- **Deux Offres Épurées** :
+  - **1 CV (Unitaire)** : 500 FCFA (Déverrouillage immédiat du CV).
+  - **Pack 3 CVs** : 1 200 FCFA (Remise `-20%`, 400 FCFA/CV, 1 CV déverrouillé + 2 crédits pour les prochaines versions).
+- **Opérateurs Mobile Money Dédiés** :
+  - Emplacements et badges de marque réservés pour **Orange Money** (`#ff7900`) et **MTN Mobile Money** (`#ffcc00`).
+- **Préremplissage Indicatif Local** : Préfixe `🇨🇲 +237` fixe avec saisie du numéro national (`6XX XX XX XX`).
+
+#### 2. Alignement Backend Spring Boot (`PaymentService.java`)
+- Tarification standardisée en `FCFA` / `XAF` : `PRICE_PACK_1_FCFA = 500` et `PRICE_PACK_3_FCFA = 1200`.
+- Déverrouillage automatique du CV et crédit des packs restants sur `CandidateEntity.proCredits`.
+
+#### 3. Refonte Modales Frontend Angular 18 (`PaymentModalComponent`, `AgentPackModalComponent`, `PaymentService.ts`)
+- Interface allégée, fluide et ergonomique sans surcharge d'options.
+
+---
+
+## [0.9.3] - 2026-09-01
+
+### 🧹 Assainissement & Persistance Réelle du Profil Candidat (Base de Données MySQL)
+
+#### 1. Couche Backend Spring Boot (`CandidateProfileController`, `CandidateProfileService`, `CandidateProfileDto`)
+- **Nouveaux Endpoints REST Sécurisés** :
+  - `GET /api/v1/candidate/profile` : charge le profil consolidé du candidat connecté (`CandidateEntity` + JSON `rawData` de `candidate_profile`).
+  - `PUT /api/v1/candidate/profile` : met à jour en base MySQL les critères de recherche (objectifs, salaire, contrats, localisation, compétences, instructions IA, notifications).
+- **Multi-Tenancy & IDOR** : Résolution stricte de l'utilisateur connecté via `SecurityContextHolder`.
+
+#### 2. Couche Frontend Angular 18 (`CandidateProfileApiService`, `ProfileMainComponent`, `SettingsMainComponent`)
+- **Éradication du Stockage Local Simulé** : Suppression des clés `localStorage` obsolètes (`jobpilot_profile_*`, `jobpilot_settings_*`) au profit d'appels HTTP réactifs vers l'API REST.
+- **Service API Centralisé** : [`CandidateProfileApiService.ts`](file:///D:/automatisation/code/dashboard/src/app/core/services/candidate-profile-api.service.ts) pour `ProfileMainComponent` et `SettingsMainComponent`.
+- **Suppression des Fichiers Morts / Orphelins** : Suppression définitive de `mock-api.interceptor.ts` et `openai-realtime.service.ts`.
+
+---
+
+## [0.9.2] - 2026-08-31
+
+### 🏗️ Refonte Architecturale Majeure : Rendu PDF ATS, Découpage Modulaire & Résilience Cache
+
+#### 1. Moteur d'Export PDF Nativement ATS & Vectoriel (`PdfExportService.ts`)
+- **Couche Texte Vectorielle Native** : Injection d'une couche typographique vectorielle invisible indexable et sélectionnable (`3 Tr` mode PDF natif) sur chaque page A4 pour garantir la compatibilité à 100% avec les parseurs ATS (Applicant Tracking Systems).
+- **Rendu Haute Résolution** : Augmentation de l'échelle à `scale = 2.5` assurant une netteté d'impression optimale.
+- **Sécurité Préservée** : Maintien du filigrane anti-fraude non déverrouillé (`500 FCFA REQUIS`).
+
+#### 2. Découpage Modulaire Frontend & Nettoyage Monolithe
+- **Éclatement de `gemini-live.service.ts`** (passé de 1 817 lignes à 260 lignes) :
+  - [`AudioPcmEngineService.ts`](file:///D:/automatisation/code/dashboard/src/app/core/services/audio-pcm-engine.service.ts) : Isolation complète de la capture micro (PCM 16k mono) et de la lecture continue gapless (PCM 24k).
+  - [`GeminiLiveWsClientService.ts`](file:///D:/automatisation/code/dashboard/src/app/core/services/gemini-live-ws-client.service.ts) : Gestionnaire du cycle de vie WebSocket, handshake `setup`, régulation de bande passante et routage des frames.
+  - [`GeminiLiveService.ts`](file:///D:/automatisation/code/dashboard/src/app/core/services/gemini-live.service.ts) : Façade réactive fournissant exactement les mêmes Signals et méthodes publiques sans rupture de contrat.
+
+#### 3. Résilience Réseau & Cache Local 10 Minutes (`InterviewSessionCacheService.ts`)
+- **Persistance Continue** : Sauvegarde automatique du draft et des tours de parole de l'entretien dans le `localStorage`.
+- **Règles d'Éviction Automatique** : Purge systématique des contextes et échanges datant de plus de 10 minutes à l'initialisation et au démarrage de session.
+- **Reconnexion Transparente** : Restauration immédiate de l'état en cas de rafraîchissement de page ou micro-coupure réseau.
+
+#### 4. Architecture Modulaire des Prompts & Guardrails XML (`core/prompts/cv-interview/`)
+- **Structure par Dossier Extensible** :
+  - `identity-and-guardrails.prompt.ts` : Balises XML strictes (`<identity>`, `<security_guardrails>`), neutralisation d'injections et protection de l'assistant Bray.
+  - `recruiter-persona.prompt.ts` : Posture et style conversationnel.
+  - `interview-algorithm.prompt.ts` : Calibration selon le profil (junior, confirmé, reconversion) et critères de fin.
+  - `draft-tool-rules.prompt.ts` : Spécifications et conditions minimales pour l'outil `update_cv_draft`.
+  - `index.ts` : Consolidation et export sans impact sur les consommateurs existants.
+
+#### 5. Découpage Backend Spring Boot (`CvAiOperationsService.java`, `CvService.java`)
+- **Service IA Dédié** : Extraction des opérations IA (`executeAiEdit`, `parseDocumentToJson`) dans `CvAiOperationsService.java`.
+- **Façade Métier Épurée** : Maintien de l'ensemble des endpoints REST et règles de sécurité / multi-tenancy.
+
+---
+
+## [0.9.1] - 2026-08-31
+
+### 🤖 Migration Globale vers Google Gemini 3.1 (Live & Multimodal Flash)
+
+#### 1. Couche Backend Spring Boot (`GeminiLiveTokenService.java`, `application.yml`, `.env`)
+- **Modèle Live Audio 3.1** : Configuration par défaut et runtime basculés vers `gemini-3.1-flash-live-preview` (`GEMINI_LIVE_MODEL`).
+- **Modèle Restructuration & Vision 3.1** : Configuration dynamique du modèle textuel / multimodal (`GEMINI_MODEL: gemini-3.1-flash-preview`), supprimant tout nom de modèle hardcodé dans `generateStructuredContent` et `generateStructuredContentFromDocument`.
+- **Alignement des Templates d'Environnement** : Mise à jour de `.env`, `.env.example` et `.env.production.example` avec les variables `GEMINI_LIVE_MODEL` et `GEMINI_MODEL`.
+
+#### 2. Couche Frontend Angular 18 (`gemini-live.service.ts`)
+- **Mise à jour du Fallback Frontend** : Remplacement de l'ancien fallback `gemini-2.0-flash-exp` par `gemini-3.1-flash-live-preview` pour les connexions WebSocket temps réel bidirectionnelles.
+
+#### 3. Documentation & Référentiel Technique
+- **`CONTEXTE_PROJET.md`** : Mise à jour exhaustive des flux de diagrammes de séquence et d'architecture pour refléter l'utilisation exclusive de Gemini 3.1.
+
+---
+
+## [0.9.0] - 2026-08-30
+
+### 💳 Module de Paiement Mobile Money B2C & Portefeuille de Crédits Guichet Cybercafé B2B2C
+
+#### 1. Modèle de Données & Migration Flyway V8 (`db/migration/V8__create_payment_and_pro_credit_tables.sql`)
+- **Portefeuille de Crédits Pro sur `candidate`** :
+  - `pro_credits` (`INT NOT NULL DEFAULT 0`) : solde disponible pour les gérants de cybercafés et secrétariats publics.
+  - `is_pro_agent` (`BOOLEAN DEFAULT FALSE`) : statut agent / gérant de guichet.
+  - `agent_shop_name` (`VARCHAR(150)`) : nom de l'établissement (ex: *Cybercafé Le Savoir*).
+- **Table `payment_transaction`** :
+  - Enregistrement des transactions financières : `reference` unique (`PAY-XXXX`), `candidate_id`, `cv_id`, `type` (`SINGLE_CV`, `PRO_PACK`), `amount`, `currency`, `country_code`, `operator` (`WAVE`, `ORANGE`, `MTN`, `MOOV`, `FREE`, `CARD`), `phone_number`, `status` (`PENDING`, `SUCCESS`, `FAILED`, `CANCELLED`), `credits_granted`.
+  - Clés étrangères strictes et index de performance sur `reference`, `candidate_id`, `status`.
+- **Table `cv_unlock`** :
+  - Traçabilité des CVs déverrouillés en HD : `cv_id`, `candidate_id`, `transaction_id`, `unlock_method` (`SINGLE_PAYMENT`, `PRO_CREDIT`, `ADMIN_GRANT`), `client_name`, `unlocked_at`.
+
+#### 2. Couche Backend Spring Boot 3.3 (Java 21)
+- **Entités & Repositories JPA (`com.getjob.backend.payment.*`)** :
+  - `PaymentTransactionEntity`, `CvUnlockEntity`, enums `PaymentType`, `PaymentStatus`, `UnlockMethod`.
+  - `PaymentTransactionRepository` et `CvUnlockRepository` avec filtrage strict par `candidateId` connecté pour éliminer tout risque d'IDOR / fuite de données.
+- **Service Métier (`PaymentService.java`)** :
+  - **Tarif unitaire fixe** : **500 FCFA** (ou 0,80 € / $0.90) par déverrouillage de CV.
+  - **Packs Pro Cybercafé** : Pack 20 CVs (7 500 FCFA / -25%), Pack 100 CVs (25 000 FCFA / -50%), Pack 500 CVs (90 000 FCFA / -64%).
+  - **Idempotence stricte (`useProCredit`)** : Vérifie l'existence préalable dans `cv_unlock` avant toute déduction. Un CV déjà déverrouillé consomme strictement 0 crédit supplémentaire.
+  - **Atomicité transactionnelle (`@Transactional`)** : Rollback automatique en cas d'interruption réseau ou serveur.
+- **Contrôleur REST (`PaymentController.java`)** :
+  - `POST /api/v1/payments/initiate` : initie la demande de débit Mobile Money.
+  - `POST /api/v1/payments/webhook` : endpoint public sécurisé pour les notifications d'agrégateurs (Wave, Orange, MTN, CinetPay, PayTech).
+  - `POST /api/v1/payments/verify/{reference}` : validation et confirmation de paiement.
+  - `POST /api/v1/payments/use-pro-credit` : consommation d'un crédit pro pour un CV client.
+  - `GET /api/v1/payments/unlocked-cvs` : liste sécurisée des IDs de CVs déverrouillés pour le candidat connecté.
+  - `GET /api/v1/payments/cvs/{cvId}/status` : statut de déverrouillage unitaire vérifié côté serveur.
+  - `GET /api/v1/payments/pro-status` : consultation du solde de crédits et profil cybercafé.
+  - `PUT /api/v1/payments/pro-shop` : personnalisation du nom de l'établissement.
+- **Sécurité (`SecurityConfig.java`)** :
+  - Autorisation publique de `POST /api/v1/payments/webhook` ; tous les autres endpoints sont strictement verrouillés par JWT.
+
+#### 3. Couche Frontend Angular 18 (Signals & Standalone)
+- **Service Réactif (`PaymentService.ts`)** :
+  - Détection automatique du pays par fuseau horaire avec bascule manuelle (Côte d'Ivoire, Sénégal, Cameroun, Bénin/Togo, France/Euro, International).
+  - Synchronisation en direct avec la base MySQL (`syncWithBackend()`, `fetchUnlockedCvs()`, `fetchProStatus()`).
+  - Cache local résilient (`localStorage`) assurant la continuité d'expérience hors-ligne.
+- **Modale de Paiement Mobile Money B2C (`PaymentModalComponent`)** :
+  - Design mobile-first épuré, compact et sans émoticônes.
+  - Sélection d'opérateur, saisie du numéro mobile avec indicatif, étape d'attente du push USSD et téléchargement automatique dès validation.
+- **Modale d'Achat de Packs Pro Cybercafé (`AgentPackModalComponent`)** :
+  - Affichage des 3 packs de volume avec prix dégressifs, solde actuel et achat par Mobile Money.
+- **Intégration dans l'Éditeur & Liste des CVs (`CvBuilderMainComponent`, `CvListComponent`)** :
+  - Détection automatique du mode guichet : si `isProMode` et `proCredits > 0`, déduction de 1 crédit pro et export immédiat sans modale client.
+  - Bandeau guichet cybercafé compact et notifications d'utilisation de crédits.
+- **Sécurisation de l'Export PDF (`PdfExportService.ts`)** :
+  - Application d'un filigrane rouge de sécurité indélébile (`APERÇU NON DÉVERROUILLÉ — GETJOB.AFRICA`) en cas de tentative d'export forcé sans déverrouillage valide.
+  - Export HD vectoriel immaculé dès déverrouillage.
+- **Barre Supérieure (`TopbarComponent`)** :
+  - Compteur de crédits pro et bouton de rechargement rapide.
+
+#### ✅ Vérification des Builds — 30 août 2026
+- **Backend Spring Boot** : `mvn test-compile` → **BUILD SUCCESS** (67 sources compilées, 0 erreur)
+- **Frontend Angular 18** : `ng build` → **BUILD SUCCESS** (0 erreur)
+
+---
+
+## [0.8.0] - 2026-08-29
+
+### 🎨 Refonte Galerie Modèles CV (Format Microsoft Word) & Éradication des Dummy Data
+
+#### 1. Refonte Complète de la Galerie de Modèles de CV (`/cv-builder`)
+- **Format & Grille Compacte Microsoft Word** :
+  - Remplacement de la grille 3 colonnes massive par une grille dense et compacte de **6 colonnes** (`w-[145px]`, ratio A4 proportionné).
+  - Suppression de l'encombrement visuel des cartes et affichage épuré des titres et catégories sous chaque document.
+  - Feuilles de document A4 flottantes sur fond gris neutre avec bordures fines et ombres portées réalistes (`shadow-sm` vers `shadow-md` au survol).
+- **Création de Véritables Modèles Haute Fidélité (Style Word)** :
+  - **`word-bloc` — CV Bloc de couleur (*Jean Hansson*)** : En-tête bleu ardoise `#243b53`, 2 colonnes équilibrées (Profil/Expérience + bloc coordonnées et compétences).
+  - **`word-soigne` — CV Soigné & Énergique (*VN Rouge*)** : Badge initiales rond rouge + ruban rouge, timeline professionnelle et icônes sociales.
+  - **`word-violet` — CV Créatif Magenta (*Aline Dupuy*)** : Sidebar violette complète (`#6b21a8`) avec avatar, compétences clés et formation.
+  - **`word-cadre` — CV Cadre & Conseil (*Marie Berthelette*)** : Encadré doré et mise en page raffinée à double colonne.
+  - **`word-navy` — CV Bleu Nuit Exécutif (*M/B*)** : Bandeau bleu nuit `#1e3a8a` avec monogramme blanc et double colonne ATS.
+  - **`word-minimal` — CV Minimaliste Filets (*Prénom Nom*)** : En-tête centré avec double filet noir & bronze et mise en page sobre.
+  - **`word-peyton` — CV Typographique Bleu (*Peyton Davis*)** : En-tête moderne bleu roi et sections aérées.
+  - **`word-sidebar` — CV Moderne en colonnes** : Colonne latérale grise avec compétences immédiates et timeline de projets.
+  - **`word-ats` — CV Classique ATS** : Format pur texte 100% compatible avec les parseurs institutionnels.
+
+#### 2. Éradication des Dummy Data & Branchement API Dynamique
+- **Page Profil (`/profile`)** : Remplacement des données statiques (*Léa Bernard*, *Product Designer*) par le profil réel connecté (`AuthService.currentUser()`), calcul dynamique de la complétion et chargement du dernier CV réel.
+- **Accueil Dashboard (`/dashboard`)** : Dynamisation des compteurs et statistiques (initialisés à 0 et alimentés par les vraies offres et candidatures) avec composant *empty-state* soigné.
+- **Topbar & Sidebar** : Suppression des faux badges mockés (`7`, `12`), suppression des fausses notifications et affichage des vraies initiales utilisateur.
+- **Documents (`/documents`)** : Remplacement des 3 faux PDFs statiques par la liste réelle des CVs issus de `CvApiService.getCvs()`.
+- **Activité (`/activity`)** : Remplacement des 5 faux événements en dur par le flux réel des opportunités et candidatures.
+- **Paramètres (`/settings`)** : Persistence des réglages utilisateur dans le `localStorage`.
+
+#### ✅ Vérification builds — 29 août 2026
+- **Backend Spring Boot** : `mvn test-compile` → **BUILD SUCCESS** (52 sources compilées)
+- **Frontend Angular 18** : `ng build` → **BUILD SUCCESS** (0 erreur)
+
+---
+
+## [0.7.2] - 2026-08-29
+
+### 🛡️ Préparation Production : Blindage Merge Expériences, Probes Actuator & Guide Environnement
+
+#### 1. Blindage Anti-Doublons du Merge d'Expériences & Formations (`gemini-live.service.ts`)
+- **Fuzzy Matching Tolérant (`mergeExperiences`)** : Ajout d'une recherche hiérarchique :
+  - Correspondance exacte sur la clé composite (`company|position|startDate`).
+  - Repli par correspondance souple sur `company` et `position` lorsque les dates sont absentes, partielles ou ajoutées au tour suivant, évitant la duplication d'expériences incomplètes.
+  - Préservation des champs existants (non-écrasement des dates, contextes ou descriptions déjà renseignés par des valeurs vides).
+- **Consolidation du Merge Formation (`mergeEducation`)** : Fusion tolérante sur `school` et `degree` sans duplication lors de l'ajout ultérieur de l'année d'obtention.
+
+#### 2. Sécurisation des Sondes de Santé Production (`SecurityConfig.java`)
+- **Autorisation Publique des Probes Actuator** : Ajout de `.requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/info").permitAll()` évitant les rejets 401 sur les healthchecks d'orchestration (Docker, Kubernetes, reverse proxy Nginx).
+
+#### 3. Modèle de Configuration Production (`backend/.env.production.example`)
+- **Création du template d'environnement de production** : Documentation claire des variables requises (`JWT_COOKIE_SECURE=true`, génération de secrets 256 bits, pool `GEMINI_API_KEYS`, SMTP et CORS HTTPS).
+
+---
+
+## [0.7.1] - 2026-08-28
+
+### 🛠️ Correctifs Critiques : WebSocket Gemini Live 1008, Quotas Vocaux & Déduplication de CV
+
+#### 1. Correction de l'erreur WebSocket 1008 (`GeminiLiveTokenService.java`)
+- **Correction du paramètre `uses`** : Passage de `uses: 0` à `uses: 3` dans la requête backend de génération du jeton éphémère (`/v1beta/auth_tokens`). La valeur `0` interdisait toute utilisation du jeton éphémère par Google Gemini Live API, provoquant immédiatement la fermeture de la connexion WebSocket avec le code de violation de politique `1008`.
+
+#### 2. Consommation Équitable des Quotas Journaliers (`CvService.java`)
+- **Découplage de la déduction de quota à l'initialisation** : La tentative de connexion à la session vocale n'incrémente plus le compteur `aiInterviewsUsed` prématurément.
+- **Incrémentation conditionnelle (`consumeInterviewQuotaIfNeeded`)** : Le quota d'entretien (limite journalière 3/3) n'est consommé que lorsque l'entretien enregistre effectivement du contenu professionnel significatif (`updateDraft`), lors de la synthèse IA (`synthesizeCvFromTranscript`), ou lors de la finalisation (`completeInterview`).
+- **Tolérance aux erreurs & reconnexions** : Tout échec technique de connexion (code 1008, micro refusé, fermeture réseau) ne pénalise plus l'utilisateur.
+
+#### 3. Élimination de la Persistance Multiple et en Boucle de CV (`CvService.java`, `gemini-live.service.ts`, `cv-interview.component.ts`)
+- **Génération & persistance immédiate d'un ID numérique de CV** : `createInterviewSession` réutilise un brouillon `IN_PROGRESS` existant ou insère un enregistrement persistant unique avec son identifiant réel en base (ex: `"42"`) au lieu de propager le placeholder `"new"`.
+- **Maintien de l'ID courant côté frontend (`gemini-live.service.ts`)** : Mise à jour immédiate de `currentCvId` lors des retours de `saveDraft`, `synthesize` et `completeInterview`. Évite la création d'un nouveau CV à chaque invocation du tool `update_cv_draft` par Gemini Live.
+- **Résolution sans 404 lors du clic sur "Terminer"** : La complétion et la redirection vers l'éditeur de CV ciblent désormais l'identifiant réel persistant.
+
+#### ✅ Vérification builds — 28 août 2026
+- **Backend Spring Boot** : `mvn test-compile` → **BUILD SUCCESS** (52 sources compilées)
+- **Frontend Angular 18** : `npm run build` → **BUILD SUCCESS** (0 erreur)
+
+---
+
+## [0.7.0] - 2026-08-26
+
+### 🛡️ Phase 0 Complète (P0 Bloquants) + Option B Gemini Live Déterministe
+
+#### 1. Configuration & Sécurisation Globale (Chantier 1)
+- **Nettoyage & Fail-Fast Config (`application.yml`)** :
+  - Suppression de toutes les valeurs par défaut sensibles.
+  - Ajout des limites multipart : `max-file-size: 8MB`, `max-request-size: 10MB`.
+  - Ajout de `server.forward-headers-strategy: native` pour fiabiliser la détection des adresses IP clientes (`X-Forwarded-For`).
+  - Intégration de Spring Boot Actuator (`management.endpoints.web.exposure.include: health,info`).
+
+#### 2. Suppression Définitive du Mock Vocal & Bean RestTemplate (Chantier 2)
+- **Contrôleur Voix Réel (`RealtimeVoiceController.java`)** :
+  - Remplacement total de l'ancien mock OpenAI (`client_secret` simulé) par la génération de vrais jetons éphémères Gemini Live via `geminiLiveTokenService.createEphemeralToken()` sur `POST` et `GET` `/api/v1/voice/session`.
+- **Bean HTTP Centralisé (`RestTemplateConfig.java`)** :
+  - Création d'un bean Spring `RestTemplate` avec timeouts stricts (3s connect, 10s read) et injection propre via `@RequiredArgsConstructor` dans `GeminiLiveTokenService.java`.
+
+#### 3. Pagination Complète & Élimination N+1 DB (Chantier 3)
+- **Pagination REST (`Pageable` & `Page<T>`)** :
+  - Support de la pagination optionnelle (`page`, `size`) sur `GET /api/v1/opportunities`, `GET /api/v1/cvs`, `GET /api/v1/applications` avec tri par défaut décroissant.
+  - Rétrocompatibilité totale préservée pour les appels sans paramètres de pagination.
+- **Suppression de la boucle N+1 (`OpportunityService.java`)** :
+  - Élimination des écritures en base systématiques (`save`) lors des appels `GET`.
+  - Récupération en batch des offres associées via `jobOfferRepository.findAllById(offerIds)` évitant les requêtes unitaires répétitives.
+
+#### 4. Rate Limiter Étendu, Éviction Mémoire & Gestion d'Upload (Chantier 4)
+- **Couverture Étendue (`RateLimitFilter.java`)** :
+  - Extension du rate limiting aux endpoints d'authentification (`/auth/google`), de sessions vocales (`/voice/session`, `/cvs/*/interview/session`) et d'IA (`/cvs/import`, `/cvs/*/ai-edit`, `/cvs/*/synthesize`).
+  - Purge automatique programmée (`@Scheduled(fixedRate = 3600000)`) des compteurs inactifs depuis plus d'une heure pour éliminer tout risque de fuite mémoire.
+  - Correction de l'ordre de la chaîne de filtres Spring Security (`RateLimitFilter` exécuté avant `JwtAuthenticationFilter`).
+- **Handlers Globaux d'Exceptions (`GlobalExceptionHandler.java`)** :
+  - Gestion de `MaxUploadSizeExceededException` retournant HTTP 413 (`Payload Too Large`).
+  - Gestion de `ConstraintViolationException` et `HttpMessageNotReadableException` retournant HTTP 400 (`Bad Request`).
+- **Garde d'Upload CV (`CvService.java`)** :
+  - Rejet strict des fichiers > 8 Mo (HTTP 413) et vérification de la whitelist des formats autorisés (`application/pdf`, `image/png`, `image/jpeg`).
+
+#### 5. Option B — Gemini Live Déterministe & Résilient
+- **Backend — Validation & State Machine (`CvDraftValidator.java` & `CvService.java`)** :
+  - Création du composant `CvDraftValidator` : vérification structurelle JSON, plafonnement strict à 20 expériences, 50 compétences et résumé < 2000 caractères avec levée de ProblemDetail HTTP 422 (`UNPROCESSABLE_ENTITY`).
+  - State Machine sur `updateDraft` interdisant les modifications de brouillons sur des états clos (HTTP 409 `CONFLICT`).
+  - Garde `isDraftMeaningful()` dans `completeInterview` bloquant la finalisation si le brouillon est vide (HTTP 400 `CV_INCOMPLETE`).
+- **Frontend — Nettoyage & Reconnexion (`gemini-live.service.ts`)** :
+  - Nettoyage des suffixes légaux d'entreprises (`Inc`, `SARL`, `SAS`, `LLC`, `GmbH`, `Ltd`, `SA`) dans `normalizeKey`.
+  - Déduplication robuste dans `experienceKey` évitant la multiplication d'expériences incomplètes.
+  - File d'attente avec 3 tentatives (`persistDraftWithRetry`) et resynchronisation automatique depuis le serveur en cas de rejet 422/409.
+  - Régulation du débit audio sortant (`ws.bufferedAmount < 1MB`).
+  - Ajout de `getCv` dans `CvInterviewApiService` pour les besoins de synchronisation.
+
+#### ✅ Vérification builds — 26 août 2026
+- **Backend Spring Boot** : `mvn test-compile` → **BUILD SUCCESS** (52 sources compilées)
+- **Frontend Angular 18** : `ng build` → **BUILD SUCCESS** (0 erreur)
+
+---
+
 ## [0.6.0] - 2026-08-24
 
 ### 🔒 Sécurité Multi-Tenancy (P0), Google ID Token Cryptographique, Rate Limiting & Optimisation DB

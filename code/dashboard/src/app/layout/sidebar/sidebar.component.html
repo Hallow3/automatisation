@@ -4,13 +4,8 @@
   <div class="absolute bottom-24 -right-16 w-56 h-56 bg-violet-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
   <!-- Sidebar Logo -->
-  <div class="flex items-center gap-2.5 px-6 h-[72px] border-b border-white/10 relative">
-    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-brand ring-1 ring-white/20">
-      <svg class="h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-      </svg>
-    </div>
-    <span class="text-lg font-extrabold tracking-tight text-white">JobPilot</span>
+  <div class="flex items-center justify-center px-6 h-[100px] border-b border-white/10 relative">
+    <img src="assets/logo/svg/white-without-bg.svg" alt="FallaJobs" class="h-20 w-auto" />
   </div>
 
   <!-- Navigation -->
@@ -53,9 +48,6 @@
         <span>{{ item.label }}</span>
 
         <!-- Badge -->
-        <span *ngIf="item.badge && !item.isAi" class="ml-auto text-[11px] font-bold bg-brand-400/20 text-brand-200 px-2 py-0.5 rounded-full ring-1 ring-brand-300/30">
-          {{ item.badge }}
-        </span>
         <span *ngIf="item.isAi" class="ml-auto text-[10px] font-bold bg-gradient-to-r from-brand-400 to-brand-300 text-brand-950 px-1.5 py-0.5 rounded-md">
           IA
         </span>
@@ -105,17 +97,20 @@
     </div>
   </nav>
 
-  <!-- Upgrade to Pro Card -->
-  <div class="m-4 p-4 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white relative overflow-hidden ring-1 ring-white/10 shadow-brand">
+  <!-- Forfaits & Crédits Card -->
+  <div class="m-4 p-4 rounded-2xl bg-gradient-to-br from-brand-600 to-brand-800 text-white relative overflow-hidden ring-1 ring-white/10 shadow-brand">
     <div class="absolute -right-2 -top-2 w-16 h-16 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
-    <p class="text-sm font-bold relative">Passer à Pro</p>
-    <p class="text-xs text-white/80 mt-1 relative">Candidatures illimitées + coaching IA avancé</p>
-    <a
-      routerLink="/settings"
-      (click)="onNavigate()"
+    <div class="flex items-center justify-between relative">
+      <p class="text-sm font-bold">Forfaits & Crédits</p>
+      <span class="text-xs font-bold text-amber-300">{{ paymentService.proCredits() }} cr.</span>
+    </div>
+    <p class="text-xs text-white/80 mt-1 relative">Exportez vos CVs en haute résolution à tarifs dégressifs</p>
+    <button
+      type="button"
+      (click)="paymentService.openPackModal()"
       class="mt-3 block w-full text-center bg-white text-brand-700 text-xs font-bold py-2 rounded-lg hover:bg-brand-50 transition shadow-sm relative">
-      Découvrir
-    </a>
+      Acheter un forfait
+    </button>
   </div>
 
   <!-- User Footer with Logout Button -->

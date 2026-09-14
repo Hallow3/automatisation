@@ -3,12 +3,17 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormArray, FormGroup, FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 import { GeminiLiveService } from '../../../../core/services/gemini-live.service';
 import { CvApiService } from '../../../../core/services/cv-api.service';
 import { CvEditorService } from '../../../../core/services/cv-editor.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { PdfExportService } from '../../../../core/services/pdf-export.service';
+import { PaymentService } from '../../../../core/services/payment.service';
+import { PaymentModalComponent } from '../../../../shared/components/payment-modal/payment-modal.component';
 import { CvPreviewComponent, CvTemplateId, CvData, CvSectionKey, createDefaultCvData } from '../../../../shared/components/cv-preview/cv-preview.component';
+import { normalizeTemplateKey } from '../../../../shared/components/cv-templates/template-registry';
+import { SAMPLE_CIVIL_ENGINEER_CV } from '../../../../shared/components/cv-templates/sample-cv-data';
 import { CvThumbnailComponent, CvThumbnailLayout } from '../../../../shared/components/cv-thumbnail/cv-thumbnail.component';
 import { PageHeaderComponent, Crumb } from '../../../../shared/components/page-header/page-header.component';
 import { ButtonComponent } from '../../../../shared/components/button/button.component';
@@ -54,7 +59,8 @@ interface AiMessage {
     BadgeComponent,
     CardComponent,
     CardHeaderComponent,
-    TabsComponent
+    TabsComponent,
+    PaymentModalComponent
   ],
   templateUrl: './cv-builder-main.component.html',
   styleUrl: './cv-builder-main.component.css'
@@ -64,6 +70,7 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
   readonly editor = inject(CvEditorService);
   private authService = inject(AuthService);
   private pdfService = inject(PdfExportService);
+  public paymentService = inject(PaymentService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private cvApi = inject(CvApiService);
@@ -72,22 +79,43 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
   currentPhase: Phase = 'templates';
   currentCvId: string | null = null;
   isLoadingCv = signal(false);
+  showPaymentModal = signal<boolean>(false);
+  proNotification = signal<string | null>(null);
 
-  selectedTemplate = signal<CvTemplateId>('moderne');
+  selectedTemplate = signal<CvTemplateId>('modern');
+  readonly sampleCvData = SAMPLE_CIVIL_ENGINEER_CV;
   activeRightTab: RightTab = 'sections';
   zoomLevel = signal<number>(0.9);
   newSkillInput = '';
   isImporting = signal(false);
 
+  handleImportClick(input: HTMLInputElement): void {
+    const credits = this.authService.currentUser()?.proCredits ?? 0;
+    if (credits < 2) {
+      this.paymentService.openPackModal();
+      return;
+    }
+    input.click();
+  }
+
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (!input.files || input.files.length === 0) return;
     const file = input.files[0];
+
+    const credits = this.authService.currentUser()?.proCredits ?? 0;
+    if (credits < 2) {
+      this.paymentService.openPackModal();
+      input.value = '';
+      return;
+    }
+
     this.isImporting.set(true);
 
     this.cvApi.importCv(file).subscribe({
       next: (cv) => {
         this.isImporting.set(false);
+        input.value = '';
         if (cv?.id) {
           this.loadCvById(cv.id);
           this.currentPhase = 'editor';
@@ -95,7 +123,12 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.isImporting.set(false);
-        alert("Erreur lors de l'import du CV : " + (err.error?.detail || 'Fichier non supporté'));
+        input.value = '';
+        if (err.status === 402 || err.error?.message?.includes('INSUFFICIENT_CREDITS') || err.error?.detail?.includes('INSUFFICIENT_CREDITS')) {
+          this.paymentService.openPackModal();
+        } else {
+          alert("Erreur lors de l'import du CV : " + (err.error?.detail || err.error?.message || 'Fichier non supporté'));
+        }
       }
     });
   }
@@ -203,167 +236,97 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
   ];
   aiInput = '';
 
-  // Templates categories
+  // Templates categories (limité aux 2 architectures majeures)
   templateCategories = [
-    { id: 'all', label: 'Tous les modèles' },
-    { id: 'senior', label: '⭐ Senior & Exécutif' },
-    { id: 'modern', label: '🚀 Moderne & Épuré' },
-    { id: 'tech', label: '💻 Tech & Ingénierie' },
-    { id: 'classic', label: '🏛️ Classique & ATS' },
-    { id: 'minimal', label: '🌿 Minimaliste' },
-    { id: 'creative', label: '🎨 Créatif & Design' }
+    { id: 'all', label: 'Tous les modèles (2)' },
+    { id: 'modern', label: 'Moderne & 2 Colonnes' },
+    { id: 'classic', label: 'Classique & ATS' }
   ];
 
   selectedCategory = signal<string>('all');
   searchTemplateQuery = signal<string>('');
   templatePage = signal<number>(1);
-  templatePageSize = signal<number>(6);
+  templatePageSize = signal<number>(12);
 
-  // Full rich templates catalog (Section 16 + Multi-templates)
+  // État de la modale de prévisualisation interactive
+  previewModalOpen = signal<boolean>(false);
+  previewModalTemplate = signal<CvTemplateId>('modern');
+  previewModalScaleMode = signal<'fit' | 'read'>('fit');
+  previewModalZoom = signal<number>(0.9);
+
+  openTemplatePreview(templateId: CvTemplateId, event?: MouseEvent): void {
+    if (event) event.stopPropagation();
+    this.previewModalTemplate.set(templateId);
+    this.previewModalScaleMode.set('fit');
+    this.previewModalZoom.set(0.9);
+    this.previewModalOpen.set(true);
+  }
+
+  closeTemplatePreview(): void {
+    this.previewModalOpen.set(false);
+  }
+
+  getPreviewModalScale(): number {
+    if (this.previewModalScaleMode() === 'read') {
+      return this.previewModalZoom();
+    }
+    if (typeof window === 'undefined') return 0.45;
+    const screenW = window.innerWidth;
+    if (screenW >= 1024) return 0.85;
+    if (screenW >= 768) return 0.70;
+    const padding = 28;
+    const availableW = Math.max(260, Math.min(screenW - padding, 750));
+    return Math.min(1, Math.round((availableW / 794) * 100) / 100);
+  }
+
+  setPreviewModalScaleMode(mode: 'fit' | 'read'): void {
+    this.previewModalScaleMode.set(mode);
+    if (mode === 'read') {
+      this.previewModalZoom.set(0.9);
+    }
+  }
+
+  zoomInTemplatePreview(): void {
+    this.previewModalScaleMode.set('read');
+    this.previewModalZoom.update(z => Math.min(1.3, Math.round((z + 0.1) * 10) / 10));
+  }
+
+  zoomOutTemplatePreview(): void {
+    this.previewModalScaleMode.set('read');
+    this.previewModalZoom.update(z => Math.max(0.35, Math.round((z - 0.1) * 10) / 10));
+  }
+
+  chooseTemplateFromPreview(): void {
+    this.selectedTemplate.set(this.previewModalTemplate());
+    this.closeTemplatePreview();
+    this.goToEditor();
+  }
+
+  // Exactement 2 templates officiels de haute qualité
   templateOptions: TemplateCard[] = [
     {
-      id: 'moderne',
-      name: 'Moderne Épuré',
+      id: 'modern',
+      name: 'CV Moderne & Dynamique',
       category: 'modern',
-      badge: 'Populaire',
-      tag: 'Polyvalent & Épuré',
-      description: 'Mise en page épurée à une colonne avec repères visuels clairs. Maximise la lisibilité pour tout type de profil.',
-      layout: 'sidebar',
+      badge: 'Recommandé',
+      tag: 'Tech, Produit, Management & Cadres',
+      description: 'En-tête immersif bicolore, structure équilibrée à 2 colonnes et mise en valeur percutante des compétences.',
+      layout: 'word-bloc',
       accent: '#2563eb',
       pages: '1–2 pages',
-      features: ['Hiérarchie stricte', 'Compétences mises en valeur', 'Idéal profils techniques & juniors']
+      features: ['En-tête bicolore soigné', '2 colonnes asymétriques', 'Badges de compétences']
     },
     {
-      id: 'senior-exec',
-      name: 'Senior Exécutif & Direction',
-      category: 'senior',
-      badge: 'Senior 10+ ans',
-      tag: 'Direction, Management & Stratégie',
-      description: 'Structure dense et prestigieuse valorisant le leadership, les budgets gérés, équipes encadrées et impacts stratégiques chiffrés.',
-      layout: 'editorial',
-      accent: '#831843',
-      pages: '2 pages',
-      features: ['Bandeau exécutif noble', 'Focus réalisations chiffrées', 'Parcours managérial valorisé']
-    },
-    {
-      id: 'split',
-      name: 'Deux Colonnes Pro',
-      category: 'modern',
-      badge: 'Équilibré',
-      tag: 'Devs, Créatifs & Marketing',
-      description: 'Sidebar dédiée aux compétences clés, langues et coordonnées. Idéal pour un CV visuellement dense et structuré.',
-      layout: 'sidebar',
-      accent: '#0284c7',
-      pages: '1–2 pages',
-      features: ['Compétences immédiates', 'Deux colonnes nettes', 'Lecture rapide']
-    },
-    {
-      id: 'classique',
-      name: 'Classique Pro & ATS',
+      id: 'classic',
+      name: 'CV Classique & ATS',
       category: 'classic',
-      badge: 'ATS 100%',
-      tag: 'Banque, Conseil & Grands Groupes',
-      description: 'Structure chronologique conventionnelle et sobre, rassurante pour les grands groupes et cabinets de recrutement.',
-      layout: 'classic',
-      accent: '#1e293b',
-      pages: '1–2 pages',
-      features: ['100 % textuel & ATS compliant', 'Format institutionnel sobre', 'Zéro fioriture']
-    },
-    {
-      id: 'tech-lead',
-      name: 'Tech Lead & Architecte',
-      category: 'tech',
-      badge: 'Tech & Cloud',
-      tag: 'Développeurs, DevOps & Architectes',
-      description: 'Conçu pour mettre en avant les stacks technologiques, projets GitHub, déploiements cloud et contributions techniques.',
-      layout: 'tech',
-      accent: '#4f46e5',
-      pages: '1–2 pages',
-      features: ['Badges de technologies', 'Projets et GitHub valorisés', 'Méthodologies Agile']
-    },
-    {
-      id: 'executive-dark',
-      name: 'Exécutif Leader Sombre',
-      category: 'senior',
-      badge: 'Prestige',
-      tag: 'C-Level, VP & Directeurs',
-      description: 'En-tête sombre élégant avec monogramme de marque, reflétant autorité, crédibilité et maturité professionnelle.',
-      layout: 'header-dark',
+      badge: 'Universel ATS',
+      tag: 'Finance, Droit, Ingénierie & Tout profil',
+      description: 'Typographie éditoriale intemporelle, agencement monocolonne linéaire et clarté absolue pour les recruteurs et robots ATS.',
+      layout: 'word-ats',
       accent: '#0f172a',
-      pages: '2 pages',
-      features: ['Header sombre haute autorité', 'Monogramme exécutif', 'Présentation statutaire']
-    },
-    {
-      id: 'nordic-minimal',
-      name: 'Nordique Minimaliste',
-      category: 'minimal',
-      badge: 'Design Épuré',
-      tag: 'Design, Produit & Tech',
-      description: 'Typographie soignée et grands espaces blancs selon les principes du design scandinave. Une élégance subtile.',
-      layout: 'minimal',
-      accent: '#059669',
       pages: '1–2 pages',
-      features: ['Typographie aérée', 'Lignes ultra fines', 'Lecture fluide et reposante']
-    },
-    {
-      id: 'creative-coral',
-      name: 'Créatif & Impact Visuel',
-      category: 'creative',
-      badge: 'Créatif',
-      tag: 'Designers, UI/UX & Communication',
-      description: 'Touches colorées dynamiques et timeline d\'expériences expressive pour capter l\'attention dès les 5 premières secondes.',
-      layout: 'sidebar',
-      accent: '#ea580c',
-      pages: '1–2 pages',
-      features: ['Touche corail vive', 'Disposition dynamique', 'Idéal univers créatif & agences']
-    },
-    {
-      id: 'compact-ats',
-      name: 'Compact Haute Densité',
-      category: 'minimal',
-      badge: 'Haute Densité',
-      tag: 'Profils Expérimentés (10+ ans)',
-      description: 'Optimisation millimétrée de chaque ligne pour faire tenir une carrière riche et dense sans sacrifier la lisibilité.',
-      layout: 'compact',
-      accent: '#334155',
-      pages: '1–2 pages',
-      features: ['Espacements ultra optimisés', 'Maximum d\'expériences au cm²', '100% lisible par les robots']
-    },
-    {
-      id: 'editorial-slate',
-      name: 'Éditorial & Conseil',
-      category: 'classic',
-      badge: 'Éditorial',
-      tag: 'Consulting, Juridique & Audit',
-      description: 'Mise en page inspirée de la presse économique avec encart de profil mis en valeur et élégance sobre.',
-      layout: 'editorial',
-      accent: '#0d9488',
-      pages: '1–2 pages',
-      features: ['Encart profil éditorial', 'Typographie classique premium', 'Rigoureux et structuré']
-    },
-    {
-      id: 'corporate-gold',
-      name: 'Corporate Prestige Gold',
-      category: 'senior',
-      badge: 'Prestige Finance',
-      tag: 'Finance, M&A & Private Equity',
-      description: 'Finitions ambrées et dorées discrètes, parfait pour les profils en finance de marché, banque d\'affaires et direction financière.',
-      layout: 'corporate',
-      accent: '#b45309',
-      pages: '2 pages',
-      features: ['Accents dorés prestigieux', 'Structure chronologique d\'élite', 'Idéal finance & consulting']
-    },
-    {
-      id: 'startup-innovative',
-      name: 'Startup & Growth',
-      category: 'tech',
-      badge: 'Agile & Growth',
-      tag: 'Product Managers, Growth & Startups',
-      description: 'Format moderne axé sur les résultats, KPIs, métriques d\'impact et méthodologies innovantes.',
-      layout: 'compact',
-      accent: '#7c3aed',
-      pages: '1–2 pages',
-      features: ['Focus KPIs & métriques', 'Format agile et moderne', 'Badges de compétences vives']
+      features: ['100% compatible robots ATS', 'Structure monocolonne aérée', 'Idéal profils confirmés & seniors']
     }
   ];
 
@@ -376,7 +339,7 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
         t.name.toLowerCase().includes(q) ||
         t.tag.toLowerCase().includes(q) ||
         t.description.toLowerCase().includes(q) ||
-        t.features.some(f => f.toLowerCase().includes(f));
+        t.features.some(f => f.toLowerCase().includes(q));
       return matchCat && matchQuery;
     });
   });
@@ -423,11 +386,26 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
   readonly saveStatus = computed(() => this.editor.saveStatus());
 
   ngOnInit(): void {
+    this.paymentService.syncWithBackend();
     this.route.queryParamMap.pipe(
       takeUntilDestroyed(this.destroyRef)
     ).subscribe(params => {
       const action = params.get('action');
       const cvId = params.get('cvId');
+      const paymentStatus = params.get('payment');
+      const paymentRef = params.get('ref');
+
+      // Si retour de paiement NotchPay réussi
+      if (paymentStatus === 'success') {
+        this.paymentService.syncWithBackend();
+        if (paymentRef) {
+          this.paymentService.verifyPayment(paymentRef).subscribe(res => {
+            if (res.success) {
+              this.paymentService.syncWithBackend();
+            }
+          });
+        }
+      }
 
       if (action === 'interview') {
         this.router.navigate(['/cvs', 'cv_' + Date.now(), 'interview']);
@@ -461,10 +439,12 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
       next: (cv) => {
         if (cv?.contentJson) {
           this.editor.init(cvId, cv.contentJson);
-          this.refreshPreview();
           if (cv.template) {
-            this.selectedTemplate.set(cv.template as CvTemplateId);
+            const normalized = normalizeTemplateKey(cv.template);
+            this.selectedTemplate.set(normalized);
+            this.editor.templateId.set(normalized);
           }
+          this.refreshPreview();
         }
         this.isLoadingCv.set(false);
       },
@@ -493,7 +473,14 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
   }
 
   selectTemplate(id: CvTemplateId): void {
-    this.selectedTemplate.set(id);
+    const normalized = normalizeTemplateKey(id);
+    this.selectedTemplate.set(normalized);
+    this.editor.templateId.set(normalized);
+    if (this.currentCvId && this.currentCvId !== 'sample' && this.currentCvId !== 'demo') {
+      this.editor.saveDraft(this.currentCvId, normalized).subscribe({
+        error: (err) => console.warn('Erreur sauvegarde template :', err)
+      });
+    }
   }
 
   goToEditor(): void {
@@ -594,9 +581,31 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
     this.editor.saveNow();
   }
 
-  downloadCurrentPdf(): void {
-    this.pdfService.exportCvPdf(this.previewData(), this.selectedTemplate());
+  readonly isDownloading = signal<boolean>(false);
+
+  async downloadCurrentPdf(): Promise<void> {
+    if (this.isDownloading()) return;
+    this.isDownloading.set(true);
+    const tpl = normalizeTemplateKey(this.selectedTemplate());
+    try {
+      if (this.currentCvId && this.currentCvId !== 'sample' && this.currentCvId !== 'demo') {
+        try {
+          await firstValueFrom(this.editor.saveDraft(this.currentCvId, tpl));
+        } catch (e) {
+          console.warn('Sauvegarde préalable avant export PDF échouée, continuation de l\'export :', e);
+        }
+      }
+      await this.pdfService.exportCvPdf(this.previewData(), tpl, true, this.currentCvId);
+    } finally {
+      this.isDownloading.set(false);
+    }
   }
+
+  onPaymentSuccess(event: { cvId: string }): void {
+    const tpl = normalizeTemplateKey(this.selectedTemplate());
+    this.pdfService.exportCvPdf(this.previewData(), tpl, true, event?.cvId || this.currentCvId);
+  }
+
 
   // Form helpers
   get links(): FormArray { return this.editor.links; }

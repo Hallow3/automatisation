@@ -1,5 +1,6 @@
 server:
-  port: 8081
+  port: ${SERVER_PORT:8081}
+  forward-headers-strategy: native
   servlet:
     context-path: /
 
@@ -8,7 +9,11 @@ app:
 
 spring:
   application:
-    name: getjob-backend
+    name: fallajobs-backend
+  servlet:
+    multipart:
+      max-file-size: 8MB
+      max-request-size: 10MB
   datasource:
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3308}/${DB_NAME:emploi}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: ${DB_USERNAME:root}
@@ -24,8 +29,8 @@ spring:
     enabled: true
     baseline-on-migrate: true
     baseline-version: 0
-    validate-on-migrate: false
-    repair-on-migrate: true
+    validate-on-migrate: ${FLYWAY_VALIDATE_ON_MIGRATE:true}
+    repair-on-migrate: ${FLYWAY_REPAIR_ON_MIGRATE:false}
     locations: classpath:db/migration
   jpa:
     database-platform: org.hibernate.dialect.MySQLDialect
@@ -34,7 +39,7 @@ spring:
     show-sql: false
 
 google:
-  client-id: ${GOOGLE_CLIENT_ID:}
+  client-id: ${GOOGLE_CLIENT_ID:1046640865115-asaoa8pbuhhfhkf5kfd7uk1epvta9m1l.apps.googleusercontent.com}
 
 mail:
   host: ${MAIL_HOST:smtp.gmail.com}
@@ -50,7 +55,26 @@ gemini:
   api-keys: ${GEMINI_API_KEYS:}
   api-key: ${GEMINI_API_KEY:}
   live:
-    model: ${GEMINI_LIVE_MODEL:gemini-2.0-flash-live-001}
+    model: ${GEMINI_LIVE_MODEL:gemini-3.1-flash-live-preview}
+  model: ${GEMINI_MODEL:gemini-2.0-flash}
+
+payment:
+  gateway: ${PAYMENT_GATEWAY:notchpay}
+  return-url: ${PAYMENT_RETURN_URL:http://localhost:4200/cv-builder}
+  whatsapp:
+    phone: ${WHATSAPP_SUPPORT_PHONE:237698765588}
+  notchpay:
+    base-url: ${NOTCHPAY_BASE_URL:https://api.notchpay.co}
+    public-key: ${NOTCHPAY_PUBLIC_KEY:}
+    private-key: ${NOTCHPAY_PRIVATE_KEY:${NOTCHPAY_SECRET_KEY:}}
+    webhook-secret: ${NOTCHPAY_WEBHOOK_SECRET:}
+    connect-timeout-ms: ${NOTCHPAY_CONNECT_TIMEOUT_MS:3000}
+    read-timeout-ms: ${NOTCHPAY_READ_TIMEOUT_MS:5000}
+    max-retries: ${NOTCHPAY_MAX_RETRIES:2}
+    circuit-breaker:
+      failure-threshold: ${NOTCHPAY_CB_FAILURE_THRESHOLD:3}
+      wait-duration-in-open-ms: ${NOTCHPAY_CB_OPEN_DURATION_MS:60000}
+
 # jwt.cookie.secure : true en production (HTTPS obligatoire), false en dev (HTTP).
 jwt:
   secret: ${JWT_SECRET:}
@@ -64,4 +88,11 @@ cors:
 logging:
   level:
     root: INFO
-    com.getjob.backend: DEBUG
+    com.getjob.backend: ${LOG_LEVEL_APP:INFO}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+

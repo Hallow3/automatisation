@@ -1,149 +1,481 @@
 <div
-  [class]="'aspect-[1/1.414] w-full overflow-hidden rounded-md border border-slate-200 bg-white p-2.5 shadow-2xs ' + customClass"
+  [class]="'aspect-[1/1.414] w-full overflow-hidden rounded-[2px] border border-slate-300/80 bg-white shadow-xs select-none ' + customClass"
   aria-hidden="true">
 
-  <!-- Header-dark layout (Executive) -->
-  <div *ngIf="layout === 'header-dark'" class="flex h-full flex-col gap-1.5">
-    <div class="rounded-sm bg-slate-900 p-2 flex items-center justify-between">
-      <div class="space-y-1 w-2/3">
-        <span class="block h-1.5 w-3/4 rounded-xs bg-white"></span>
-        <span class="block h-1 w-1/2 rounded-xs" [style.backgroundColor]="accent"></span>
-      </div>
-      <span class="h-4 w-4 rounded-full border border-amber-400 bg-slate-800 shrink-0"></span>
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       1. WORD-BLOC (CV Bloc de couleur / Jean Hansson / Jean Cartier)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <div *ngIf="layout === 'word-bloc' || layout === 'header-dark'" class="flex h-full flex-col bg-white text-[5px] leading-tight text-slate-700">
+    <!-- Dark slate top header block with title -->
+    <div class="bg-[#243b53] px-2 py-1.5 text-white">
+      <h4 class="text-[6.5px] font-extrabold tracking-wider uppercase text-white">Jean Hansson</h4>
+      <p class="text-[4.5px] text-cyan-300 font-semibold tracking-wide">Concepteur Graphique & UI</p>
     </div>
-    <div class="flex-1 space-y-1.5 pt-1">
-      <span class="block h-1 w-1/4 rounded-xs" [style.backgroundColor]="accent"></span>
-      <span class="block h-1 w-full rounded-xs bg-slate-200"></span>
-      <span class="block h-1 w-5/6 rounded-xs bg-slate-200"></span>
-      <span class="mt-1 block h-1 w-1/4 rounded-xs" [style.backgroundColor]="accent"></span>
-      <span class="block h-1 w-full rounded-xs bg-slate-200"></span>
-      <span class="block h-1 w-4/5 rounded-xs bg-slate-200"></span>
+
+    <!-- 2 columns -->
+    <div class="flex-1 flex overflow-hidden">
+      <!-- Left Column (48%) -->
+      <div class="w-[48%] p-1.5 space-y-1.5 border-r border-slate-200">
+        <!-- Profil -->
+        <div>
+          <span class="font-extrabold uppercase text-[4.8px] text-[#243b53] block border-b border-slate-200 pb-0.2 mb-0.5">Profil</span>
+          <p class="text-[4.2px] text-slate-600 leading-snug">Concepteur graphique passionné avec 6 ans d'expérience dans l'identité de marque et les interfaces web.</p>
+        </div>
+
+        <!-- Experience -->
+        <div class="space-y-1">
+          <span class="font-extrabold uppercase text-[4.8px] text-[#243b53] block border-b border-slate-200 pb-0.2 mb-0.5">Expérience</span>
+          <div>
+            <p class="font-bold text-slate-800 text-[4.5px]">Lead Designer — Studio Pixel</p>
+            <p class="text-[3.8px] text-slate-400">2021 – Présent</p>
+            <p class="text-[4.2px] text-slate-600">• Direction artistique de 20+ projets digitaux.</p>
+          </div>
+          <div>
+            <p class="font-bold text-slate-800 text-[4.5px]">UI Designer — Nova Web</p>
+            <p class="text-[3.8px] text-slate-400">2018 – 2021</p>
+            <p class="text-[4.2px] text-slate-600">• Création de design systems complets.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column (52%) -->
+      <div class="w-[52%] p-1.5 space-y-1.5 bg-slate-50/50">
+        <!-- Coordonnées box -->
+        <div class="bg-[#334e68] text-white p-1 rounded-xs space-y-0.2 text-[4px]">
+          <p class="font-bold uppercase text-[4.5px] text-cyan-300">Coordonnées</p>
+          <p>📧 jean.hansson&#64;email.fr</p>
+          <p>📞 06 12 34 56 78</p>
+          <p>📍 Paris, France</p>
+          <p>🌐 portfolio-jean.fr</p>
+        </div>
+
+        <!-- Compétences -->
+        <div>
+          <span class="font-extrabold uppercase text-[4.8px] text-[#243b53] block border-b border-slate-200 pb-0.2 mb-0.5">Compétences</span>
+          <ul class="text-[4.2px] text-slate-600 space-y-0.2">
+            <li>• Suite Adobe (Ps, Ai, Id)</li>
+            <li>• Figma & UI Design</li>
+            <li>• HTML5 / CSS3 / Tailwind</li>
+            <li>• Direction Artistique</li>
+          </ul>
+        </div>
+
+        <!-- Formation -->
+        <div>
+          <span class="font-extrabold uppercase text-[4.8px] text-[#243b53] block border-b border-slate-200 pb-0.2 mb-0.5">Formation</span>
+          <p class="font-bold text-slate-800 text-[4.2px]">Master Design Graphique</p>
+          <p class="text-[3.8px] text-slate-500">Gobelins Paris · 2018</p>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Tech layout -->
-  <div *ngIf="layout === 'tech'" class="flex h-full flex-col gap-1.5">
-    <div class="border-b border-slate-200 pb-1.5 flex justify-between items-center">
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       2. WORD-SOIGNE (CV Soigné & Énergique / VN Rouge)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <div *ngIf="layout === 'word-soigne' || layout === 'editorial'" class="flex h-full flex-col bg-white text-[5px] leading-tight text-slate-700 p-2 space-y-1.5">
+    <!-- Top red header with VN circle -->
+    <div class="flex items-center gap-1.5 border-b-2 border-rose-600 pb-1">
+      <div class="h-6 w-6 rounded-full bg-rose-600 text-white font-extrabold text-[6.5px] flex items-center justify-center shrink-0 shadow-2xs">
+        VN
+      </div>
+      <div class="flex-1 bg-rose-600 text-white px-1.5 py-0.8 rounded-xs flex justify-between items-center">
+        <div>
+          <h4 class="text-[6.5px] font-extrabold uppercase tracking-wide">Votre Nom</h4>
+          <p class="text-[4.2px] text-rose-100">Intitulé du poste / Profession</p>
+        </div>
+        <p class="text-[3.8px] text-rose-200 text-right">Paris · contact&#64;votre-nom.fr</p>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div class="space-y-1 flex-1 overflow-hidden">
+      <!-- Objectif -->
+      <div>
+        <span class="font-bold uppercase text-[4.8px] text-rose-700 block">Objectif Professionnel</span>
+        <p class="text-[4.2px] text-slate-600 leading-snug">
+          Professionnel dynamique et orienté résultats, recherchant une nouvelle opportunité pour apporter mon expertise et développer des projets d'envergure.
+        </p>
+      </div>
+
+      <!-- Expérience -->
       <div class="space-y-1">
-        <span class="block h-2 w-28 rounded-xs bg-slate-800"></span>
-        <span class="block h-1 w-20 rounded-xs" [style.backgroundColor]="accent"></span>
+        <span class="font-bold uppercase text-[4.8px] text-rose-700 block">Expérience</span>
+        <div>
+          <div class="flex justify-between items-baseline">
+            <span class="font-bold text-slate-900 text-[4.5px]">Intitulé du poste — Entreprise</span>
+            <span class="text-[3.8px] text-slate-500">2021 – Présent</span>
+          </div>
+          <p class="text-[4.2px] text-slate-600">• Gestion de projet et coordination d'équipe (8 pers.).</p>
+          <p class="text-[4.2px] text-slate-600">• Amélioration des processus et hausse de 25% de la productivité.</p>
+        </div>
+        <div>
+          <div class="flex justify-between items-baseline">
+            <span class="font-bold text-slate-900 text-[4.5px]">Poste Précédent — Société X</span>
+            <span class="text-[3.8px] text-slate-500">2018 – 2021</span>
+          </div>
+          <p class="text-[4.2px] text-slate-600">• Développement commercial et fidélisation client.</p>
+        </div>
       </div>
-      <span class="h-3 w-8 rounded-xs bg-indigo-50 border border-indigo-200"></span>
+
+      <!-- Formation & Compétences -->
+      <div class="grid grid-cols-2 gap-1.5 pt-0.5 border-t border-slate-200">
+        <div>
+          <span class="font-bold uppercase text-[4.8px] text-rose-700 block">Formation</span>
+          <p class="font-bold text-slate-800 text-[4.2px]">Diplôme d'État / Master</p>
+          <p class="text-[3.8px] text-slate-500">Université de Paris · 2018</p>
+        </div>
+        <div>
+          <span class="font-bold uppercase text-[4.8px] text-rose-700 block">Compétences</span>
+          <p class="text-[4.2px] text-slate-600">Gestion de projet · Analyse de données · Communication · Négociation</p>
+        </div>
+      </div>
     </div>
-    <div class="flex gap-1 py-0.5">
-      <span class="h-1.5 w-6 rounded-xs bg-indigo-100"></span>
-      <span class="h-1.5 w-8 rounded-xs bg-indigo-100"></span>
-      <span class="h-1.5 w-6 rounded-xs bg-indigo-100"></span>
-    </div>
-    <div class="flex-1 space-y-1 pt-0.5">
-      <span class="block h-1 w-8 rounded-xs" [style.backgroundColor]="accent"></span>
-      <span class="block h-1 w-full rounded-xs bg-slate-200"></span>
-      <span class="block h-1 w-5/6 rounded-xs bg-slate-200"></span>
-      <span class="block h-1 w-8 rounded-xs" [style.backgroundColor]="accent"></span>
-      <span class="block h-1 w-full rounded-xs bg-slate-200"></span>
+
+    <!-- Red social icons footer -->
+    <div class="flex justify-center gap-2 pt-0.5 border-t border-slate-100 text-[4px] text-rose-600 font-semibold">
+      <span>✉ email&#64;domain.fr</span>
+      <span>☎ 06 12 34 56 78</span>
+      <span>🔗 linkedin.com</span>
     </div>
   </div>
 
-  <!-- Minimal layout -->
-  <div *ngIf="layout === 'minimal'" class="flex h-full flex-col gap-2 p-1">
-    <div class="text-center space-y-1 border-b border-slate-100 pb-2">
-      <span class="mx-auto block h-1.5 w-24 rounded-xs bg-slate-700"></span>
-      <span class="mx-auto block h-1 w-16 rounded-xs" [style.backgroundColor]="accent"></span>
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       3. WORD-VIOLET (CV Créatif / Aline Dupuy / Sidebar Magenta)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <div *ngIf="layout === 'word-violet' || layout === 'creative'" class="flex h-full bg-white text-[5px] leading-tight text-slate-700">
+    <!-- Purple Left Sidebar (38%) -->
+    <div class="w-[38%] bg-[#6b21a8] text-white p-1.5 space-y-1.5 flex flex-col justify-between">
+      <div class="space-y-1.5">
+        <!-- Photo circle -->
+        <div class="text-center space-y-0.5">
+          <div class="mx-auto h-7 w-7 rounded-full bg-purple-900 border border-purple-300/60 flex items-center justify-center font-bold text-[7px] text-purple-200">
+            AD
+          </div>
+          <p class="text-[4.5px] uppercase font-bold text-purple-200">À propos de moi</p>
+        </div>
+
+        <!-- Contact -->
+        <div class="space-y-0.2 text-[4px] text-purple-100">
+          <p class="font-bold uppercase text-[4.5px] text-white border-b border-purple-400/40 pb-0.2">Contact</p>
+          <p>📍 Paris, France</p>
+          <p>📧 aline&#64;dupuy.design</p>
+          <p>📞 06 98 76 54 32</p>
+        </div>
+
+        <!-- Formation -->
+        <div class="space-y-0.2 text-[4px] text-purple-100">
+          <p class="font-bold uppercase text-[4.5px] text-white border-b border-purple-400/40 pb-0.2">Formation</p>
+          <p class="font-bold text-white">Master UX Design</p>
+          <p class="text-purple-200">Gobelins · 2019</p>
+        </div>
+
+        <!-- Compétences -->
+        <div class="space-y-0.2 text-[4px] text-purple-100">
+          <p class="font-bold uppercase text-[4.5px] text-white border-b border-purple-400/40 pb-0.2">Compétences</p>
+          <p>• Figma / Sketch</p>
+          <p>• User Research</p>
+          <p>• Prototypage interactif</p>
+          <p>• Design System</p>
+        </div>
+      </div>
     </div>
-    <div class="space-y-2 flex-1">
+
+    <!-- Right Content (62%) -->
+    <div class="w-[62%] p-2 space-y-1.5 flex flex-col justify-between overflow-hidden">
+      <div>
+        <h4 class="text-[7.5px] font-extrabold uppercase text-slate-900 tracking-wide">Aline Dupuy</h4>
+        <p class="text-[5px] font-bold text-[#6b21a8]">Conceptrice UI/UX</p>
+      </div>
+
+      <!-- Profil -->
+      <div>
+        <span class="font-bold uppercase text-[4.8px] text-[#6b21a8] block border-b border-slate-200 pb-0.2 mb-0.5">Objectif</span>
+        <p class="text-[4.2px] text-slate-600 leading-snug">
+          Spécialiste de l'expérience utilisateur et des interfaces intuitives, axée sur la simplicité et l'accessibilité.
+        </p>
+      </div>
+
+      <!-- Experience -->
+      <div class="space-y-1 flex-1">
+        <span class="font-bold uppercase text-[4.8px] text-[#6b21a8] block border-b border-slate-200 pb-0.2 mb-0.5">Expérience</span>
+        <div>
+          <div class="flex justify-between items-baseline">
+            <span class="font-bold text-slate-800 text-[4.5px]">Senior UI/UX — Studio Nova</span>
+            <span class="text-[3.8px] text-slate-400">2021 – 2026</span>
+          </div>
+          <p class="text-[4.2px] text-slate-600">• Refonte globale d'une application e-commerce (+35% conversion).</p>
+        </div>
+        <div>
+          <div class="flex justify-between items-baseline">
+            <span class="font-bold text-slate-800 text-[4.5px]">UI Designer — WebAgency</span>
+            <span class="text-[3.8px] text-slate-400">2018 – 2021</span>
+          </div>
+          <p class="text-[4.2px] text-slate-600">• Conception de wireframes et tests utilisateurs.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       4. WORD-CADRE (CV en colonnes / Mira Karlsson / Marie Berthelette)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <div *ngIf="layout === 'word-cadre' || layout === 'corporate'" class="flex h-full flex-col bg-white text-[5px] leading-tight text-slate-700 p-2 space-y-1">
+    <!-- Elegant Peach/Gold Box Header -->
+    <div class="border border-amber-300 bg-amber-50/60 p-1 text-center rounded-xs">
+      <h4 class="text-[7px] font-bold uppercase tracking-widest text-slate-900">Marie Berthelette</h4>
+      <p class="text-[4.2px] text-amber-800 tracking-wider font-semibold">Ingénieur Projet & Conseil</p>
+    </div>
+
+    <!-- 2 columns separated by line -->
+    <div class="flex-1 flex gap-1.5 overflow-hidden pt-0.5">
+      <!-- Left (35%) -->
+      <div class="w-[35%] space-y-1.5 border-r border-slate-200 pr-1">
+        <div>
+          <span class="font-bold uppercase text-[4.5px] text-amber-900 block border-b border-amber-200 pb-0.2 mb-0.5">Coordonnées</span>
+          <p class="text-[4px] text-slate-600">Paris · 06 12 34 56 78<br>marie.b&#64;conseil.fr</p>
+        </div>
+        <div>
+          <span class="font-bold uppercase text-[4.5px] text-amber-900 block border-b border-amber-200 pb-0.2 mb-0.5">Compétences</span>
+          <p class="text-[4px] text-slate-600 leading-snug">Gestion de projet · Analyse financière · Audit · Planification</p>
+        </div>
+        <div>
+          <span class="font-bold uppercase text-[4.5px] text-amber-900 block border-b border-amber-200 pb-0.2 mb-0.5">Formation</span>
+          <p class="font-bold text-slate-800 text-[4.2px]">Master Ingénierie</p>
+          <p class="text-[3.8px] text-slate-500">Centrale · 2017</p>
+        </div>
+      </div>
+
+      <!-- Right (65%) -->
+      <div class="w-[65%] space-y-1 pl-0.5 flex-1">
+        <div>
+          <span class="font-bold uppercase text-[4.5px] text-amber-900 block border-b border-amber-200 pb-0.2 mb-0.5">Profil</span>
+          <p class="text-[4.2px] text-slate-600 leading-snug">Consultante senior expérimentée en pilotage de grands projets industriels et transformation digitale.</p>
+        </div>
+        <div class="space-y-0.8">
+          <span class="font-bold uppercase text-[4.5px] text-amber-900 block border-b border-amber-200 pb-0.2 mb-0.5">Expérience</span>
+          <div>
+            <p class="font-bold text-slate-800 text-[4.5px]">Chef de Projet Senior — Groupe Alstom</p>
+            <p class="text-[3.8px] text-slate-400">2020 – Présent</p>
+            <p class="text-[4.2px] text-slate-600">• Direction d'un programme de 15 M€ d'investissement.</p>
+          </div>
+          <div>
+            <p class="font-bold text-slate-800 text-[4.5px]">Consultante — PwC France</p>
+            <p class="text-[3.8px] text-slate-400">2017 – 2020</p>
+            <p class="text-[4.2px] text-slate-600">• Missions de conseil stratégique et PMO.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       5. WORD-NAVY (CV Bleu Nuit / M/B Marie Berthelette)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <div *ngIf="layout === 'word-navy' || layout === 'tech'" class="flex h-full flex-col bg-white text-[5px] leading-tight text-slate-700">
+    <!-- Top Navy Header Banner -->
+    <div class="bg-[#1e3a8a] text-white px-2 py-1.5 flex items-center justify-between">
+      <div class="flex items-center gap-1.5">
+        <span class="h-5 w-5 bg-white text-[#1e3a8a] font-extrabold text-[6px] flex items-center justify-center rounded-xs">
+          M/B
+        </span>
+        <div>
+          <h4 class="text-[6.5px] font-extrabold uppercase text-white">Marie Berthelette</h4>
+          <p class="text-[4.2px] text-blue-200">Titre Professionnel / Ingénieur</p>
+        </div>
+      </div>
+      <p class="text-[3.8px] text-blue-200 text-right">Paris · 06 12 34 56 78</p>
+    </div>
+
+    <!-- 2 columns -->
+    <div class="flex-1 flex p-1.5 gap-1.5 overflow-hidden">
+      <!-- Left (35%) -->
+      <div class="w-[35%] space-y-1.5 border-r border-slate-200 pr-1">
+        <div>
+          <span class="font-bold uppercase text-[4.5px] text-[#1e3a8a] block border-b border-blue-100 pb-0.2 mb-0.5">Informations</span>
+          <p class="text-[4px] text-slate-600">Paris · Permis B<br>marie&#64;pro-mail.fr</p>
+        </div>
+        <div>
+          <span class="font-bold uppercase text-[4.5px] text-[#1e3a8a] block border-b border-blue-100 pb-0.2 mb-0.5">Compétences</span>
+          <p class="text-[4px] text-slate-600 leading-snug">Management · Stratégie · Budget · ITIL · Scrum</p>
+        </div>
+        <div>
+          <span class="font-bold uppercase text-[4.5px] text-[#1e3a8a] block border-b border-blue-100 pb-0.2 mb-0.5">Formation</span>
+          <p class="font-bold text-slate-800 text-[4.2px]">Diplôme d'Ingénieur</p>
+          <p class="text-[3.8px] text-slate-500">2018</p>
+        </div>
+      </div>
+
+      <!-- Right (65%) -->
+      <div class="w-[65%] space-y-1 pl-0.5 flex-1">
+        <span class="font-bold uppercase text-[4.5px] text-[#1e3a8a] block border-b border-blue-100 pb-0.2 mb-0.5">Expérience Professionnelle</span>
+        <div class="space-y-1">
+          <div>
+            <div class="flex justify-between items-baseline">
+              <span class="font-bold text-slate-800 text-[4.5px]">Directrice de Projet — Capgemini</span>
+              <span class="text-[3.8px] text-slate-400">2021 – Présent</span>
+            </div>
+            <p class="text-[4.2px] text-slate-600">• Pilotage de delivery agile pour 3 comptes bancaires.</p>
+          </div>
+          <div>
+            <div class="flex justify-between items-baseline">
+              <span class="font-bold text-slate-800 text-[4.5px]">Consultante Senior — Sopra Steria</span>
+              <span class="text-[3.8px] text-slate-400">2018 – 2021</span>
+            </div>
+            <p class="text-[4.2px] text-slate-600">• Conduite du changement et cadrage fonctionnel.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       6. WORD-MINIMAL (CV Minimaliste / Prénom Nom / Double Filet)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <div *ngIf="layout === 'word-minimal' || layout === 'minimal'" class="flex h-full flex-col bg-white text-[5px] leading-tight text-slate-700 p-2 space-y-1">
+    <!-- Double black & gold header border -->
+    <div class="border-t-2 border-b-2 border-slate-900 py-1 text-center">
+      <h4 class="text-[7.5px] font-extrabold uppercase tracking-widest text-slate-900">Prénom Nom</h4>
+      <p class="text-[4.2px] text-slate-600 tracking-wider italic">Gérant Adjoint / Cadre de Gestion</p>
+    </div>
+
+    <p class="text-[3.8px] text-slate-400 text-center">
+      Paris, France · prenom.nom&#64;email.fr · 06 12 34 56 78 · linkedin.com
+    </p>
+
+    <!-- Clean ATS body -->
+    <div class="space-y-1 flex-1 overflow-hidden pt-0.5">
+      <div>
+        <span class="font-bold uppercase text-[4.5px] text-slate-900 block border-b border-slate-300 pb-0.2 mb-0.5">Profil</span>
+        <p class="text-[4.2px] text-slate-600 leading-snug">
+          Gestionnaire rigoureux et autonome avec 7 ans d'expérience en gestion administrative, comptabilité et encadrement d'équipe.
+        </p>
+      </div>
+
+      <div class="space-y-0.8">
+        <span class="font-bold uppercase text-[4.5px] text-slate-900 block border-b border-slate-300 pb-0.2 mb-0.5">Expérience</span>
+        <div>
+          <div class="flex justify-between items-baseline">
+            <span class="font-bold text-slate-900 text-[4.5px]">Gérant d'Exploitation — Groupe Horizon</span>
+            <span class="text-[3.8px] text-slate-500 italic">2021 – 2026</span>
+          </div>
+          <p class="text-[4.2px] text-slate-600">• Encadrement de 15 collaborateurs et gestion des plannings.</p>
+        </div>
+        <div>
+          <div class="flex justify-between items-baseline">
+            <span class="font-bold text-slate-900 text-[4.5px]">Adjoint de Direction — Société Nova</span>
+            <span class="text-[3.8px] text-slate-500 italic">2018 – 2021</span>
+          </div>
+          <p class="text-[4.2px] text-slate-600">• Suivi budgétaire et facturation clients.</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-1 pt-0.5 border-t border-slate-200">
+        <div>
+          <span class="font-bold uppercase text-[4.5px] text-slate-900 block">Formation</span>
+          <p class="font-bold text-slate-800 text-[4.2px]">Licence de Gestion</p>
+        </div>
+        <div>
+          <span class="font-bold uppercase text-[4.5px] text-slate-900 block">Compétences</span>
+          <p class="text-[4px] text-slate-600">Comptabilité · ERP · RH · Négociation</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       7. WORD-PEYTON (CV Typographique Bleu / Peyton Davis)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <div *ngIf="layout === 'word-peyton' || layout === 'classic' || layout === 'word-ats'" class="flex h-full flex-col bg-white text-[5px] leading-tight text-slate-700 p-2 space-y-1">
+    <!-- Big Blue Name Header -->
+    <div class="border-b border-blue-600 pb-1">
+      <h3 class="text-[8px] font-extrabold text-[#1d4ed8]">Peyton Davis</h3>
+      <p class="text-[4.2px] text-slate-500">Paris, France · peyton.davis&#64;email.com · 06 12 34 56 78</p>
+    </div>
+
+    <!-- 2 clean columns -->
+    <div class="flex-1 flex gap-1.5 overflow-hidden pt-0.5">
+      <!-- Left Column (50%) -->
+      <div class="w-[50%] space-y-1 border-r border-slate-200 pr-1">
+        <span class="font-bold uppercase text-[4.5px] text-[#1d4ed8] block">Expérience</span>
+        <div>
+          <p class="font-bold text-slate-900 text-[4.5px]">Responsable Marketing — TechCorp</p>
+          <p class="text-[3.8px] text-slate-400">2021 – Présent</p>
+          <p class="text-[4.2px] text-slate-600">• Gestion des campagnes d'acquisition digitale.</p>
+        </div>
+        <div>
+          <p class="font-bold text-slate-900 text-[4.5px]">Chargé de Communication — Agency X</p>
+          <p class="text-[3.8px] text-slate-400">2018 – 2021</p>
+          <p class="text-[4.2px] text-slate-600">• Relations presse et réseaux sociaux.</p>
+        </div>
+      </div>
+
+      <!-- Right Column (50%) -->
+      <div class="w-[50%] space-y-1 pl-0.5">
+        <div>
+          <span class="font-bold uppercase text-[4.5px] text-[#1d4ed8] block">Profil</span>
+          <p class="text-[4.2px] text-slate-600 leading-snug">Expert marketing avec 6 ans d'expérience en stratégie de contenu et croissance B2B.</p>
+        </div>
+        <div>
+          <span class="font-bold uppercase text-[4.5px] text-[#1d4ed8] block">Formation</span>
+          <p class="font-bold text-slate-800 text-[4.2px]">Master Communication & Média</p>
+          <p class="text-[3.8px] text-slate-500">CELSA · 2018</p>
+        </div>
+        <div>
+          <span class="font-bold uppercase text-[4.5px] text-[#1d4ed8] block">Compétences</span>
+          <p class="text-[4px] text-slate-600">SEO / SEA · Google Analytics · Hubspot · Copywriting</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       8. WORD-SIDEBAR (Moderne Deux Colonnes / Sidebar Bleue)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <div *ngIf="layout === 'word-sidebar' || layout === 'sidebar' || layout === 'compact'" class="flex h-full bg-white text-[5px] leading-tight text-slate-700">
+    <!-- Left Sidebar (35%) -->
+    <div class="w-[35%] bg-slate-100 p-1.5 space-y-1.5 border-r border-slate-200 flex flex-col justify-between">
       <div class="space-y-1">
-        <span class="block h-1 w-12 rounded-xs" [style.backgroundColor]="accent"></span>
-        <span class="block h-1 w-full rounded-xs bg-slate-200"></span>
-        <span class="block h-1 w-4/5 rounded-xs bg-slate-100"></span>
-      </div>
-      <div class="space-y-1">
-        <span class="block h-1 w-12 rounded-xs" [style.backgroundColor]="accent"></span>
-        <span class="block h-1 w-full rounded-xs bg-slate-200"></span>
-        <span class="block h-1 w-3/4 rounded-xs bg-slate-100"></span>
-      </div>
-    </div>
-  </div>
+        <div class="h-6 w-6 rounded-full bg-[#2563eb] text-white flex items-center justify-center font-bold text-[6.5px] mx-auto">
+          AD
+        </div>
+        <p class="font-bold text-[5px] text-slate-900 text-center">Alexandre Dupont</p>
+        <p class="text-[3.8px] text-blue-600 text-center font-semibold">Développeur Full-Stack</p>
 
-  <!-- Corporate / Prestige layout -->
-  <div *ngIf="layout === 'corporate'" class="flex h-full flex-col gap-1.5 border border-amber-200/60 p-1.5 rounded-xs">
-    <div class="border-b border-amber-300 pb-1.5">
-      <span class="block h-2 w-32 rounded-xs bg-slate-900"></span>
-      <span class="mt-0.5 block h-1 w-20 rounded-xs text-amber-700" [style.backgroundColor]="accent"></span>
-    </div>
-    <div class="flex-1 space-y-1.5">
-      <span class="block h-1 w-10 rounded-xs" [style.backgroundColor]="accent"></span>
-      <span class="block h-1 w-full rounded-xs bg-slate-200"></span>
-      <span class="block h-1 w-11/12 rounded-xs bg-slate-200"></span>
-      <span class="block h-1 w-10 rounded-xs" [style.backgroundColor]="accent"></span>
-      <span class="block h-1 w-full rounded-xs bg-slate-200"></span>
-    </div>
-  </div>
+        <div class="text-[3.8px] text-slate-600 space-y-0.2 pt-1 border-t border-slate-200">
+          <p>📧 alex&#64;dupont.fr</p>
+          <p>📞 06 12 34 56 78</p>
+          <p>📍 Paris, France</p>
+        </div>
 
-  <!-- Sidebar layout -->
-  <div *ngIf="layout === 'sidebar'" class="flex h-full gap-2">
-    <div class="flex w-1/3 flex-col gap-1.5 rounded-xs p-1.5" [style.backgroundColor]="accent + '18'">
-      <span class="h-5 w-5 rounded-full" [style.backgroundColor]="accent"></span>
-      <span class="block h-1 rounded-xs bg-slate-400 w-[80%]"></span>
-      <span class="block h-1 rounded-xs bg-slate-200 w-[60%]"></span>
-      <span class="mt-1 block h-1 w-8 rounded-xs" [style.backgroundColor]="accent"></span>
-      <span class="block h-1 rounded-xs bg-slate-200 w-[90%]"></span>
-      <span class="block h-1 rounded-xs bg-slate-200 w-[70%]"></span>
-      <span class="block h-1 rounded-xs bg-slate-200 w-[85%]"></span>
-    </div>
-    <div class="flex flex-1 flex-col gap-1.5">
-      <span class="block h-1.5 rounded-xs bg-slate-700 w-[70%]"></span>
-      <span class="block h-1 rounded-xs bg-slate-300 w-[45%]"></span>
-      <span class="mt-1 block h-1 w-8 rounded-xs" [style.backgroundColor]="accent"></span>
-      <span class="block h-1 rounded-xs bg-slate-200 w-[100%]"></span>
-      <span class="block h-1 rounded-xs bg-slate-200 w-[95%]"></span>
-      <span class="block h-1 rounded-xs bg-slate-200 w-[88%]"></span>
-      <span class="mt-1 block h-1 w-8 rounded-xs" [style.backgroundColor]="accent"></span>
-      <span class="block h-1 rounded-xs bg-slate-200 w-[100%]"></span>
-      <span class="block h-1 rounded-xs bg-slate-200 w-[80%]"></span>
-    </div>
-  </div>
-
-  <!-- Editorial layout -->
-  <div *ngIf="layout === 'editorial'" class="flex h-full flex-col gap-1.5">
-    <div class="border-b-2 pb-1.5" [style.borderColor]="accent">
-      <span class="block h-2 w-2/3 rounded-xs bg-slate-900"></span>
-      <span class="mt-0.5 block h-1 w-1/3 rounded-xs" [style.backgroundColor]="accent"></span>
-    </div>
-    <div class="grid flex-1 grid-cols-3 gap-1.5">
-      <div class="col-span-2 flex flex-col gap-1">
-        <span class="block h-1 rounded-xs bg-slate-600 w-[40%]"></span>
-        <span class="block h-1 rounded-xs bg-slate-200 w-[100%]"></span>
-        <span class="block h-1 rounded-xs bg-slate-200 w-[94%]"></span>
-        <span class="block h-1 rounded-xs bg-slate-200 w-[88%]"></span>
-        <span class="mt-0.5 block h-1 rounded-xs bg-slate-600 w-[40%]"></span>
-        <span class="block h-1 rounded-xs bg-slate-200 w-[100%]"></span>
-        <span class="block h-1 rounded-xs bg-slate-200 w-[82%]"></span>
+        <div class="space-y-0.5 pt-1 border-t border-slate-200">
+          <p class="font-bold text-[4.2px] text-slate-800">Compétences</p>
+          <p class="text-[3.8px] text-slate-600">TypeScript · Angular · Spring Boot · Docker</p>
+        </div>
       </div>
-      <div class="flex flex-col gap-1 bg-slate-50 p-1 rounded-xs">
-        <span class="block h-1 rounded-xs bg-slate-600 w-[70%]"></span>
-        <span class="block h-1 rounded-xs bg-slate-200 w-[100%]"></span>
-        <span class="block h-1 rounded-xs bg-slate-200 w-[80%]"></span>
-        <span class="block h-1 rounded-xs bg-slate-200 w-[90%]"></span>
+    </div>
+
+    <!-- Right Main Column (65%) -->
+    <div class="w-[65%] p-1.5 space-y-1 flex flex-col justify-between overflow-hidden">
+      <div>
+        <span class="font-bold uppercase text-[4.5px] text-[#2563eb] block border-b border-blue-100 pb-0.2 mb-0.5">Profil</span>
+        <p class="text-[4.2px] text-slate-600 leading-snug">Développeur full-stack expérimenté, passionné par les architectures modulaires et les tests automatisés.</p>
+      </div>
+
+      <div class="space-y-0.8 flex-1">
+        <span class="font-bold uppercase text-[4.5px] text-[#2563eb] block border-b border-blue-100 pb-0.2 mb-0.5">Expériences</span>
+        <div>
+          <p class="font-bold text-slate-800 text-[4.5px]">Lead Dev Fullstack — DevStudio</p>
+          <p class="text-[3.8px] text-slate-400">2021 – Présent</p>
+          <p class="text-[4.2px] text-slate-600">• Développement d'une plateforme SaaS B2B.</p>
+        </div>
+        <div>
+          <p class="font-bold text-slate-800 text-[4.5px]">Développeur Web — Agence Web</p>
+          <p class="text-[3.8px] text-slate-400">2018 – 2021</p>
+          <p class="text-[4.2px] text-slate-600">• Conception d'API REST et interfaces Angular.</p>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Classic / Compact layout -->
-  <div *ngIf="layout === 'classic' || layout === 'compact'" class="flex h-full flex-col gap-1.5">
-    <span class="block h-2 w-1/2 rounded-xs bg-slate-800"></span>
-    <span class="block h-1 rounded-xs bg-slate-400 w-[35%]"></span>
-    <span class="my-0.5 block h-px w-full bg-slate-200"></span>
-    <span class="block h-1 w-8 rounded-xs" [style.backgroundColor]="accent"></span>
-    <span class="block h-1 rounded-xs bg-slate-200 w-[100%]"></span>
-    <span class="block h-1 rounded-xs bg-slate-200 w-[92%]"></span>
-    <span *ngIf="layout !== 'compact'" class="block h-1 rounded-xs bg-slate-200 w-[86%]"></span>
-    <span class="mt-0.5 block h-1 w-8 rounded-xs" [style.backgroundColor]="accent"></span>
-    <span class="block h-1 rounded-xs bg-slate-200 w-[100%]"></span>
-    <span class="block h-1 rounded-xs bg-slate-200 w-[90%]"></span>
-    <div class="flex flex-wrap gap-1 mt-0.5">
-      <span class="h-1.5 w-[16px] rounded-xs bg-slate-100"></span>
-      <span class="h-1.5 w-[22px] rounded-xs bg-slate-100"></span>
-      <span class="h-1.5 w-[18px] rounded-xs bg-slate-100"></span>
-    </div>
-  </div>
 </div>

@@ -56,10 +56,50 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problem);
     }
 
+    @ExceptionHandler(org.springframework.security.authentication.DisabledException.class)
+    public ResponseEntity<ProblemDetail> handleDisabledException(org.springframework.security.authentication.DisabledException ex) {
+        log.warn("Tentative de connexion sur un compte non vérifié : {}", ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.FORBIDDEN,
+                "EMAIL_NOT_VERIFIED: Votre adresse email n'a pas encore été validée. Veuillez saisir le code de confirmation envoyé à votre adresse email."
+        );
+        problem.setTitle("Email Verification Required");
+        problem.setType(URI.create("urn:problem-type:email-not-verified"));
+        problem.setProperty("timestamp", Instant.now());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+    }
+
+    @ExceptionHandler(org.springframework.security.authentication.LockedException.class)
+    public ResponseEntity<ProblemDetail> handleLockedException(org.springframework.security.authentication.LockedException ex) {
+        log.warn("Tentative de connexion sur un compte verrouillé : {}", ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.FORBIDDEN,
+                "Votre compte a été suspendu ou verrouillé. Veuillez contacter le support."
+        );
+        problem.setTitle("Account Locked");
+        problem.setType(URI.create("urn:problem-type:account-locked"));
+        problem.setProperty("timestamp", Instant.now());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ProblemDetail> handleDataIntegrityViolation(org.springframework.dao.DataIntegrityViolationException ex) {
+        log.warn("Violation d'intégrité de données (contrainte d'unicité ou clé étrangère) : {}", ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                "Une ressource avec ces identifiants existe déjà ou une contrainte de données n'est pas respectée."
+        );
+        problem.setTitle("Data Conflict");
+        problem.setType(URI.create("urn:problem-type:conflict"));
+        problem.setProperty("timestamp", Instant.now());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ProblemDetail> handleIllegalArgument(IllegalArgumentException ex) {
         log.warn("Erreur d'argument ou règle métier non respectée : {}", ex.getMessage());
-        HttpStatus status = ex.getMessage() != null && ex.getMessage().contains("existe déjà")
+        String msg = ex.getMessage() != null ? ex.getMessage().toLowerCase() : "";
+        HttpStatus status = (msg.contains("existe déjà") || msg.contains("already exists") || msg.contains("conflict"))
                 ? HttpStatus.CONFLICT
                 : HttpStatus.BAD_REQUEST;
 
@@ -89,6 +129,39 @@ public class GlobalExceptionHandler {
         problem.setTitle("Access Denied");
         problem.setProperty("timestamp", Instant.now());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ProblemDetail> handleMaxUploadSizeExceeded(org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
+        log.warn("Fichier uploadé trop volumineux : {}", ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                "Le fichier envoyé dépasse la taille maximale autorisée (8 Mo)."
+        );
+        problem.setTitle("Payload Too Large");
+        problem.setType(URI.create("urn:problem-type:payload-too-large"));
+        problem.setProperty("timestamp", Instant.now());
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(problem);
+    }
+
+    @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
+    public ResponseEntity<ProblemDetail> handleConstraintViolation(jakarta.validation.ConstraintViolationException ex) {
+        log.warn("Violation de contrainte : {}", ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Paramètre ou requête invalide : " + ex.getMessage());
+        problem.setTitle("Constraint Violation");
+        problem.setType(URI.create("urn:problem-type:constraint-violation"));
+        problem.setProperty("timestamp", Instant.now());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+    }
+
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ProblemDetail> handleHttpMessageNotReadable(org.springframework.http.converter.HttpMessageNotReadableException ex) {
+        log.warn("Corps de requête illisible ou JSON malformé : {}", ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Corps de requête illisible ou format JSON invalide");
+        problem.setTitle("Malformed JSON Request");
+        problem.setType(URI.create("urn:problem-type:malformed-json"));
+        problem.setProperty("timestamp", Instant.now());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
     }
 
     @ExceptionHandler(Exception.class)

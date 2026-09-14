@@ -76,7 +76,15 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/forgot-password").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/reset-password").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/google").permitAll()
-                        // Tout le reste requiert une authentification
+                        // Webhook de paiement Mobile Money & NotchPay : accessible sans session pour les notifications d'agrégateurs
+                        .requestMatchers(HttpMethod.POST, "/webhooks/notchpay", "/api/v1/payments/webhooks/notchpay", "/api/v1/payments/webhook").permitAll()
+                        // Actuator Health & Info : accessibles pour les probes d'orchestration / monitoring de production
+                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/info").permitAll()
+                        // Données d'impression éphémères consommées par le moteur Chromium headless (protégé par jeton à usage unique)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/cvs/*/print-data").permitAll()
+                        // Téléchargement sécurisé par ticket temporaire à usage unique (pour ouverture dans un nouvel onglet)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/cvs/*/download").permitAll()
+                        // Tout le reste requiert une authentification (y compris /api/v1/cvs/*/pdf et /api/v1/cvs/*/download-ticket)
                         .anyRequest().authenticated()
                 )
 
@@ -97,7 +105,7 @@ public class SecurityConfig {
                 .authenticationProvider(authenticationProvider())
 
                 // ── Rate Limiter & Filtre JWT avant le filtre username/password de Spring ─────
-                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(rateLimitFilter, org.springframework.security.web.context.SecurityContextHolderFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

@@ -44,4 +44,23 @@ export class CvApiService {
     formData.append('file', file);
     return this.http.post<Cv>(`${this.base}/cvs/import`, formData);
   }
+
+  createDownloadTicket(cvId: string, template: string = 'modern'): Observable<{ downloadUrl: string; token: string; expiresIn: number }> {
+    return this.http.post<{ downloadUrl: string; token: string; expiresIn: number }>(
+      `${this.base}/cvs/${cvId}/download-ticket?template=${encodeURIComponent(template)}`,
+      {},
+      { withCredentials: true }
+    );
+  }
+
+  downloadPdf(cvId: string, template: string = 'modern'): Observable<Blob> {
+    return this.http.get(`${this.base}/cvs/${cvId}/pdf?template=${template}`, {
+      responseType: 'blob',
+      withCredentials: true
+    });
+  }
+
+  getCvPrintData(id: string, token: string): Observable<Cv | null> {
+    return this.http.get<Cv | null>(`${this.base}/cvs/${id}/print-data?token=${encodeURIComponent(token)}`);
+  }
 }

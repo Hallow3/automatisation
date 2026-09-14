@@ -1,16 +1,14 @@
-import { Component, Output, EventEmitter, OnInit, inject } from '@angular/core';
+import { Component, Output, EventEmitter, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { CommonModule } from '@angular/common';
-import { OpportunityApiService } from '../../core/services/opportunity-api.service';
-import { ApplicationApiService } from '../../core/services/application-api.service';
 import { AuthService } from '../../core/services/auth.service';
+import { PaymentService } from '../../core/services/payment.service';
 
 interface NavItem {
   label: string;
   route: string;
   icon: string;
   exact?: boolean;
-  badge?: string;
   isAi?: boolean;
 }
 
@@ -21,20 +19,19 @@ interface NavItem {
   templateUrl: './sidebar.component.html',
   styleUrl: './sidebar.component.css'
 })
-export class SidebarComponent implements OnInit {
+export class SidebarComponent {
   @Output() linkClicked = new EventEmitter<void>();
 
-  private opportunityApi = inject(OpportunityApiService);
-  private applicationApi = inject(ApplicationApiService);
   private authService = inject(AuthService);
+  public paymentService = inject(PaymentService);
 
   currentUser = this.authService.currentUser;
 
   primaryNav: NavItem[] = [
     { label: 'Dashboard', route: '/dashboard', icon: 'dashboard', exact: true },
-    { label: 'Opportunités', route: '/opportunities', icon: 'briefcase', badge: '7' },
-    { label: 'Candidatures', route: '/applications', icon: 'send', badge: '12' },
-    { label: 'Mes CV', route: '/cvs', icon: 'file-text' },
+    { label: 'Opportunités', route: '/opportunities', icon: 'briefcase' },
+    { label: 'Candidatures', route: '/applications', icon: 'send' },
+    { label: 'Mes CV', route: '/cvs', icon: 'file-text', exact: true },
     { label: 'Entretien vocal IA', route: '/cvs/interview', icon: 'mic', isAi: true }
   ];
 
@@ -50,30 +47,10 @@ export class SidebarComponent implements OnInit {
 
   get initials(): string {
     const user = this.currentUser();
-    if (!user?.fullName) return 'LP';
+    if (!user?.fullName) return 'U';
     const parts = user.fullName.trim().split(' ');
     if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
     return parts[0].substring(0, 2).toUpperCase();
-  }
-
-  ngOnInit(): void {
-    this.opportunityApi.getOpportunities().subscribe({
-      next: (opps) => {
-        const oppItem = this.primaryNav.find(i => i.route === '/opportunities');
-        if (oppItem && opps.length > 0) {
-          oppItem.badge = String(opps.length);
-        }
-      }
-    });
-
-    this.applicationApi.getApplications().subscribe({
-      next: (apps) => {
-        const appItem = this.primaryNav.find(i => i.route === '/applications');
-        if (appItem && apps.length > 0) {
-          appItem.badge = String(apps.length);
-        }
-      }
-    });
   }
 
   onNavigate(): void {

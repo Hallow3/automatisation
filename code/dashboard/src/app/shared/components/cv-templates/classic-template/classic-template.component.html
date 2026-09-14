@@ -1,0 +1,111 @@
+<article class="cv-paper classic-paper">
+  <!-- En-tête classique sobre & centré -->
+  <header class="classic-header">
+    <h1 class="classic-name">{{ data.name || 'Prénom Nom' }}</h1>
+    <p class="classic-title" [style.color]="currentAccent">{{ data.title || 'Titre professionnel' }}</p>
+
+    <!-- Ligne de coordonnées épurée -->
+    <div class="classic-contact-line">
+      <span *ngIf="data.city" class="classic-contact-item">{{ data.city }}</span>
+      <span *ngIf="data.city && data.email" class="classic-dot">·</span>
+      <span *ngIf="data.email" class="classic-contact-item">{{ data.email }}</span>
+      <span *ngIf="data.email && data.phone" class="classic-dot">·</span>
+      <span *ngIf="data.phone" class="classic-contact-item">{{ data.phone }}</span>
+      <span *ngIf="data.phone && data.linkedin" class="classic-dot">·</span>
+      <span *ngIf="data.linkedin" class="classic-contact-item">LinkedIn</span>
+      <ng-container *ngFor="let l of data.links">
+        <span *ngIf="l.url" class="classic-dot">·</span>
+        <span *ngIf="l.url" class="classic-contact-item">{{ l.label }}: {{ l.url }}</span>
+      </ng-container>
+    </div>
+
+    <div class="classic-divider" [style.borderColor]="currentAccent"></div>
+  </header>
+
+  <!-- Corps Monocolonne linéaire ATS-friendly -->
+  <main class="classic-body">
+    
+    <!-- Profil / Résumé -->
+    <section *ngIf="data.summary" class="classic-section">
+      <h2 class="classic-section-title" [style.borderColor]="currentAccent">Profil Professionnel</h2>
+      <p class="classic-summary-text">{{ data.summary }}</p>
+    </section>
+
+    <!-- Expériences Professionnelles -->
+    <section *ngIf="data.experiences && data.experiences.length > 0" class="classic-section">
+      <h2 class="classic-section-title" [style.borderColor]="currentAccent">Expériences Professionnelles</h2>
+
+      <div class="classic-experiences-list">
+        <article *ngFor="let exp of data.experiences" class="classic-exp-item">
+          <div class="classic-item-row">
+            <div class="classic-item-title-col">
+              <h3 class="classic-role">{{ exp.role }}</h3>
+              <span class="classic-company">— {{ exp.company }}</span>
+              <span *ngIf="exp.city" class="classic-city">({{ exp.city }})</span>
+            </div>
+            <span class="classic-period">{{ exp.period }}</span>
+          </div>
+
+          <p *ngIf="exp.description" class="classic-exp-desc">{{ exp.description }}</p>
+
+          <ul *ngIf="exp.bullets && exp.bullets.length > 0" class="classic-bullets">
+            <li *ngFor="let b of exp.bullets" class="classic-bullet-item">
+              <span class="classic-bullet-mark">•</span>
+              <span>{{ b }}</span>
+            </li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <!-- Formation & Diplômes -->
+    <section *ngIf="data.education && data.education.length > 0" class="classic-section">
+      <h2 class="classic-section-title" [style.borderColor]="currentAccent">Formation & Diplômes</h2>
+
+      <div class="classic-edu-list">
+        <div *ngFor="let edu of data.education" class="classic-edu-item">
+          <div class="classic-item-row">
+            <div>
+              <h3 class="classic-degree">{{ edu.degree }}</h3>
+              <span class="classic-school">{{ edu.school }}</span>
+            </div>
+            <span *ngIf="edu.year || edu.period" class="classic-period">{{ edu.year || edu.period }}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Compétences Clés -->
+    <section *ngIf="data.skills && data.skills.length > 0" class="classic-section">
+      <h2 class="classic-section-title" [style.borderColor]="currentAccent">Compétences</h2>
+      <div class="classic-skills-container">
+        <span *ngFor="let skill of data.skills; let last = last" class="classic-skill-tag">
+          {{ skill }}<span *ngIf="!last" class="classic-skill-sep">, </span>
+        </span>
+      </div>
+    </section>
+
+    <!-- Projets & Réalisations -->
+    <section *ngIf="data.projects && data.projects.length > 0" class="classic-section">
+      <h2 class="classic-section-title" [style.borderColor]="currentAccent">Projets & Réalisations</h2>
+
+      <div class="classic-proj-list">
+        <div *ngFor="let proj of data.projects" class="classic-proj-item">
+          <span class="classic-proj-name">{{ proj.name }}</span>
+          <span class="classic-proj-detail"> — {{ proj.detail }}</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Langues -->
+    <section *ngIf="data.languages && data.languages.length > 0" class="classic-section">
+      <h2 class="classic-section-title" [style.borderColor]="currentAccent">Langues</h2>
+      <div class="classic-lang-row">
+        <span *ngFor="let lang of data.languages; let last = last" class="classic-lang-tag">
+          <strong>{{ lang.name || lang.lang }}</strong> ({{ lang.level }})<span *ngIf="!last"> · </span>
+        </span>
+      </div>
+    </section>
+
+  </main>
+</article>

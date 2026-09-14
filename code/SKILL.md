@@ -7,10 +7,11 @@ Ce fichier est **obligatoire**.
 Avant toute analyse, modification, génération de code, correction ou implémentation :
 
 1. lire ce `SKILL.md` entièrement ;
-2. lire les instructions du projet (`AGENTS.md`, `DESIGN.md`, README, conventions, docs techniques) ;
+2. lire les instructions du projet (`AGENTS.md`, `DESIGN.md`, `MOBILE_FIRST_STANDARDS.md`, README, conventions, docs techniques) ;
 3. inspecter le code existant avant de proposer une solution ;
 4. évaluer l’impact global avant de modifier un fichier ;
-5. ne jamais traiter une demande comme un ticket isolé sans vérifier les régressions possibles.
+5. appliquer STRICTEMENT la charte **Mobile-First** (`MOBILE_FIRST_STANDARDS.md`) : zéro débordement de texte, aucun tableau brut sans carte mobile sur petits écrans, icônes mesurées et header épuré ;
+6. ne jamais traiter une demande comme un ticket isolé sans vérifier les régressions possibles.
 
 Le but n’est pas seulement de “faire marcher” la demande.
 

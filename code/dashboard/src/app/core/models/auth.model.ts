@@ -11,6 +11,7 @@ export interface AuthUser {
   phone?: string | null;
   city?: string | null;
   targetRole?: string | null;
+  proCredits?: number;
 }
 
 export interface LoginRequest {

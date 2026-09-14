@@ -2,6 +2,8 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../../../core/services/auth.service';
+import { PaymentService } from '../../../../core/services/payment.service';
+import { CandidateProfileApiService } from '../../../../core/services/candidate-profile-api.service';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { ButtonComponent } from '../../../../shared/components/button/button.component';
 import { CardComponent } from '../../../../shared/components/card/card.component';
@@ -27,9 +29,12 @@ import { BadgeComponent } from '../../../../shared/components/badge/badge.compon
 })
 export class SettingsMainComponent implements OnInit {
   private authService = inject(AuthService);
+  public paymentService = inject(PaymentService);
+  private candidateProfileApi = inject(CandidateProfileApiService);
 
   activeTab = 'compte';
   savedNotice = false;
+  isSaving = false;
 
   tabs: TabItem[] = [
     { id: 'compte', label: 'Compte' },
@@ -52,9 +57,21 @@ export class SettingsMainComponent implements OnInit {
   ngOnInit(): void {
     const u = this.authService.currentUser();
     if (u) {
-      this.account.fullName = u.fullName || 'Waffo Mohamed Brayant';
-      this.account.email = u.email || 'brayant@exemple.com';
+      this.account.fullName = u.fullName || '';
+      this.account.email = u.email || '';
     }
+
+    // Chargement des préférences de notifications depuis le backend
+    this.candidateProfileApi.getProfile().subscribe({
+      next: (profile) => {
+        if (profile?.notifications) {
+          this.notifications = {
+            ...this.notifications,
+            ...profile.notifications
+          };
+        }
+      }
+    });
   }
 
   setTab(tabId: string): void {
@@ -62,9 +79,20 @@ export class SettingsMainComponent implements OnInit {
   }
 
   saveSettings(): void {
-    this.savedNotice = true;
-    setTimeout(() => {
-      this.savedNotice = false;
-    }, 3000);
+    this.isSaving = true;
+    this.candidateProfileApi.updateProfile({
+      notifications: this.notifications
+    }).subscribe({
+      next: () => {
+        this.isSaving = false;
+        this.savedNotice = true;
+        setTimeout(() => {
+          this.savedNotice = false;
+        }, 3000);
+      },
+      error: () => {
+        this.isSaving = false;
+      }
+    });
   }
 }

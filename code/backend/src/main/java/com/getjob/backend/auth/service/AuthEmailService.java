@@ -31,10 +31,10 @@ public class AuthEmailService {
     @Value("${mail.port:587}")
     private String port;
 
-    @Value("${mail.username:africayamoo@gmail.com}")
+    @Value("${mail.username:}")
     private String username;
 
-    @Value("${mail.password:nkfntlxwumllmylj}")
+    @Value("${mail.password:}")
     private String password;
 
     @Value("${app.frontend-url:http://localhost:4200}")
@@ -58,7 +58,7 @@ public class AuthEmailService {
                 String activationLink = String.format("%s/login?mode=verify-email&email=%s&code=%s&autoverify=true",
                         frontendUrl, encodedEmail, code);
 
-                String subject = "JobPilot — Activez votre compte candidat (Code : " + code + ")";
+                String subject = "FallaJobs — Activez votre compte candidat (Code : " + code + ")";
                 String htmlContent = buildVerificationHtml(toEmail, code, activationLink);
                 sendHtmlMail(toEmail, subject, htmlContent);
             } catch (Exception e) {
@@ -79,7 +79,7 @@ public class AuthEmailService {
                 String resetLink = String.format("%s/login?mode=reset-password&email=%s&code=%s",
                         frontendUrl, encodedEmail, code);
 
-                String subject = "JobPilot — Réinitialisation de mot de passe (Code : " + code + ")";
+                String subject = "FallaJobs — Réinitialisation de mot de passe (Code : " + code + ")";
                 String htmlContent = buildPasswordResetHtml(toEmail, code, resetLink);
                 sendHtmlMail(toEmail, subject, htmlContent);
             } catch (Exception e) {
@@ -92,13 +92,17 @@ public class AuthEmailService {
      * Envoie un email HTML via SMTP Gmail (authentification STARTTLS).
      */
     private void sendHtmlMail(String recipientEmail, String subject, String htmlBody) {
+        if (username == null || username.isBlank() || password == null || password.isBlank()) {
+            log.warn("Envoi d'email ignoré vers {} : identifiants SMTP non configurés.", recipientEmail);
+            return;
+        }
         try {
             Properties props = new Properties();
             props.put("mail.smtp.auth", "true");
             props.put("mail.smtp.starttls.enable", "true");
-            props.put("mail.smtp.ssl.trust", host);
             props.put("mail.smtp.host", host);
             props.put("mail.smtp.port", port);
+            props.put("mail.smtp.ssl.trust", host);
 
             Session session = Session.getInstance(props, new jakarta.mail.Authenticator() {
                 @Override
@@ -108,7 +112,7 @@ public class AuthEmailService {
             });
 
             Message message = new MimeMessage(session);
-            message.setFrom(new InternetAddress(username, "JobPilot"));
+            message.setFrom(new InternetAddress(username, "FallaJobs"));
             message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(recipientEmail));
             message.setSubject(subject);
             message.setSentDate(new Date());
@@ -135,11 +139,11 @@ public class AuthEmailService {
                 "  <div style='max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; padding: 36px 32px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);'>" +
                 "    <div style='text-align: center; margin-bottom: 28px;'>" +
                 "      <div style='display: inline-block; width: 48px; height: 48px; line-height: 48px; border-radius: 14px; background: linear-gradient(135deg, #6366f1, #4338ca); color: #ffffff; font-weight: bold; font-size: 24px;'>⚡</div>" +
-                "      <h1 style='font-size: 22px; font-weight: 800; color: #0f172a; margin: 14px 0 4px 0;'>JobPilot</h1>" +
+                "      <h1 style='font-size: 22px; font-weight: 800; color: #0f172a; margin: 14px 0 4px 0;'>FallaJobs</h1>" +
                 "      <p style='font-size: 13px; color: #64748b; margin: 0;'>Activation de votre compte candidat</p>" +
                 "    </div>" +
                 "    <p style='font-size: 15px; line-height: 1.6; color: #334155;'>Bonjour,</p>" +
-                "    <p style='font-size: 15px; line-height: 1.6; color: #334155;'>Merci de votre inscription sur <strong>JobPilot</strong>. Pour valider votre adresse email et commencer à piloter vos candidatures, cliquez directement sur le bouton ci-dessous :</p>" +
+                "    <p style='font-size: 15px; line-height: 1.6; color: #334155;'>Merci de votre inscription sur <strong>FallaJobs</strong>. Pour valider votre adresse email et commencer à concevoir votre CV professionnel, cliquez directement sur le bouton ci-dessous :</p>" +
                 "    <div style='margin: 28px 0; text-align: center;'>" +
                 "      <a href='" + activationLink + "' style='display: inline-block; padding: 14px 32px; background: #4f46e5; color: #ffffff; text-decoration: none; border-radius: 12px; font-size: 15px; font-weight: 700; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.3);'>👉 Valider mon compte en 1 clic</a>" +
                 "    </div>" +
@@ -153,7 +157,7 @@ public class AuthEmailService {
                 "    <hr style='border: none; border-top: 1px solid #f1f5f9; margin: 28px 0 20px 0;' />" +
                 "    <p style='font-size: 11px; color: #94a3b8; line-height: 1.5; margin: 0; text-align: center;'>" +
                 "      Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet email en toute sécurité.<br />" +
-                "      JobPilot · Plateforme d'automatisation de candidatures IA" +
+                "      FallaJobs · Plateforme de création de CV assistée par IA" +
                 "    </p>" +
                 "  </div>" +
                 "</body>" +
@@ -168,7 +172,7 @@ public class AuthEmailService {
                 "  <div style='max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; padding: 36px 32px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);'>" +
                 "    <div style='text-align: center; margin-bottom: 28px;'>" +
                 "      <div style='display: inline-block; width: 48px; height: 48px; line-height: 48px; border-radius: 14px; background: linear-gradient(135deg, #ef4444, #b91c1c); color: #ffffff; font-weight: bold; font-size: 24px;'>🔑</div>" +
-                "      <h1 style='font-size: 22px; font-weight: 800; color: #0f172a; margin: 14px 0 4px 0;'>JobPilot</h1>" +
+                "      <h1 style='font-size: 22px; font-weight: 800; color: #0f172a; margin: 14px 0 4px 0;'>FallaJobs</h1>" +
                 "      <p style='font-size: 13px; color: #64748b; margin: 0;'>Réinitialisation de votre mot de passe</p>" +
                 "    </div>" +
                 "    <p style='font-size: 15px; line-height: 1.6; color: #334155;'>Bonjour,</p>" +
@@ -186,7 +190,7 @@ public class AuthEmailService {
                 "    <hr style='border: none; border-top: 1px solid #f1f5f9; margin: 28px 0 20px 0;' />" +
                 "    <p style='font-size: 11px; color: #94a3b8; line-height: 1.5; margin: 0; text-align: center;'>" +
                 "      Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet email en toute sécurité. Votre mot de passe actuel reste inchangé.<br />" +
-                "      JobPilot · Plateforme d'automatisation de candidatures IA" +
+                "      FallaJobs · Plateforme de création de CV assistée par IA" +
                 "    </p>" +
                 "  </div>" +
                 "</body>" +

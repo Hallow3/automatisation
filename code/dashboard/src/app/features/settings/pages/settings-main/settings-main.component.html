@@ -30,16 +30,16 @@
       <div class="mt-4 divide-y divide-brand-50">
         <div class="flex items-center justify-between py-3">
           <div class="min-w-0 pr-4">
-            <p class="text-xs sm:text-sm font-semibold text-slate-900 truncate">Nouvelles opportunités qualifiées</p>
-            <p class="text-2xs sm:text-xs text-slate-400 truncate">Recevoir une alerte lorsqu’une offre correspond à votre profil.</p>
+            <p class="text-sm font-semibold text-slate-900 truncate">Nouvelles opportunités qualifiées</p>
+            <p class="text-xs text-slate-400 truncate">Recevoir une alerte lorsqu’une offre correspond à votre profil.</p>
           </div>
           <input type="checkbox" [(ngModel)]="notifications.emailNewOpportunities" class="h-4 w-4 rounded border-brand-200 text-brand-600 focus:ring-brand-500 shrink-0" />
         </div>
 
         <div class="flex items-center justify-between py-3">
           <div class="min-w-0 pr-4">
-            <p class="text-xs sm:text-sm font-semibold text-slate-900 truncate">Rappels de candidature</p>
-            <p class="text-2xs sm:text-xs text-slate-400 truncate">Recevoir un rappel après plusieurs jours sans réponse.</p>
+            <p class="text-sm font-semibold text-slate-900 truncate">Rappels de candidature</p>
+            <p class="text-xs text-slate-400 truncate">Recevoir un rappel après plusieurs jours sans réponse.</p>
           </div>
           <input type="checkbox" [(ngModel)]="notifications.emailWeeklyReport" class="h-4 w-4 rounded border-brand-200 text-brand-600 focus:ring-brand-500 shrink-0" />
         </div>
@@ -62,10 +62,10 @@
             </span>
             <div class="min-w-0">
               <div class="flex items-center gap-2">
-                <p class="text-xs sm:text-sm font-bold text-slate-900 truncate">n8n Automation</p>
-                <span class="rounded-md bg-emerald-50 text-emerald-700 px-1.5 py-0.5 text-2xs font-bold ring-1 ring-emerald-200/50 shrink-0">Connecté</span>
+                <p class="text-sm font-bold text-slate-900 truncate">n8n Automation</p>
+                <span class="rounded-md bg-emerald-50 text-emerald-700 px-1.5 py-0.5 text-xs font-bold ring-1 ring-emerald-200/50 shrink-0">Connecté</span>
               </div>
-              <p class="text-2xs sm:text-xs text-slate-400 truncate">Automatise vos recherches et traitements d’offres.</p>
+              <p class="text-xs text-slate-400 truncate">Automatise vos recherches et traitements d’offres.</p>
             </div>
           </div>
           <app-button variant="secondary" size="sm" customClass="shrink-0">Configurer</app-button>
@@ -79,10 +79,10 @@
             </span>
             <div class="min-w-0">
               <div class="flex items-center gap-2">
-                <p class="text-xs sm:text-sm font-bold text-slate-900 truncate">LinkedIn</p>
-                <span class="rounded-md bg-slate-100 text-slate-600 px-1.5 py-0.5 text-2xs font-bold shrink-0">Actif</span>
+                <p class="text-sm font-bold text-slate-900 truncate">LinkedIn</p>
+                <span class="rounded-md bg-slate-100 text-slate-600 px-1.5 py-0.5 text-xs font-bold shrink-0">Actif</span>
               </div>
-              <p class="text-2xs sm:text-xs text-slate-400 truncate">Recherche d’opportunités en continu.</p>
+              <p class="text-xs text-slate-400 truncate">Recherche d’opportunités en continu.</p>
             </div>
           </div>
           <app-button variant="secondary" size="sm" customClass="shrink-0">Paramètres</app-button>
@@ -91,30 +91,68 @@
     </div>
   </div>
 
-  <!-- TAB: Compte & Danger Zone -->
-  <div *ngIf="activeTab === 'account'" class="space-y-4 sm:space-y-6">
+  <!-- TAB: Compte & Forfaits -->
+  <div *ngIf="activeTab === 'compte'" class="space-y-4 sm:space-y-6">
+    
+    <!-- Informations du compte -->
     <div class="rounded-xl sm:rounded-2xl border border-brand-100 bg-white p-4 sm:p-6 shadow-sm">
       <h2 class="text-sm font-bold text-slate-900">Informations du compte</h2>
-      <p class="text-xs text-slate-400 mt-0.5">Identifiants et formule active.</p>
+      <p class="text-xs text-slate-400 mt-0.5">Vos coordonnées et identifiants de connexion.</p>
 
-      <div class="mt-4 space-y-3.5 max-w-md">
+      <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-w-xl">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700">Nom complet</label>
+          <input
+            type="text"
+            [value]="account.fullName || 'Utilisateur'"
+            disabled
+            class="mt-1 w-full rounded-xl border border-brand-100 bg-brand-50/50 px-3 py-2 text-sm text-slate-700 font-medium" />
+        </div>
         <div>
           <label class="block text-xs font-semibold text-slate-700">Adresse email</label>
           <input
             type="email"
-            value="lea.bernard@mail.com"
+            [value]="account.email || 'email@exemple.com'"
             disabled
-            class="mt-1 w-full rounded-xl border border-brand-100 bg-brand-50/50 px-3 py-2 text-xs sm:text-sm text-slate-500" />
+            class="mt-1 w-full rounded-xl border border-brand-100 bg-brand-50/50 px-3 py-2 text-sm text-slate-700 font-medium" />
         </div>
+      </div>
+    </div>
+
+    <!-- Forfaits & Crédits CV -->
+    <div class="rounded-xl sm:rounded-2xl border border-brand-100 bg-white p-4 sm:p-6 shadow-sm">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <label class="block text-xs font-semibold text-slate-700">Formule actuelle</label>
-          <div class="mt-1 flex items-center justify-between rounded-xl border border-brand-100 bg-brand-50/40 p-3">
-            <div>
-              <p class="text-xs sm:text-sm font-bold text-slate-900">Formule Pro (Illimité)</p>
-              <p class="text-2xs text-slate-400">Renouvellement automatique</p>
-            </div>
-            <span class="rounded-full bg-brand-100 text-brand-700 px-2.5 py-0.5 text-2xs font-bold">Actif</span>
+          <h2 class="text-sm font-bold text-slate-900">Portefeuille & Forfaits de Crédits</h2>
+          <p class="text-xs text-slate-400 mt-0.5">Gérez vos crédits pour l'exportation et le déverrouillage de CVs en haute définition.</p>
+        </div>
+
+        <button
+          type="button"
+          (click)="paymentService.openPackModal()"
+          class="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 px-3.5 text-xs font-semibold text-white shadow-brand transition self-start sm:self-auto">
+          <svg class="h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+          <span>Acheter un forfait</span>
+        </button>
+      </div>
+
+      <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
+        <div class="rounded-xl border border-brand-100 bg-brand-50/40 p-3.5 flex items-center justify-between">
+          <div>
+            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Solde disponible</p>
+            <p class="text-base font-extrabold text-brand-700 mt-0.5">{{ paymentService.proCredits() }} crédit(s) IA</p>
           </div>
+          <span class="text-xs text-emerald-700 font-semibold bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200">Téléchargement CV 100% Gratuit</span>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 flex items-center justify-between">
+          <div>
+            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Tarif crédit IA</p>
+            <p class="text-base font-bold text-slate-800 mt-0.5">{{ paymentService.selectedCountry().formattedSinglePrice }} <span class="text-xs text-slate-400 font-normal">/ crédit</span></p>
+          </div>
+          <span class="text-xs text-brand-600 font-semibold">Dégressif en pack</span>
         </div>
       </div>
     </div>
@@ -126,8 +164,8 @@
 
       <div class="mt-4 flex items-center justify-between">
         <div>
-          <p class="text-xs sm:text-sm font-semibold text-slate-900">Supprimer mon compte</p>
-          <p class="text-2xs sm:text-xs text-slate-400">Supprime définitivement toutes vos données et vos CVs.</p>
+          <p class="text-sm font-semibold text-slate-900">Supprimer mon compte</p>
+          <p class="text-xs text-slate-400">Supprime définitivement toutes vos données et vos CVs.</p>
         </div>
         <app-button variant="destructive" size="sm">Supprimer</app-button>
       </div>

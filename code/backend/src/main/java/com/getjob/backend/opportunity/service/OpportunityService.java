@@ -1,8 +1,14 @@
 package com.getjob.backend.opportunity.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.getjob.backend.ai.service.GeminiLiveTokenService;
 import com.getjob.backend.application.domain.ApplicationEntity;
 import com.getjob.backend.application.repository.ApplicationRepository;
 import com.getjob.backend.candidate.domain.CandidateEntity;
+import com.getjob.backend.candidate.domain.CandidateProfileEntity;
+import com.getjob.backend.candidate.dto.CandidateProfileDto;
+import com.getjob.backend.candidate.repository.CandidateProfileRepository;
 import com.getjob.backend.candidate.repository.CandidateRepository;
 import com.getjob.backend.joboffer.domain.JobOfferEntity;
 import com.getjob.backend.joboffer.repository.JobOfferRepository;
@@ -11,104 +17,125 @@ import com.getjob.backend.opportunity.domain.OpportunityStatus;
 import com.getjob.backend.opportunity.dto.ActionResponseDto;
 import com.getjob.backend.opportunity.dto.OpportunityDto;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class OpportunityService {
 
     private final ApplicationRepository applicationRepository;
     private final JobOfferRepository jobOfferRepository;
     private final CandidateRepository candidateRepository;
+    private final CandidateProfileRepository candidateProfileRepository;
+    private final GeminiLiveTokenService geminiLiveTokenService;
+    private final ObjectMapper objectMapper;
 
     private Integer resolveCurrentCandidateId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
-            throw new org.springframework.security.access.AccessDeniedException("Accès non autorisé : aucun candidat authentifié.");
+            throw new AccessDeniedException("Accès non autorisé : aucun candidat authentifié.");
         }
         String email = auth.getName();
         return candidateRepository.findByEmail(email)
                 .map(CandidateEntity::getId)
-                .orElseThrow(() -> new org.springframework.security.access.AccessDeniedException(
+                .orElseThrow(() -> new AccessDeniedException(
                         "Candidat introuvable pour l'adresse email authentifiée : " + email));
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public List<OpportunityDto> getAllOpportunities() {
         Integer candidateId = resolveCurrentCandidateId();
-        List<ApplicationEntity> applications = applicationRepository.findByCandidateId(candidateId);
-
-        Map<Integer, ApplicationEntity> appByJobOfferId = new HashMap<>();
-        for (ApplicationEntity app : applications) {
-            if (app.getJobOfferId() != null) {
-                appByJobOfferId.putIfAbsent(app.getJobOfferId(), app);
-            }
-        }
+        CandidateProfileDto profile = getCandidateProfile(candidateId);
 
         List<JobOfferEntity> allOffers = jobOfferRepository.findAll();
-        List<OpportunityDto> result = new ArrayList<>();
+        Map<Integer, ApplicationEntity> appMap = getCandidateApplicationsMap(candidateId);
 
-        for (JobOfferEntity offer : allOffers) {
-            ApplicationEntity app = appByJobOfferId.get(offer.getId());
-            if (app == null) {
-                app = ApplicationEntity.builder()
-                        .candidateId(candidateId)
-                        .jobOfferId(offer.getId())
-                        .status("qualified")
-                        .score(85)
-                        .decisionReason("Opportunité détectée depuis la base de données")
-                        .build();
-                app = applicationRepository.save(app);
-                appByJobOfferId.put(offer.getId(), app);
-            }
-            mapToOpportunityDto(app).ifPresent(result::add);
-        }
+        return allOffers.stream()
+                .map(offer -> buildOpportunityDto(offer, appMap.get(offer.getId()), profile))
+                .toList();
+    }
 
-        // Compléter avec les applications n'ayant pas de job_offer correspondant si nécessaire
-        for (ApplicationEntity app : applications) {
-            if (app.getJobOfferId() == null || !jobOfferRepository.existsById(app.getJobOfferId())) {
-                mapToOpportunityDto(app).ifPresent(result::add);
-            }
-        }
+    @Transactional(readOnly = true)
+    public Page<OpportunityDto> getAllOpportunities(Pageable pageable) {
+        Integer candidateId = resolveCurrentCandidateId();
+        CandidateProfileDto profile = getCandidateProfile(candidateId);
 
-        return result;
+        Page<JobOfferEntity> offerPage = jobOfferRepository.findAll(pageable);
+        Map<Integer, ApplicationEntity> appMap = getCandidateApplicationsMap(candidateId);
+
+        List<OpportunityDto> dtoList = offerPage.getContent().stream()
+                .map(offer -> buildOpportunityDto(offer, appMap.get(offer.getId()), profile))
+                .toList();
+
+        return new PageImpl<>(dtoList, pageable, offerPage.getTotalElements());
     }
 
     @Transactional
     public Optional<OpportunityDto> getOpportunityById(String id) {
         if (id == null || id.isBlank()) return Optional.empty();
-        String cleanId = id.replace("job_", "").replace("app_", "");
-        try {
-            Integer targetId = Integer.parseInt(cleanId);
-            Integer candidateId = resolveCurrentCandidateId();
+        Integer candidateId = resolveCurrentCandidateId();
+        CandidateProfileDto profile = getCandidateProfile(candidateId);
 
+        // 1. Si préfixé explicitement comme offre (ex: offer_123 ou job_123)
+        if (id.startsWith("offer_") || id.startsWith("job_")) {
+            try {
+                int offerId = Integer.parseInt(id.replace("offer_", "").replace("job_", ""));
+                return jobOfferRepository.findById(offerId).map(offer -> {
+                    ApplicationEntity app = applicationRepository.findByCandidateIdAndJobOfferId(candidateId, offer.getId()).orElse(null);
+                    return buildOpportunityDto(offer, app, profile);
+                });
+            } catch (NumberFormatException e) {
+                return Optional.empty();
+            }
+        }
+
+        // 2. Si préfixé explicitement comme candidature (ex: app_123)
+        if (id.startsWith("app_")) {
+            try {
+                int appId = Integer.parseInt(id.replace("app_", ""));
+                return applicationRepository.findById(appId)
+                        .filter(app -> candidateId.equals(app.getCandidateId()))
+                        .flatMap(app -> jobOfferRepository.findById(app.getJobOfferId())
+                                .map(offer -> buildOpportunityDto(offer, app, profile)));
+            } catch (NumberFormatException e) {
+                return Optional.empty();
+            }
+        }
+
+        // 3. Identifiant numérique sans préfixe
+        try {
+            int targetId = Integer.parseInt(id);
             Optional<ApplicationEntity> appOpt = applicationRepository.findById(targetId)
                     .filter(app -> candidateId.equals(app.getCandidateId()));
             if (appOpt.isPresent()) {
-                return mapToOpportunityDto(appOpt.get());
+                ApplicationEntity app = appOpt.get();
+                return jobOfferRepository.findById(app.getJobOfferId())
+                        .map(offer -> buildOpportunityDto(offer, app, profile));
             }
 
             Optional<JobOfferEntity> offerOpt = jobOfferRepository.findById(targetId);
             if (offerOpt.isPresent()) {
                 JobOfferEntity offer = offerOpt.get();
-                ApplicationEntity app = applicationRepository.findByCandidateIdAndJobOfferId(candidateId, offer.getId())
-                        .orElseGet(() -> applicationRepository.save(ApplicationEntity.builder()
-                                .candidateId(candidateId)
-                                .jobOfferId(offer.getId())
-                                .status("qualified")
-                                .score(85)
-                                .build()));
-                return mapToOpportunityDto(app);
+                ApplicationEntity app = applicationRepository.findByCandidateIdAndJobOfferId(candidateId, offer.getId()).orElse(null);
+                return Optional.of(buildOpportunityDto(offer, app, profile));
             }
         } catch (NumberFormatException e) {
-            // Ignorer si non numérique
+            log.debug("ID d'opportunité non numérique : {}", id);
         }
         return Optional.empty();
     }
@@ -116,97 +143,256 @@ public class OpportunityService {
     @Transactional
     public ActionResponseDto dismissOpportunity(String id) {
         try {
-            Integer appId = Integer.parseInt(id);
+            Integer targetId = Integer.parseInt(id.replace("job_", "").replace("app_", ""));
             Integer candidateId = resolveCurrentCandidateId();
-            return applicationRepository.findById(appId)
-                    .filter(app -> candidateId.equals(app.getCandidateId()))
-                    .map(app -> {
-                        app.setStatus("dismissed");
-                        app.setLastActivityAt(Instant.now());
-                        applicationRepository.save(app);
-                        return new ActionResponseDto(true, "Opportunity dismissed");
-                    }).orElse(new ActionResponseDto(false, "Opportunity not found"));
-        } catch (NumberFormatException e) {
-            return new ActionResponseDto(false, "Invalid opportunity ID");
+
+            ApplicationEntity app = getOrCreateApplication(candidateId, targetId);
+            app.setStatus("dismissed");
+            app.setLastActivityAt(Instant.now());
+            applicationRepository.save(app);
+            return new ActionResponseDto(true, "Opportunité ignorée");
+        } catch (Exception e) {
+            return new ActionResponseDto(false, "Impossible d'ignorer l'opportunité : " + e.getMessage());
+        }
+    }
+
+    public ActionResponseDto prepareApplication(String id) {
+        try {
+            Integer targetId = Integer.parseInt(id.replace("job_", "").replace("app_", ""));
+            Integer candidateId = resolveCurrentCandidateId();
+
+            ApplicationEntity app = getOrCreateApplication(candidateId, targetId);
+            JobOfferEntity offer = jobOfferRepository.findById(app.getJobOfferId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Offre introuvable"));
+
+            // Génération IA réelle hors transaction BDD (anti-starvation du pool de connexions HikariCP)
+            if (app.getCoverLetterText() == null || app.getCoverLetterText().isBlank()) {
+                String letter = generateAiCoverLetter(candidateId, offer);
+                app.setCoverLetterText(letter);
+                app.setCoverLetterMinioKey("db://application/" + app.getId() + "/cover_letter.txt");
+            }
+
+            app.setLastActivityAt(Instant.now());
+            saveApplication(app);
+
+            return new ActionResponseDto(true, "Lettre de motivation préparée avec succès");
+        } catch (Exception e) {
+            log.error("Erreur lors de la préparation de la candidature : {}", e.getMessage());
+            return new ActionResponseDto(false, "Erreur préparation : " + e.getMessage());
         }
     }
 
     @Transactional
-    public ActionResponseDto prepareApplication(String id) {
-        try {
-            Integer appId = Integer.parseInt(id);
-            Integer candidateId = resolveCurrentCandidateId();
-            return applicationRepository.findById(appId)
-                    .filter(app -> candidateId.equals(app.getCandidateId()))
-                    .map(app -> {
-                        if (app.getCoverLetterMinioKey() == null) {
-                            app.setCoverLetterMinioKey("cover_letters/cover_letter_" + id + ".pdf");
-                        }
-                        app.setLastActivityAt(Instant.now());
-                        applicationRepository.save(app);
-                        return new ActionResponseDto(true, "Application prepared");
-                    }).orElse(new ActionResponseDto(false, "Opportunity not found"));
-        } catch (NumberFormatException e) {
-            return new ActionResponseDto(false, "Invalid opportunity ID");
-        }
+    public void saveApplication(ApplicationEntity app) {
+        applicationRepository.save(app);
     }
 
     @Transactional
     public ActionResponseDto submitApplication(String id) {
         try {
-            Integer appId = Integer.parseInt(id);
+            Integer targetId = Integer.parseInt(id.replace("job_", "").replace("app_", ""));
             Integer candidateId = resolveCurrentCandidateId();
-            return applicationRepository.findById(appId)
-                    .filter(app -> candidateId.equals(app.getCandidateId()))
-                    .map(app -> {
-                        app.setStatus("applied");
-                        app.setAppliedAt(Instant.now());
-                        app.setLastActivityAt(Instant.now());
-                        if (app.getApplicationChannel() == null) {
-                            app.setApplicationChannel(determineChannel(app).name());
-                        }
-                        applicationRepository.save(app);
-                        return new ActionResponseDto(true, "Application submitted");
-                    }).orElse(new ActionResponseDto(false, "Opportunity not found"));
-        } catch (NumberFormatException e) {
-            return new ActionResponseDto(false, "Invalid opportunity ID");
+
+            ApplicationEntity app = getOrCreateApplication(candidateId, targetId);
+            app.setStatus("applied");
+            app.setAppliedAt(Instant.now());
+            app.setLastActivityAt(Instant.now());
+
+            JobOfferEntity offer = jobOfferRepository.findById(app.getJobOfferId()).orElse(null);
+            if (app.getApplicationChannel() == null && offer != null) {
+                app.setApplicationChannel(determineChannel(offer, app).name());
+            }
+
+            applicationRepository.save(app);
+            return new ActionResponseDto(true, "Candidature enregistrée avec succès");
+        } catch (Exception e) {
+            return new ActionResponseDto(false, "Erreur soumission : " + e.getMessage());
         }
     }
 
-    private Optional<OpportunityDto> mapToOpportunityDto(ApplicationEntity app) {
-        Optional<JobOfferEntity> jobOfferOpt = jobOfferRepository.findById(app.getJobOfferId());
-        if (jobOfferOpt.isEmpty()) {
-            return Optional.empty();
+    @Transactional(readOnly = true)
+    public String getCoverLetterText(String id) {
+        try {
+            Integer targetId = Integer.parseInt(id.replace("job_", "").replace("app_", ""));
+            Integer candidateId = resolveCurrentCandidateId();
+
+            Optional<ApplicationEntity> app = applicationRepository.findById(targetId)
+                    .filter(a -> candidateId.equals(a.getCandidateId()));
+
+            if (app.isPresent()) {
+                return app.get().getCoverLetterText();
+            }
+
+            return applicationRepository.findByCandidateIdAndJobOfferId(candidateId, targetId)
+                    .map(ApplicationEntity::getCoverLetterText)
+                    .orElse(null);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    // ── Méthodes privées d'aide métier ──────────────────────────────────────────
+
+    private ApplicationEntity getOrCreateApplication(Integer candidateId, Integer targetId) {
+        Optional<ApplicationEntity> existingApp = applicationRepository.findById(targetId)
+                .filter(a -> candidateId.equals(a.getCandidateId()));
+        if (existingApp.isPresent()) {
+            return existingApp.get();
         }
 
-        JobOfferEntity offer = jobOfferOpt.get();
-        boolean hasCoverLetter = app.getCoverLetterMinioKey() != null && !app.getCoverLetterMinioKey().isBlank();
+        return applicationRepository.findByCandidateIdAndJobOfferId(candidateId, targetId)
+                .orElseGet(() -> ApplicationEntity.builder()
+                        .candidateId(candidateId)
+                        .jobOfferId(targetId)
+                        .status("qualified")
+                        .build());
+    }
 
-        OpportunityStatus mappedStatus = mapStatus(app.getStatus(), hasCoverLetter);
+    private Map<Integer, ApplicationEntity> getCandidateApplicationsMap(Integer candidateId) {
+        return applicationRepository.findByCandidateId(candidateId).stream()
+                .filter(a -> a.getJobOfferId() != null)
+                .collect(Collectors.toMap(ApplicationEntity::getJobOfferId, a -> a, (e, r) -> e));
+    }
+
+    private OpportunityDto buildOpportunityDto(JobOfferEntity offer, ApplicationEntity app, CandidateProfileDto profile) {
+        MatchingResult matching = computeMatching(offer, profile);
+
+        int score = (app != null && app.getScore() != null) ? app.getScore() : matching.score();
+        String explanation = (app != null && app.getDecisionReason() != null) ? app.getDecisionReason() : matching.explanation();
+        List<String> matchedSkills = (app != null && app.getEvaluationDetails() != null)
+                ? parseMatchedSkills(app.getEvaluationDetails())
+                : matching.matchedSkills();
+
+        boolean hasCoverLetter = app != null && (
+                (app.getCoverLetterText() != null && !app.getCoverLetterText().isBlank()) ||
+                (app.getCoverLetterMinioKey() != null && !app.getCoverLetterMinioKey().isBlank())
+        );
+
+        String rawStatus = app != null ? app.getStatus() : "qualified";
+        OpportunityStatus status = mapStatus(rawStatus, hasCoverLetter);
+
+        String appId = app != null ? app.getId().toString() : "offer_" + offer.getId();
         ApplicationChannel channel = determineChannel(offer, app);
 
-        List<String> skills = parseMatchedSkills(app.getEvaluationDetails());
-        String explanation = app.getDecisionReason() != null ? app.getDecisionReason() : "Correspondance qualifiée par l'IA";
-
-        OpportunityDto dto = OpportunityDto.builder()
-                .id(app.getId().toString())
+        return OpportunityDto.builder()
+                .id(appId)
                 .jobOfferId(offer.getId().toString())
-                .title(offer.getTitle() != null ? offer.getTitle() : "Offre de recrutement")
-                .company(offer.getCompany() != null ? offer.getCompany() : "Confidentiel")
-                .city(offer.getCity() != null ? offer.getCity() : "Non spécifié")
-                .source(offer.getSource() != null ? offer.getSource() : "n8n Market Scanner")
-                .score(app.getScore() != null ? app.getScore() : 80)
-                .status(mappedStatus)
+                .title(offer.getTitle() != null ? offer.getTitle() : "Offre d'emploi")
+                .company(offer.getCompany() != null ? offer.getCompany() : "Entreprise")
+                .city(offer.getCity() != null ? offer.getCity() : "Cameroun")
+                .source(offer.getSource() != null ? offer.getSource() : "GetJob Scanner")
+                .score(score)
+                .status(status)
                 .publishedAt(offer.getScrapedAt() != null ? offer.getScrapedAt().toString() : Instant.now().toString())
                 .deadline(null)
                 .applicationChannel(channel)
                 .coverLetterAvailable(hasCoverLetter)
-                .matchedSkills(skills)
+                .coverLetterText(app != null ? app.getCoverLetterText() : null)
+                .matchedSkills(matchedSkills)
                 .matchExplanation(explanation)
                 .description(extractDescription(offer))
                 .build();
+    }
 
-        return Optional.of(dto);
+    private record MatchingResult(int score, List<String> matchedSkills, String explanation) {}
+
+    private MatchingResult computeMatching(JobOfferEntity offer, CandidateProfileDto profile) {
+        if (profile == null) {
+            return new MatchingResult(70, List.of("Généraliste"), "Opportunité qualifiée");
+        }
+
+        List<String> candidateSkills = profile.getSkills() != null ? profile.getSkills() : Collections.emptyList();
+        String candidateRole = profile.getHeadline() != null ? profile.getHeadline().trim().toLowerCase() : "";
+
+        String offerText = ((offer.getTitle() != null ? offer.getTitle() : "") + " "
+                + (offer.getRawData() != null ? offer.getRawData() : "")).toLowerCase();
+
+        List<String> matchedSkills = new ArrayList<>();
+        for (String skill : candidateSkills) {
+            if (skill != null && !skill.isBlank() && offerText.contains(skill.trim().toLowerCase())) {
+                matchedSkills.add(skill.trim());
+            }
+        }
+
+        int score = 45; // Score plancher réaliste
+        if (!candidateRole.isBlank() && offerText.contains(candidateRole)) {
+            score += 20;
+        }
+
+        score += Math.min(35, matchedSkills.size() * 10);
+        score = Math.min(95, Math.max(45, score));
+
+        String explanation;
+        if (!matchedSkills.isEmpty()) {
+            explanation = matchedSkills.size() + " compétence(s) clé(s) en adéquation : " + String.join(", ", matchedSkills);
+        } else if (!candidateRole.isBlank() && offerText.contains(candidateRole)) {
+            explanation = "Poste aligné sur votre profil cible (" + profile.getHeadline() + ")";
+        } else {
+            explanation = "Offre sectorielle recommandée pour votre profil";
+        }
+
+        return new MatchingResult(score, matchedSkills.isEmpty() ? List.of("Polyvalence", "Motivation") : matchedSkills, explanation);
+    }
+
+    private String generateAiCoverLetter(Integer candidateId, JobOfferEntity offer) {
+        CandidateEntity candidate = candidateRepository.findById(candidateId).orElse(null);
+        String candidateName = candidate != null ? candidate.getFullName() : "Candidat";
+        String offerTitle = offer.getTitle() != null ? offer.getTitle() : "Poste";
+        String company = offer.getCompany() != null ? offer.getCompany() : "l'entreprise";
+
+        String prompt = "Rédige une lettre de motivation professionnelle, percutante et personnalisée en français pour le candidat "
+                + candidateName + " qui postule au poste de " + offerTitle + " chez " + company + ".\n"
+                + "Détails de l'offre : " + extractDescription(offer) + "\n"
+                + "Rédige uniquement le corps de la lettre en texte clair.";
+
+        try {
+            String generated = geminiLiveTokenService.generatePlainTextContent(
+                    "Tu es un expert en recrutement. Rédige une lettre de motivation percutante et personnalisée en français en texte clair.",
+                    prompt
+            );
+            if (generated != null && !generated.isBlank()) {
+                return generated;
+            }
+        } catch (Exception e) {
+            log.warn("Appel IA lettre de motivation non abouti, application du modèle de repli : {}", e.getMessage());
+        }
+
+        return "Madame, Monsieur,\n\n"
+                + "Vivement intéressé(e) par l'opportunité de rejoindre " + company + ", je vous adresse ma candidature pour le poste de " + offerTitle + ".\n\n"
+                + "Mon parcours, ma rigueur et ma motivation me permettent d'être rapidement opérationnel(le) et d'apporter une contribution concrète à vos objectifs d'équipe.\n\n"
+                + "Je me tiens à votre entière disposition pour convenir d'un entretien à votre convenance.\n\n"
+                + "Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.\n\n"
+                + candidateName;
+    }
+
+    private CandidateProfileDto getCandidateProfile(Integer candidateId) {
+        Optional<CandidateProfileEntity> profileOpt = candidateProfileRepository.findByCandidateId(candidateId);
+        if (profileOpt.isEmpty() || profileOpt.get().getRawData() == null || profileOpt.get().getRawData().isBlank()) {
+            return candidateRepository.findById(candidateId)
+                    .map(c -> CandidateProfileDto.builder()
+                            .candidateId(c.getId())
+                            .fullName(c.getFullName())
+                            .headline(c.getTargetRole())
+                            .skills(List.of())
+                            .build())
+                    .orElse(null);
+        }
+
+        try {
+            Map<String, Object> map = objectMapper.readValue(profileOpt.get().getRawData(), new TypeReference<>() {});
+            @SuppressWarnings("unchecked")
+            List<String> skills = (List<String>) map.getOrDefault("skills", Collections.emptyList());
+            String headline = (String) map.getOrDefault("headline", "");
+
+            return CandidateProfileDto.builder()
+                    .candidateId(candidateId)
+                    .skills(skills)
+                    .headline(headline)
+                    .build();
+        } catch (Exception e) {
+            log.debug("Erreur parsing profil candidat: {}", e.getMessage());
+            return null;
+        }
     }
 
     private OpportunityStatus mapStatus(String rawStatus, boolean hasCoverLetter) {
@@ -236,7 +422,7 @@ public class OpportunityService {
     }
 
     private ApplicationChannel determineChannel(JobOfferEntity offer, ApplicationEntity app) {
-        if (app.getApplicationChannel() != null) {
+        if (app != null && app.getApplicationChannel() != null) {
             try {
                 return ApplicationChannel.valueOf(app.getApplicationChannel().toUpperCase());
             } catch (Exception ignored) {}
@@ -250,22 +436,25 @@ public class OpportunityService {
         return ApplicationChannel.MANUAL;
     }
 
-    private ApplicationChannel determineChannel(ApplicationEntity app) {
-        Optional<JobOfferEntity> offerOpt = jobOfferRepository.findById(app.getJobOfferId());
-        return offerOpt.map(offer -> determineChannel(offer, app)).orElse(ApplicationChannel.MANUAL);
-    }
-
     private List<String> parseMatchedSkills(String evalDetails) {
         if (evalDetails == null || evalDetails.isBlank()) {
-            return List.of("Java", "Spring Boot", "TypeScript", "Angular");
+            return List.of("Compétences clés qualifiées");
         }
-        return List.of("Matching IA", "Compétences clés qualifiées");
+        try {
+            @SuppressWarnings("unchecked")
+            List<String> parsed = objectMapper.readValue(evalDetails, List.class);
+            return parsed;
+        } catch (Exception e) {
+            return List.of(evalDetails);
+        }
     }
 
     private String extractDescription(JobOfferEntity offer) {
         if (offer.getRawData() != null && !offer.getRawData().isBlank()) {
             return offer.getRawData();
         }
-        return "Description détaillée de l'offre d'emploi " + (offer.getTitle() != null ? offer.getTitle() : "");
+        return "Poste : " + (offer.getTitle() != null ? offer.getTitle() : "Opportunité")
+                + " chez " + (offer.getCompany() != null ? offer.getCompany() : "l'entreprise")
+                + " (" + (offer.getCity() != null ? offer.getCity() : "Cameroun") + ")";
     }
 }

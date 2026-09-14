@@ -1,0 +1,61 @@
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&display=swap');
+
+:host {
+  display: block;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.font-serif {
+  font-family: 'Newsreader', Georgia, Cambria, 'Times New Roman', serif;
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+}
+
+/* ── VIDEO SCROLL-EXPAND ─────────────────────────────────────────────── */
+.video-showcase-wrapper {
+  max-width: 72rem;
+  margin-left: auto;
+  margin-right: auto;
+  transition: max-width 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+              padding 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.video-showcase-wrapper.expanded {
+  max-width: 100%;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.video-showcase-inner {
+  transition: border-radius 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.video-showcase-wrapper.expanded .video-showcase-inner {
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+}
+
+/* ── ANIMATIONS ──────────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes ropeDash {
+  to { stroke-dashoffset: -40; }
+}
+
+.slack-rope-path {
+  animation: ropeDash 6s linear infinite;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}

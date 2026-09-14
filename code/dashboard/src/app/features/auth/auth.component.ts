@@ -1,28 +1,31 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, OnInit, AfterViewInit, NgZone, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl } from '@angular/forms';
-import { Router, ActivatedRoute } from '@angular/router';
+import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { ButtonComponent } from '../../shared/components/button/button.component';
 import { AlertBannerComponent } from '../../shared/components/feedback/alert-banner.component';
+import { environment } from '../../../environments/environment';
 
 type AuthMode = 'login' | 'register' | 'forgot-password' | 'verify-email' | 'reset-password';
 
 @Component({
   selector: 'app-auth',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ButtonComponent, AlertBannerComponent],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, ButtonComponent, AlertBannerComponent],
   templateUrl: './auth.component.html',
   styleUrl: './auth.component.css'
 })
-export class AuthComponent implements OnInit {
+export class AuthComponent implements OnInit, AfterViewInit {
   private fb = inject(FormBuilder);
   private authService = inject(AuthService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
+  private ngZone = inject(NgZone);
 
   mode = signal<AuthMode>('login');
   isLoading = signal(false);
+  isGoogleLoaded = signal(false);
   errorMessage = signal<string | null>(null);
   forgotSuccessMessage = signal<string | null>(null);
   verificationNotice = signal<string | null>(null);
@@ -38,8 +41,9 @@ export class AuthComponent implements OnInit {
   registerForm: FormGroup = this.fb.group({
     fullName: ['', [Validators.required, Validators.minLength(2)]],
     email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.required, Validators.minLength(8)]]
-  });
+    password: ['', [Validators.required, Validators.minLength(8)]],
+    confirmPassword: ['', [Validators.required]]
+  }, { validators: this.passwordMatchValidator });
 
   forgotForm: FormGroup = this.fb.group({
     email: ['', [Validators.required, Validators.email]]
@@ -88,35 +92,110 @@ export class AuthComponent implements OnInit {
     this.initGoogleAuth();
   }
 
+  ngAfterViewInit(): void {
+    if (this.isGoogleLoaded()) {
+      this.renderGoogleButton();
+    }
+  }
+
+  @HostListener('window:resize')
+  onResize(): void {
+    if (this.isGoogleLoaded() && (this.mode() === 'login' || this.mode() === 'register')) {
+      this.renderGoogleButton();
+    }
+  }
+
   private initGoogleAuth(): void {
     if (typeof window === 'undefined') return;
 
-    const clientId = '1046640865115-asaoa8pbuhhfhkf5kfd7uk1epvta9m1l.apps.googleusercontent.com';
+    const clientId = environment.googleClientId;
 
     const setupGoogle = () => {
       const g = (window as any).google;
       if (g?.accounts?.id) {
-        g.accounts.id.initialize({
-          client_id: clientId,
-          callback: (response: any) => this.handleGoogleCredential(response),
-          auto_select: false,
-          cancel_on_tap_outside: true
-        });
+        try {
+          g.accounts.id.initialize({
+            client_id: clientId,
+            callback: (response: any) => {
+              this.ngZone.run(() => {
+                this.handleGoogleCredential(response);
+              });
+            },
+            auto_select: false,
+            cancel_on_tap_outside: true
+          });
+
+          this.ngZone.run(() => {
+            this.isGoogleLoaded.set(true);
+          });
+
+          setTimeout(() => {
+            this.renderGoogleButton();
+          }, 50);
+
+          // One Tap passif en arrière-plan sans bloquer en cas de refus
+          try {
+            g.accounts.id.prompt();
+          } catch {
+            // Silence si le navigateur bloque One Tap
+          }
+        } catch (e) {
+          console.error("Erreur lors de l'initialisation de Google Identity :", e);
+        }
       }
     };
 
-    if (!(window as any).google?.accounts?.id) {
+    if ((window as any).google?.accounts?.id) {
+      setupGoogle();
+    } else {
+      const checkGoogleInterval = setInterval(() => {
+        if ((window as any).google?.accounts?.id) {
+          clearInterval(checkGoogleInterval);
+          setupGoogle();
+        }
+      }, 100);
+
+      setTimeout(() => clearInterval(checkGoogleInterval), 6000);
+
       if (!document.getElementById('google-gsi-client')) {
         const script = document.createElement('script');
         script.id = 'google-gsi-client';
         script.src = 'https://accounts.google.com/gsi/client';
         script.async = true;
         script.defer = true;
-        script.onload = setupGoogle;
+        script.onload = () => {
+          clearInterval(checkGoogleInterval);
+          setupGoogle();
+        };
         document.head.appendChild(script);
       }
-    } else {
-      setupGoogle();
+    }
+  }
+
+  renderGoogleButton(): void {
+    if (typeof window === 'undefined') return;
+    const g = (window as any).google;
+    const container = document.getElementById('google-btn-container');
+
+    if (!g?.accounts?.id || !container) return;
+
+    const containerWidth = container.clientWidth || (window.innerWidth < 420 ? Math.max(window.innerWidth - 64, 240) : 380);
+    const targetWidth = Math.min(Math.max(Math.round(containerWidth), 200), 400);
+
+    container.innerHTML = '';
+    try {
+      g.accounts.id.renderButton(container, {
+        type: 'standard',
+        theme: 'outline',
+        size: 'large',
+        text: 'continue_with',
+        shape: 'rectangular',
+        logo_alignment: 'left',
+        width: targetWidth,
+        locale: 'fr'
+      });
+    } catch (e) {
+      console.warn("Impossible de rendre le bouton Google :", e);
     }
   }
 
@@ -158,6 +237,10 @@ export class AuthComponent implements OnInit {
     if (this.route.snapshot.queryParamMap.get('reason')) {
       this.router.navigate([], { relativeTo: this.route, queryParams: {} });
     }
+
+    if (mode === 'login' || mode === 'register') {
+      setTimeout(() => this.renderGoogleButton(), 50);
+    }
   }
 
   loginWithGoogle(): void {
@@ -165,14 +248,18 @@ export class AuthComponent implements OnInit {
     const g = (window as any).google;
 
     if (g?.accounts?.id) {
-      g.accounts.id.prompt((notification: any) => {
-        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-          // Si le prompt One Tap est bloqué par le navigateur, informer l'utilisateur
-          this.errorMessage.set("Veuillez autoriser les fenêtres pop-up ou la connexion Google dans votre navigateur.");
-        }
-      });
+      this.renderGoogleButton();
+      try {
+        g.accounts.id.prompt((notification: any) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            this.errorMessage.set("Veuillez cliquer sur le bouton Google officiel ci-dessus.");
+          }
+        });
+      } catch {
+        // Ignorer
+      }
     } else {
-      this.errorMessage.set("Le service Google Identity est en cours de chargement. Veuillez réessayer dans quelques secondes.");
+      this.errorMessage.set("Le service Google Identity est en cours de chargement. Veuillez patienter...");
     }
   }
 
@@ -329,6 +416,17 @@ export class AuthComponent implements OnInit {
     } else {
       this.errorMessage.set('Une erreur est survenue. Veuillez réessayer.');
     }
+  }
+
+  private passwordMatchValidator(form: AbstractControl) {
+    const pw = form.get('password')?.value;
+    const cpw = form.get('confirmPassword')?.value;
+    if (pw && cpw && pw !== cpw) {
+      form.get('confirmPassword')?.setErrors({ mismatch: true });
+    } else if (form.get('confirmPassword')?.hasError('mismatch')) {
+      form.get('confirmPassword')?.setErrors(null);
+    }
+    return null;
   }
 
   hasError(form: FormGroup, field: string, error: string): boolean {

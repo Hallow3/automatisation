@@ -23,7 +23,9 @@ public class OpportunityDto {
     private String deadline;
     private ApplicationChannel applicationChannel;
     private Boolean coverLetterAvailable;
+    private String coverLetterText;
     private List<String> matchedSkills;
+
     private String matchExplanation;
     private String description;
 }

@@ -13,6 +13,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -39,10 +41,14 @@ public class ApplicationService {
     public List<ApplicationDto> getApplications() {
         Integer candidateId = resolveCurrentCandidateId();
         List<ApplicationEntity> applications = applicationRepository.findByCandidateId(candidateId);
-        return applications.stream()
-                .map(this::mapToDto)
-                .flatMap(Optional::stream)
-                .collect(Collectors.toList());
+        return mapApplicationsToDtos(applications);
+    }
+
+    public org.springframework.data.domain.Page<ApplicationDto> getApplications(org.springframework.data.domain.Pageable pageable) {
+        Integer candidateId = resolveCurrentCandidateId();
+        org.springframework.data.domain.Page<ApplicationEntity> page = applicationRepository.findByCandidateId(candidateId, pageable);
+        List<ApplicationDto> dtoList = mapApplicationsToDtos(page.getContent());
+        return new org.springframework.data.domain.PageImpl<>(dtoList, pageable, page.getTotalElements());
     }
 
     public Optional<ApplicationDto> getApplicationById(String id) {
@@ -51,28 +57,43 @@ public class ApplicationService {
             Integer candidateId = resolveCurrentCandidateId();
             return applicationRepository.findById(appId)
                     .filter(app -> candidateId.equals(app.getCandidateId()))
-                    .flatMap(this::mapToDto);
+                    .map(app -> toDto(app, app.getJobOfferId() != null ? jobOfferRepository.findById(app.getJobOfferId()).orElse(null) : null));
         } catch (NumberFormatException e) {
             return Optional.empty();
         }
     }
 
-    private Optional<ApplicationDto> mapToDto(ApplicationEntity app) {
-        Optional<JobOfferEntity> offerOpt = jobOfferRepository.findById(app.getJobOfferId());
-        String company = offerOpt.map(JobOfferEntity::getCompany).orElse("Entreprise");
-        String title = offerOpt.map(JobOfferEntity::getTitle).orElse("Poste");
+    private List<ApplicationDto> mapApplicationsToDtos(List<ApplicationEntity> applications) {
+        if (applications == null || applications.isEmpty()) {
+            return List.of();
+        }
+        List<Integer> offerIds = applications.stream()
+                .map(ApplicationEntity::getJobOfferId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
 
-        ApplicationDto dto = ApplicationDto.builder()
+        Map<Integer, JobOfferEntity> offerMap = jobOfferRepository.findAllById(offerIds).stream()
+                .collect(Collectors.toMap(JobOfferEntity::getId, o -> o, (existing, replace) -> existing));
+
+        return applications.stream()
+                .map(app -> toDto(app, offerMap.get(app.getJobOfferId())))
+                .toList();
+    }
+
+    private ApplicationDto toDto(ApplicationEntity app, JobOfferEntity offer) {
+        String company = (offer != null && offer.getCompany() != null) ? offer.getCompany() : "Entreprise";
+        String title = (offer != null && offer.getTitle() != null) ? offer.getTitle() : "Poste";
+
+        return ApplicationDto.builder()
                 .id(app.getId().toString())
                 .opportunityId(app.getId().toString())
                 .company(company)
                 .title(title)
-                .status(app.getStatus().toUpperCase())
+                .status(app.getStatus() != null ? app.getStatus().toUpperCase() : "APPLIED")
                 .channel(app.getApplicationChannel() != null ? app.getApplicationChannel() : "EMAIL")
                 .appliedAt(app.getAppliedAt() != null ? app.getAppliedAt().toString() : null)
                 .lastActivityAt(app.getLastActivityAt() != null ? app.getLastActivityAt().toString() : null)
                 .build();
-
-        return Optional.of(dto);
     }
 }

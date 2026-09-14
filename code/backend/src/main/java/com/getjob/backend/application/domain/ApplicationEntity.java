@@ -47,7 +47,11 @@ public class ApplicationEntity {
     @Column(name = "cover_letter_minio_key")
     private String coverLetterMinioKey;
 
+    @Column(name = "cover_letter_text", columnDefinition = "LONGTEXT")
+    private String coverLetterText;
+
     @Column(name = "cv_used_minio_key")
+
     private String cvUsedMinioKey;
 
     @Column(name = "applied_at")

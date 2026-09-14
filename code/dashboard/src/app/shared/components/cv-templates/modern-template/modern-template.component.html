@@ -1,0 +1,116 @@
+<!-- @Input() data: CvData, @Input() accent: string (utiliser currentAccent dans le template) -->
+<article class="exec-paper">
+
+  <header class="exec-header">
+    <h1 class="exec-name">{{ data.name || 'Prénom Nom' }}</h1>
+    <p class="exec-title" [style.color]="currentAccent">{{ data.title || 'Titre professionnel' }}</p>
+
+    <div class="exec-contact-bar">
+      <span *ngIf="data.phone" class="exec-contact-chip">
+        <span class="exec-chip-letter" [style.borderColor]="currentAccent" [style.color]="currentAccent">T</span>
+        <span>{{ data.phone }}</span>
+      </span>
+
+      <span *ngIf="data.email" class="exec-contact-chip">
+        <span class="exec-chip-letter" [style.borderColor]="currentAccent" [style.color]="currentAccent">E</span>
+        <span>{{ data.email }}</span>
+      </span>
+
+      <span *ngIf="data.city" class="exec-contact-chip">
+        <span class="exec-chip-letter" [style.borderColor]="currentAccent" [style.color]="currentAccent">A</span>
+        <span>{{ data.city }}</span>
+      </span>
+
+      <span *ngIf="data.linkedin" class="exec-contact-chip">
+        <span class="exec-chip-letter" [style.borderColor]="currentAccent" [style.color]="currentAccent">L</span>
+        <span>LinkedIn</span>
+      </span>
+
+      <ng-container *ngFor="let l of data.links">
+        <span *ngIf="l.url" class="exec-contact-chip">
+          <span class="exec-chip-letter" [style.borderColor]="currentAccent" [style.color]="currentAccent">{{ l.label.charAt(0) || '#' }}</span>
+          <span class="exec-chip-text">{{ l.url }}</span>
+        </span>
+      </ng-container>
+    </div>
+  </header>
+
+  <div class="exec-divider" [style.backgroundColor]="currentAccent"></div>
+
+  <div class="exec-body">
+
+    <!-- Colonne principale -->
+    <div class="exec-main-col">
+
+      <section *ngIf="data.summary" class="exec-section">
+        <h2 class="exec-section-title">Profil</h2>
+        <p class="exec-summary-text">{{ data.summary }}</p>
+      </section>
+
+      <section *ngIf="data.experiences && data.experiences.length > 0" class="exec-section">
+        <h2 class="exec-section-title">Expérience</h2>
+
+        <div class="exec-exp-list">
+          <article *ngFor="let exp of data.experiences" class="exec-exp-item">
+            <div class="exec-exp-header">
+              <div class="exec-exp-header-titles">
+                <h3 class="exec-exp-company">{{ exp.company }}</h3>
+                <p *ngIf="exp.city" class="exec-exp-city">{{ exp.city }}</p>
+              </div>
+              <span class="exec-period-badge">{{ exp.period }}</span>
+            </div>
+
+            <p class="exec-role-line">{{ exp.role }}</p>
+            <p *ngIf="exp.description" class="exec-item-desc">{{ exp.description }}</p>
+            <ul *ngIf="exp.bullets && exp.bullets.length > 0" class="exec-bullets">
+              <li *ngFor="let b of exp.bullets">{{ b }}</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section *ngIf="data.projects && data.projects.length > 0" class="exec-section">
+        <h2 class="exec-section-title">Projets &amp; Réalisations</h2>
+        <div class="exec-projects-list">
+          <div *ngFor="let proj of data.projects" class="exec-project-item">
+            <h3 class="exec-project-title">{{ proj.name }}</h3>
+            <p class="exec-project-detail">{{ proj.detail }}</p>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Colonne latérale teintée -->
+    <aside class="exec-side-col" [style.backgroundColor]="currentAccent + '0d'">
+
+      <section *ngIf="data.education && data.education.length > 0" class="exec-side-section">
+        <h2 class="exec-side-title">Formation</h2>
+        <div *ngFor="let edu of data.education" class="exec-edu-item">
+          <h3 class="exec-edu-degree">{{ edu.degree }}</h3>
+          <p class="exec-edu-school">{{ edu.school }}</p>
+          <p *ngIf="edu.year || edu.period" class="exec-edu-year">{{ edu.year || edu.period }}</p>
+        </div>
+      </section>
+
+      <section *ngIf="data.skills && data.skills.length > 0" class="exec-side-section">
+        <h2 class="exec-side-title">Compétences</h2>
+        <div class="exec-skills-wrap">
+          <span *ngFor="let skill of data.skills" class="exec-skill-pill" [style.borderColor]="currentAccent + '40'">
+            {{ skill }}
+          </span>
+        </div>
+      </section>
+
+      <section *ngIf="data.languages && data.languages.length > 0" class="exec-side-section">
+        <h2 class="exec-side-title">Langues</h2>
+        <div *ngFor="let lang of data.languages" class="exec-lang-item">
+          <span>{{ lang.name || lang.lang }}</span>
+          <span class="exec-lang-level" [style.color]="currentAccent">{{ lang.level }}</span>
+        </div>
+      </section>
+
+    </aside>
+
+  </div>
+</article>

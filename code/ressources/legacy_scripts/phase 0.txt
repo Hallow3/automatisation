@@ -1,0 +1,119 @@
+Phase 0 — Checklist Technique (P0 bloquants) + Option B Live stabilisé
+Phase 0 — 5 chantiers, 12 fichiers, ~1 jour
+1. Secrets & Config code/backend/src/main/resources/application.yml:36
+
+application.yml:36-62 Supprimer tous les defaults sensibles:
+# AVANT (fuite)
+mail.password: ${MAIL_PASSWORD:nkfntlxwumllmylj}
+jwt.secret: ${JWT_SECRET:dGhpcy...}
+
+# APRÈS (fail-fast)
+jwt.secret: ${JWT_SECRET:?JWT_SECRET manquant}
+mail.password: ${MAIL_PASSWORD:?MAIL_PASSWORD manquant}
+google.client-id: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID manquant}
+mail.username: ${MAIL_USERNAME:?MAIL_USERNAME manquant}
+application.yml:55-59 Garder jwt.cookie.secure: ${JWT_COOKIE_SECURE:false} mais en prod .env mettre true (HTTPS obligatoire). Ajouter:
+spring.servlet.multipart.max-file-size: 8MB
+spring.servlet.multipart.max-request-size: 10MB
+server.forward-headers-strategy: native # pour X-Forwarded-For fiable
+gemini.live.model: ${GEMINI_LIVE_MODEL:gemini-2.0-flash-live-001}
+.env + .env.example rotation immédiate MAIL_PASSWORD (app password Gmail) + JWT_SECRET (générer openssl rand -base64 32)
+code/backend/src/main/java/com/getjob/backend/config/CorsConfig.java:1 vérifier que allowedOrigins lit bien ${CORS_ALLOWED_ORIGINS} et allowCredentials(true) reste.
+2. Voice Mock code/backend/src/main/java/com/getjob/backend/realtime/controller/RealtimeVoiceController.java:18
+
+Remplacer entièrement le mock:
+// AVANT: return Map.of("token","ephemeral_token_simulated_"+currentTimeMillis())
+// APRÈS:
+@RestController @RequestMapping("/api/v1/voice")
+@RequiredArgsConstructor
+public class RealtimeVoiceController {
+  private final GeminiLiveTokenService geminiLiveTokenService;
+  @PostMapping("/session")
+  public Map<String,String> createSession() { return geminiLiveTokenService.createEphemeralToken(); }
+}
+Supprimer @Value("${openai.api-key:mock_key}") inutilisé. Vérifier code/backend/src/main/java/com/getjob/backend/ai/service/GeminiLiveTokenService.java:58 : gemini.live.model déjà externalisé, aligner application.yml:53 sur gemini-2.0-flash-live-001 (actuel gemini-3.1-... n'existe pas).
+code/backend/src/main/java/com/getjob/backend/ai/service/GeminiLiveTokenService.java:176,264,337 Remplacer new RestTemplate() par bean:
+// Dans AsyncConfig.java ou nouveau RestClientConfig.java
+@Bean RestTemplate restTemplate() {
+  // ou RestClient/WebClient avec timeout 3s connect / 10s read + pooling
+}
+Injecter via constructeur.
+
+3. Pagination + Fix N+1 code/backend/src/main/java/com/getjob/backend/opportunity/service/OpportunityService.java:55
+
+OpportunityController.java + CvController.java:19 Ajouter pagination:
+@GetMapping
+public Page<OpportunityDto> getAll(@RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="10") int size) {
+  return opportunityService.getAll(PageRequest.of(page,size,Sort.by("scrapedAt").descending()));
+}
+@GetMapping("/cvs")
+public Page<CvDto> getAllCvs(Pageable pageable) { ... }
+OpportunityService.java:55 Supprimer la boucle jobOfferRepository.findAll() + if(!exists) create Application dans le GET. Déplacer en @Scheduled(fixedDelay=3600000) ou laisser n8n [OFFRES] Search All Platforms faire le job. Sinon N offres * M candidats à chaque requête.
+CvService.java:65 Remplacer findByCandidateId(candidateId).stream().filter(isCvValid...) par cvRepository.findByCandidateId(candidateId, pageable) + filtre en requête where interviewStatus != 'IN_PROGRESS' si possible. Ajouter index déjà présent V7__add_performance_indexes.sql mais vérifier idx_cv_candidate.
+4. Rate Limit + Upload code/backend/src/main/java/com/getjob/backend/auth/filter/RateLimitFilter.java:31
+
+Étendre couverture: ajouter /api/v1/cvs/*/interview/session, /api/v1/cvs/import, /api/v1/cvs/*/ai-edit, /api/v1/cvs/*/synthesize, /api/v1/auth/google (actuellement exclus).
+Ajouter eviction: @Scheduled(fixedRate=3600000) evict() qui purge ConcurrentHashMap entrées >1h (sinon fuite mémoire).
+SecurityConfig.java:100 Corriger ordre:
+.addFilterBefore(rateLimitFilter, JwtAuthenticationFilter.class)
+.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+Actuellement inversé.
+
+GlobalExceptionHandler.java Ajouter handlers:
+@ExceptionHandler(MaxUploadSizeExceededException.class) -> 413
+@ExceptionHandler(ConstraintViolationException.class) -> 400
+@ExceptionHandler(HttpMessageNotReadableException.class) -> 400
+CvService.java:556 importCvFromFile Ajouter garde:
+if(file.getSize() > 8*1024*1024) throw new ResponseStatusException(413, "Fichier trop volumineux");
+if(!List.of("application/pdf","image/png","image/jpeg").contains(contentType)) throw 400;
+5. Build & Vérif
+
+code/backend/pom.xml:25 Ajouter spring-boot-starter-actuator (gratuit, health prod):
+<dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
+management.endpoints.web.exposure.include=health dans application.yml.
+code/dashboard/src/environments/environment.ts Passer apiUrl en ${apiUrl} injecté au build, pas http://localhost:8081 en dur.
+Tests: mvn clean verify + ng build doivent passer 0 erreur. Vérifier GET /api/v1/cvs?page=0&size=10 + POST /api/v1/voice/session retourne vrai token (pas simulé).
+Option B — Garder Live mais le rendre déterministe
+Tu gardes gemini-live.service.ts WS direct, mais tu déplaces la vérité côté backend avec State Machine + validation stricte.
+
+Front WS (Gemini Live) 
+  --update_cv_draft--> Front merge optimiste 
+  --PUT /cvs/{id}/draft--> Backend State Machine (valide/rejette) 
+  --GET /cvs/{id}/draft poll--> Front resync si rejet
+Backend — code/backend/src/main/java/com/getjob/backend/cv/service/CvService.java
+
+Créer CvDraftValidator.java (nouveau fichier):
+// Valide chaque update_cv_draft avant save
+// - required: headline OU summary OU experiences[].company+position
+// - skills must be subset de experiences/projects (cohérence)
+// - normalizeKey: lower + trim + remove Inc/SARL -> déduplication serveur
+// - reject si experiences.size()>20 ou summary.length()>2000 -> 400
+// - return ProblemDetail 422 avec champ fautif
+CvService.java:166 updateDraft() Modifier:
+@Transactional
+public CvDto updateDraft(String cvId, Object draftData) {
+  validateDraft(draftData); // lance 422 si invalide
+  CvEntity cv = findCvEntityForCurrentUser(cvId).orElseCreate();
+  if(!Set.of("DRAFT","IN_PROGRESS","DRAFT_UPDATED").contains(cv.getInterviewStatus())) 
+     throw 409; // state machine
+  cv.setContentJson(objectMapper.writeValueAsString(draftData));
+  cv.setInterviewStatus("DRAFT_UPDATED");
+  return mapToDto(cvRepository.save(cv));
+}
+CvService.java:202 completeInterview() Ajouter garde isDraftMeaningful() sinon 400 CV_INCOMPLETE. Ne passer en DRAFT_READY que si validé.
+Frontend — code/dashboard/src/app/core/services/gemini-live.service.ts:875
+
+handleUpdateCvDraft:
+Ajouter zod schema strict (tous required sauf optionnels vraies) avant mergeExperiences. Rejeter silencieusement si invalide (log).
+Fix normalizeKey : company.toLowerCase().replace(/\b(inc|sarl|sas)\b/g,"").trim() + si key=="" alors key=position+startDate pas push direct (évite doublons).
+Remplacer apiService.saveDraft().catch(()=>null) par queue avec retry 3x + GET /cvs/{id}/draft resync si 422/409.
+Gestion WS:
+onclose : si interviewStatus==IN_PROGRESS -> auto-reconnect avec backoff 1s/2s/4s + réutilise cvId existant
+onerror + JSON.parse dans try granulaire par message
+Throttle ws.send audio: vérifier ws.bufferedAmount < 1MB avant send
+cv-interview.component.ts + cv-editor.service.ts:137 Fix race loadCvById: faire cvApi.getCv(cvId) d'abord, puis editor.init() seulement après réponse, et debounce 1000ms + switchMap garder mais ajouter distinctUntilChanged pour ne pas annuler frappe rapide inutilement.
+Validation Option B
+
+Test manuel: couper wifi mid-interview -> doit reconnecter et resync draft sans perte
+Test LLM malformé: envoyer update_cv_draft {experiences:[{context:"..."}]} -> backend 422, front garde ancien draft valide
+Métrique: aiInterviewsUsed déjà en place CvService.java:133 quota 3/j -> ajouter rate limit backend /interview/session 3/j/IP + par candidate

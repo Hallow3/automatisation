@@ -1,6 +1,6 @@
 <header class="h-14 sm:h-16 lg:h-[72px] bg-white/90 backdrop-blur-md border-b border-brand-100/80 flex items-center justify-between px-3 sm:px-6 lg:px-8 sticky top-0 z-20">
   <!-- Left Greeting -->
-  <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+  <div class="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 sm:flex-initial">
     <!-- Mobile hamburger -->
     <button
       type="button"
@@ -14,26 +14,41 @@
       </svg>
     </button>
 
-    <div class="min-w-0">
+    <div class="min-w-0 max-w-[130px] sm:max-w-[200px] md:max-w-none">
       <h1 class="text-xs sm:text-base font-bold text-slate-900 leading-tight truncate">
-        Bonjour {{ firstName }} <span class="inline-block">👋</span>
+        Bonjour {{ firstName }}
       </h1>
-      <p class="hidden sm:block text-[11px] sm:text-xs text-slate-400 truncate mt-0.5">Activité de recherche d’emploi</p>
+      <p class="hidden sm:block text-xs sm:text-xs text-slate-400 truncate mt-0.5">
+        Activité de recherche d’emploi & CV
+      </p>
     </div>
   </div>
 
   <!-- Right Actions -->
-  <div class="flex items-center gap-1.5 sm:gap-3 lg:gap-4 shrink-0">
+  <div class="flex items-center gap-1.5 sm:gap-2.5 lg:gap-3 shrink-0">
+    
+    <!-- Credit Balance & Forfaits Button -->
+    <button
+      type="button"
+      (click)="openPacks()"
+      title="Voir mes crédits et forfaits"
+      class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition shrink-0 shadow-2xs">
+      <span class="inline-block w-2 h-2 rounded-full" [ngClass]="paymentService.proCredits() > 0 ? 'bg-emerald-500' : 'bg-amber-400'"></span>
+      <span class="font-bold text-slate-900">{{ paymentService.proCredits() }}</span>
+      <span class="text-slate-500 text-xs">crédit(s)</span>
+      <span class="hidden sm:inline text-brand-600 border-l border-slate-200 pl-1.5 text-xs font-semibold">+ Forfaits</span>
+    </button>
+
     <!-- Search Bar (Desktop) -->
-    <div class="relative hidden md:block">
+    <div class="relative hidden xl:block">
       <svg class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-400 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <circle cx="11" cy="11" r="8"/>
         <line x1="21" y1="21" x2="16.65" y2="16.65"/>
       </svg>
       <input
         type="text"
-        placeholder="Rechercher une offre, entreprise..."
-        class="w-60 lg:w-80 pl-10 pr-4 py-2 lg:py-2.5 rounded-xl bg-brand-50/60 border border-transparent focus:border-brand-300 focus:bg-white focus:outline-none text-xs lg:text-sm placeholder:text-slate-400 transition" />
+        placeholder="Rechercher une offre, CV..."
+        class="w-48 lg:w-64 pl-10 pr-4 py-2 rounded-xl bg-brand-50/60 border border-transparent focus:border-brand-300 focus:bg-white focus:outline-none text-xs placeholder:text-slate-400 transition" />
     </div>
 
     <!-- Notification Bell -->
@@ -46,7 +61,7 @@
         <svg class="h-4 w-4 sm:h-4.5 sm:w-4.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
         </svg>
-        <span class="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 w-1.5 h-1.5 sm:w-2 sm:h-2 bg-brand-500 rounded-full ring-2 ring-white"></span>
+        <span *ngIf="notifications.length > 0" class="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 w-1.5 h-1.5 sm:w-2 sm:h-2 bg-brand-500 rounded-full ring-2 ring-white"></span>
       </button>
 
       <!-- Notifications Dropdown -->
@@ -54,15 +69,18 @@
         *ngIf="openMenu() === 'notifications'"
         class="absolute right-0 top-10 sm:top-12 w-72 sm:w-80 overflow-hidden rounded-2xl border border-brand-100 bg-white shadow-pop z-50 animate-fade-in">
         <div class="border-b border-brand-100 px-4 py-2.5 bg-brand-50/50">
-          <p class="text-2xs sm:text-xs font-bold text-slate-900 uppercase tracking-wider">Notifications</p>
+          <p class="text-xs font-bold text-slate-900 uppercase tracking-wider">Notifications</p>
         </div>
-        <ul class="divide-y divide-brand-50 max-h-72 overflow-y-auto">
+        <ul *ngIf="notifications.length > 0" class="divide-y divide-brand-50 max-h-72 overflow-y-auto">
           <li *ngFor="let item of notifications" class="px-4 py-2.5 hover:bg-brand-50/50 transition">
             <p class="text-xs font-bold text-slate-800">{{ item.title }}</p>
-            <p class="text-2xs sm:text-xs text-slate-400 mt-0.5">{{ item.detail }}</p>
-            <span class="text-2xs text-brand-500 font-semibold mt-1 block">{{ item.time }}</span>
+            <p class="text-xs text-slate-400 mt-0.5">{{ item.detail }}</p>
+            <span class="text-xs text-brand-500 font-semibold mt-1 block">{{ item.time }}</span>
           </li>
         </ul>
+        <div *ngIf="notifications.length === 0" class="p-5 text-center">
+          <p class="text-xs text-slate-500 font-medium">Aucune nouvelle notification</p>
+        </div>
       </div>
     </div>
 
@@ -73,7 +91,7 @@
         (click)="toggleMenu('user')"
         aria-label="Menu utilisateur"
         class="flex items-center gap-1 rounded-lg sm:rounded-xl p-0.5 hover:bg-slate-100 transition">
-        <span class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-gradient-to-br from-brand-600 to-brand-800 text-white font-bold text-xs sm:text-sm flex items-center justify-center shadow-2xs">
+        <span class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-gradient-to-br from-brand-600 to-brand-800 text-white font-bold text-sm flex items-center justify-center shadow-2xs">
           {{ initials }}
         </span>
         <svg class="h-3.5 w-3.5 text-slate-400 hidden sm:block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -84,12 +102,26 @@
       <!-- User Dropdown Menu -->
       <div
         *ngIf="openMenu() === 'user'"
-        class="absolute right-0 top-10 sm:top-12 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-pop z-50 animate-fade-in">
+        class="absolute right-0 top-10 sm:top-12 w-60 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-pop z-50 animate-fade-in">
         <div class="border-b border-slate-100 px-4 py-3 bg-slate-50/60">
           <p class="text-xs font-bold text-slate-900 truncate">{{ currentUser()?.fullName || 'Utilisateur' }}</p>
-          <p class="text-2xs text-slate-500 truncate mt-0.5">{{ currentUser()?.email || 'email@exemple.com' }}</p>
+          <p class="text-xs text-slate-500 truncate mt-0.5">{{ currentUser()?.email || 'email@exemple.com' }}</p>
         </div>
         <div class="p-1.5 space-y-0.5">
+          <!-- Credit Balance & Forfaits Row -->
+          <div class="px-3 py-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between mb-1">
+            <div class="flex items-center gap-1.5 min-w-0">
+              <span class="inline-block w-2 h-2 rounded-full shrink-0" [ngClass]="paymentService.proCredits() > 0 ? 'bg-emerald-500' : 'bg-amber-400'"></span>
+              <span class="text-xs text-slate-700 truncate"><strong class="text-slate-900">{{ paymentService.proCredits() }}</strong> crédits IA</span>
+            </div>
+            <button
+              type="button"
+              (click)="openPacks(); closeMenus()"
+              class="text-xs font-bold text-brand-600 hover:text-brand-700 hover:underline px-1 py-0.5 shrink-0">
+              Acheter
+            </button>
+          </div>
+
           <a
             routerLink="/profile"
             (click)="closeMenus()"
@@ -123,12 +155,12 @@
       </div>
     </div>
 
-    <!-- Nouvelle candidature CTA (Sleek icon on mobile, full button on desktop) -->
+    <!-- Nouvelle candidature CTA -->
     <a
       routerLink="/opportunities"
       aria-label="Nouvelle candidature"
       title="Nouvelle candidature"
-      class="flex items-center justify-center gap-1.5 sm:gap-2 bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 text-white text-xs sm:text-sm font-semibold w-8 h-8 sm:w-auto sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl transition shadow-2xs sm:shadow-brand shrink-0">
+      class="flex items-center justify-center gap-1.5 sm:gap-2 bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 text-white text-sm font-semibold w-8 h-8 sm:w-auto sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl transition shadow-2xs sm:shadow-brand shrink-0">
       <svg class="h-4 w-4 sm:h-3.5 sm:w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
         <line x1="12" y1="5" x2="12" y2="19"/>
         <line x1="5" y1="12" x2="19" y2="12"/>

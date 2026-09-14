@@ -1,14 +1,14 @@
-<div *ngIf="open" class="fixed inset-0 z-50 flex" role="dialog" aria-modal="true" [attr.aria-label]="title">
+<div *ngIf="open" class="fixed inset-0 z-[9999] flex items-center justify-center p-4" role="dialog" aria-modal="true" [attr.aria-label]="title">
   <!-- Backdrop -->
   <div
-    class="absolute inset-0 bg-slate-900/25 transition-opacity duration-200"
+    class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200"
     (click)="onClose()">
   </div>
 
   <!-- Modal / Drawer Content -->
   <div
-    [class]="'relative z-10 flex flex-col overflow-hidden border-line bg-surface shadow-pop transition-all duration-200 ' + 
-             (variant === 'drawer' ? 'ml-auto h-full w-full max-w-md border-l ' : 'm-auto max-h-[85vh] w-[calc(100%-2rem)] max-w-lg rounded-xl border ') + 
+    [class]="'relative z-[10000] flex flex-col overflow-hidden border-line bg-surface shadow-pop transition-all duration-200 ' + 
+             (variant === 'drawer' ? 'ml-auto h-full w-full max-w-md border-l ' : 'm-auto max-h-[85vh] w-full max-w-lg rounded-xl border ') + 
              customClass">
     
     <!-- Header -->

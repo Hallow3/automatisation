@@ -27,7 +27,9 @@ export interface Opportunity {
   deadline?: string | null;
   applicationChannel?: ApplicationChannel;
   coverLetterAvailable: boolean;
+  coverLetterText?: string;
   matchedSkills: string[];
+
   matchExplanation?: string | null;
   description?: string;
 }

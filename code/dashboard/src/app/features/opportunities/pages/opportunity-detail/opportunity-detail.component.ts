@@ -161,17 +161,51 @@ export class OpportunityDetailComponent implements OnInit {
     this.letterModalOpen = true;
     this.coverLetterLoading = true;
 
+    if (this.opportunity.coverLetterText && this.opportunity.coverLetterText.trim()) {
+      this.coverLetterContent = this.opportunity.coverLetterText;
+      this.coverLetterLoading = false;
+      return;
+    }
+
     this.api.getCoverLetter(this.opportunity.id).subscribe({
       next: (res) => {
-        this.coverLetterContent = `Madame, Monsieur,\n\nVivement intéressé(e) par le poste de ${this.opportunity?.title} au sein de ${this.opportunity?.company}, je vous adresse ma candidature.\n\nMon parcours technique et mes réalisations passées sont en adéquation avec vos besoins.\n\nRestant à votre disposition pour un entretien,\n\nCordialement.`;
-        this.coverLetterLoading = false;
+        if (res && res.content && res.content.trim()) {
+          this.coverLetterContent = res.content;
+          if (this.opportunity) {
+            this.opportunity.coverLetterText = res.content;
+            this.opportunity.coverLetterAvailable = true;
+          }
+          this.coverLetterLoading = false;
+        } else {
+          this.api.prepareApplication(this.opportunity!.id).subscribe({
+            next: () => {
+              this.api.getCoverLetter(this.opportunity!.id).subscribe({
+                next: (newRes) => {
+                  this.coverLetterContent = newRes?.content || 'Lettre de motivation générée avec succès.';
+                  if (this.opportunity) {
+                    this.opportunity.coverLetterText = this.coverLetterContent;
+                    this.opportunity.coverLetterAvailable = true;
+                    this.opportunity.status = OpportunityStatus.READY_TO_APPLY;
+                  }
+                  this.coverLetterLoading = false;
+                },
+                error: () => {
+                  this.coverLetterLoading = false;
+                }
+              });
+            },
+            error: () => {
+              this.coverLetterLoading = false;
+            }
+          });
+        }
       },
       error: () => {
-        this.coverLetterContent = `Madame, Monsieur,\n\nVivement intéressé(e) par le poste de ${this.opportunity?.title} au sein de ${this.opportunity?.company}, je me permets de vous adresser ma candidature.\n\nMon parcours et mes compétences correspondent aux exigences de votre offre.\n\nRestant à votre entière disposition pour un entretien,\n\nCordialement.`;
         this.coverLetterLoading = false;
       }
     });
   }
+
 
   closeLetterModal(): void {
     this.letterModalOpen = false;

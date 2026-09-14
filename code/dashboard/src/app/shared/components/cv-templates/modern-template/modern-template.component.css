@@ -1,0 +1,479 @@
+/* Feuille A4 physique normalisée — mêmes conventions que le template "modern"
+   pour rester compatible avec le pipeline d'export PDF Chromium existant */
+.exec-paper {
+  width: 794px;
+  min-height: 1123px;
+  background-color: #ffffff;
+  margin: 0 auto;
+  box-sizing: border-box;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  color: #1e293b;
+  position: relative;
+  padding: 40px 44px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* En-tête centré, sobre — pas de bloc coloré plein cadre */
+.exec-header {
+  text-align: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.exec-name {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #0f172a;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.25;
+}
+
+.exec-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin: 6px 0 0 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.35;
+}
+
+.exec-contact-bar {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  font-size: 11px;
+  color: #334155;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.exec-contact-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.exec-chip-letter {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.exec-contact-chip > span:last-child,
+.exec-chip-text {
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  max-width: 100%;
+  line-height: 1.3;
+}
+
+.exec-divider {
+  height: 2px;
+  width: 100%;
+  margin: 20px 0 22px 0;
+  opacity: 0.85;
+}
+
+/* Corps 2 colonnes strictement bornées */
+.exec-body {
+  display: flex;
+  gap: 28px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.exec-main-col {
+  flex: 0 0 calc(65% - 14px);
+  width: calc(65% - 14px);
+  max-width: calc(65% - 14px);
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.exec-side-col {
+  flex: 0 0 calc(35% - 14px);
+  width: calc(35% - 14px);
+  max-width: calc(35% - 14px);
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 18px 16px;
+  border-radius: 8px;
+  align-self: flex-start;
+}
+
+.exec-section,
+.exec-side-section {
+  break-inside: avoid;
+  page-break-inside: avoid;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.exec-section-title,
+.exec-side-title {
+  font-size: 11.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #0f172a;
+  margin: 0 0 10px 0;
+  padding-bottom: 6px;
+  border-bottom: 1.5px solid #cbd5e1;
+}
+
+.exec-summary-text {
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: #334155;
+  margin: 0;
+  text-align: left;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Expériences */
+.exec-exp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+}
+
+.exec-exp-item {
+  break-inside: avoid;
+  page-break-inside: avoid;
+  width: 100%;
+  min-width: 0;
+}
+
+.exec-exp-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.exec-exp-header-titles {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.exec-exp-company {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.3;
+}
+
+.exec-exp-city {
+  font-size: 10.5px;
+  color: #94a3b8;
+  margin: 1px 0 0 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.exec-period-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #64748b;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.exec-role-line {
+  font-size: 11.5px;
+  font-weight: 600;
+  font-style: italic;
+  color: #475569;
+  margin: 4px 0 0 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.35;
+}
+
+.exec-item-desc {
+  font-size: 11px;
+  line-height: 1.55;
+  color: #475569;
+  margin: 5px 0 0 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.exec-bullets {
+  list-style: disc;
+  padding-left: 16px;
+  margin: 6px 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.exec-bullets li {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #334155;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.exec-tech-line {
+  font-size: 10.5px;
+  color: #64748b;
+  margin: 8px 0 0 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Sous-postes chez le même employeur */
+.exec-subroles {
+  margin-top: 8px;
+  padding-left: 12px;
+  border-left: 2px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.exec-subrole-item {
+  break-inside: avoid;
+  width: 100%;
+  min-width: 0;
+}
+
+.exec-subrole-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.exec-subrole-role {
+  font-size: 11.5px;
+  font-weight: 700;
+  font-style: italic;
+  color: #1e293b;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.exec-subrole-period {
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Projets */
+.exec-projects-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.exec-project-item {
+  break-inside: avoid;
+  width: 100%;
+  min-width: 0;
+}
+
+.exec-project-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.3;
+}
+
+.exec-project-detail {
+  font-size: 10.5px;
+  color: #475569;
+  margin: 2px 0 0 0;
+  line-height: 1.45;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Colonne latérale */
+.exec-edu-item {
+  margin-bottom: 12px;
+  break-inside: avoid;
+  width: 100%;
+  min-width: 0;
+}
+
+.exec-edu-degree {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.3;
+}
+
+.exec-edu-school {
+  font-size: 10.5px;
+  color: #475569;
+  margin: 1px 0 0 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.3;
+}
+
+.exec-edu-year {
+  font-size: 10px;
+  color: #94a3b8;
+  margin: 1px 0 0 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.exec-skill-group {
+  margin-bottom: 10px;
+  break-inside: avoid;
+  width: 100%;
+  min-width: 0;
+}
+
+.exec-skill-category {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  margin: 0 0 3px 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.exec-skill-items {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: #334155;
+  margin: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.exec-skills-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+}
+
+.exec-skill-pill {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid;
+  color: #0f172a;
+  line-height: 1.3;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  box-sizing: border-box;
+}
+
+.exec-lang-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10.5px;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+  border-bottom: 1px dashed #cbd5e1;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.exec-lang-item > span:first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.exec-lang-level {
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media print {
+  .exec-paper {
+    width: 210mm !important;
+    max-width: 210mm !important;
+    min-height: 297mm !important;
+    height: auto !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    margin: 0 auto !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .exec-section,
+  .exec-side-section,
+  .exec-exp-item,
+  .exec-subrole-item,
+  .exec-edu-item,
+  .exec-skill-group,
+  .exec-project-item {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}

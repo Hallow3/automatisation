@@ -7,6 +7,7 @@ import { AuthService } from '../../../../core/services/auth.service';
 import { PdfExportService } from '../../../../core/services/pdf-export.service';
 import { Cv } from '../../../../core/models/cv.model';
 import { CvPreviewComponent, CvData, CvTemplateId } from '../../../../shared/components/cv-preview/cv-preview.component';
+import { normalizeTemplateKey } from '../../../../shared/components/cv-templates/template-registry';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { ButtonComponent } from '../../../../shared/components/button/button.component';
 import { BadgeComponent } from '../../../../shared/components/badge/badge.component';
@@ -14,6 +15,9 @@ import { CardComponent } from '../../../../shared/components/card/card.component
 import { EmptyStateComponent } from '../../../../shared/components/feedback/empty-state.component';
 import { SkeletonComponent } from '../../../../shared/components/feedback/skeleton.component';
 import { ModalComponent } from '../../../../shared/components/modal/modal.component';
+import { PaymentService } from '../../../../core/services/payment.service';
+import { PaymentModalComponent } from '../../../../shared/components/payment-modal/payment-modal.component';
+import { AgentPackModalComponent } from '../../../../shared/components/agent-pack-modal/agent-pack-modal.component';
 
 export interface CvItemDisplay {
   id: string;
@@ -42,7 +46,8 @@ export interface CvItemDisplay {
     CardComponent,
     EmptyStateComponent,
     SkeletonComponent,
-    ModalComponent
+    ModalComponent,
+    PaymentModalComponent
   ],
   templateUrl: './cv-list.component.html',
   styleUrl: './cv-list.component.css'
@@ -51,11 +56,17 @@ export class CvListComponent implements OnInit {
   private cvApi = inject(CvApiService);
   private authService = inject(AuthService);
   private pdfService = inject(PdfExportService);
+  public paymentService = inject(PaymentService);
   private router = inject(Router);
 
   readonly allCvs = signal<CvItemDisplay[]>([]);
   readonly loading = signal<boolean>(true);
   readonly isImporting = signal<boolean>(false);
+
+  // Paiement & Mode Pro
+  paymentModalOpen = signal<boolean>(false);
+  selectedCvForPayment = signal<CvItemDisplay | null>(null);
+  proNotification = signal<string | null>(null);
 
   // Vue, Recherche & Pagination
   readonly viewMode = signal<'grid' | 'list'>('grid');
@@ -103,6 +114,7 @@ export class CvListComponent implements OnInit {
   isTranslating = signal<boolean>(false);
 
   ngOnInit(): void {
+    this.paymentService.syncWithBackend();
     this.loadCvs();
   }
 
@@ -143,15 +155,33 @@ export class CvListComponent implements OnInit {
     this.goToPage(this.currentPage() + 1);
   }
 
+  handleImportClick(input: HTMLInputElement): void {
+    const credits = this.authService.currentUser()?.proCredits ?? 0;
+    if (credits < 2) {
+      this.paymentService.openPackModal();
+      return;
+    }
+    input.click();
+  }
+
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (!input.files || input.files.length === 0) return;
     const file = input.files[0];
+
+    const credits = this.authService.currentUser()?.proCredits ?? 0;
+    if (credits < 2) {
+      this.paymentService.openPackModal();
+      input.value = '';
+      return;
+    }
+
     this.isImporting.set(true);
 
     this.cvApi.importCv(file).subscribe({
       next: (cv) => {
         this.isImporting.set(false);
+        input.value = '';
         if (cv?.id) {
           this.router.navigate(['/cv-builder'], { queryParams: { cvId: cv.id } });
         } else {
@@ -160,7 +190,12 @@ export class CvListComponent implements OnInit {
       },
       error: (err) => {
         this.isImporting.set(false);
-        alert("Erreur lors de l'import du CV : " + (err.error?.detail || 'Fichier non supporté'));
+        input.value = '';
+        if (err.status === 402 || err.error?.message?.includes('INSUFFICIENT_CREDITS') || err.error?.detail?.includes('INSUFFICIENT_CREDITS')) {
+          this.paymentService.openPackModal();
+        } else {
+          alert("Erreur lors de l'import du CV : " + (err.error?.detail || err.error?.message || 'Fichier non supporté'));
+        }
       }
     });
   }
@@ -247,11 +282,9 @@ export class CvListComponent implements OnInit {
   }
 
   downloadPdf(item: CvItemDisplay, event: Event): void {
-    event.stopPropagation();
-    this.closeMenu();
-    const cvData = this.getCvData(item);
-    this.pdfService.exportCvPdf(cvData, item.rawCv.template || 'moderne');
+    this.downloadCvPdf(item, event);
   }
+
 
   openRenameModal(item: CvItemDisplay, event: Event): void {
     event.stopPropagation();
@@ -374,4 +407,23 @@ export class CvListComponent implements OnInit {
       }
     });
   }
+
+  downloadCvPdf(item: CvItemDisplay, event?: Event): void {
+    if (event) event.stopPropagation();
+    this.closeMenu();
+
+    const cvData = this.getCvData(item);
+    const templateKey = normalizeTemplateKey(item.template);
+    this.pdfService.exportCvPdf(cvData, templateKey, true, item.id);
+  }
+
+  onPaymentSuccess(event: { cvId: string }): void {
+    const item = this.selectedCvForPayment() || this.allCvs().find(c => c.id === event.cvId);
+    if (item) {
+      const cvData = this.getCvData(item);
+      const templateKey = normalizeTemplateKey(item.template);
+      this.pdfService.exportCvPdf(cvData, templateKey, true, item.id);
+    }
+  }
+
 }

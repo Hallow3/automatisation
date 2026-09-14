@@ -1,0 +1,73 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CV PRINT ISOLATED VIEW (Optimisation Impression & Chromium Headless)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+:host {
+  display: block;
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  background-color: #ffffff;
+  color: #1e293b;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+  color-adjust: exact !important;
+}
+
+.cv-print-wrapper {
+  width: 794px; /* 210mm à 96 DPI */
+  margin: 0 auto;
+  background-color: #ffffff;
+  box-sizing: border-box;
+}
+
+.print-loading-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+@media screen {
+  :host {
+    background-color: #e2e8f0;
+    padding: 24px 0;
+  }
+  .cv-print-wrapper {
+    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.15);
+  }
+}
+
+@media print {
+  html, body, :host {
+    margin: 0 !important;
+    padding: 0 !important;
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    box-shadow: none !important;
+  }
+
+  .cv-print-wrapper {
+    width: 210mm !important;
+    max-width: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .print-loading-banner {
+    display: none !important;
+  }
+}

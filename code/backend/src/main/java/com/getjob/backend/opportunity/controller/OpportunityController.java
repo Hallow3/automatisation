@@ -18,7 +18,16 @@ public class OpportunityController {
     private final OpportunityService service;
 
     @GetMapping
-    public ResponseEntity<List<OpportunityDto>> getOpportunities() {
+    public ResponseEntity<?> getOpportunities(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
+    ) {
+        if (page != null) {
+            int pageSize = size != null ? size : 10;
+            return ResponseEntity.ok(service.getAllOpportunities(
+                    org.springframework.data.domain.PageRequest.of(page, pageSize, org.springframework.data.domain.Sort.by("id").descending())
+            ));
+        }
         return ResponseEntity.ok(service.getAllOpportunities());
     }
 
@@ -46,6 +55,11 @@ public class OpportunityController {
 
     @GetMapping("/{id}/cover-letter")
     public ResponseEntity<Map<String, String>> getCoverLetter(@PathVariable String id) {
-        return ResponseEntity.ok(Map.of("url", "/api/v1/documents/cover-letter-" + id + ".pdf"));
+        String content = service.getCoverLetterText(id);
+        return ResponseEntity.ok(Map.of(
+                "content", content != null ? content : "",
+                "status", content != null && !content.isBlank() ? "READY" : "NOT_GENERATED"
+        ));
     }
 }
+

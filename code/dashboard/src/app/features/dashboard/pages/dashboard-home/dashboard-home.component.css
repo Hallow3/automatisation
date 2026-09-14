@@ -1,1 +1,137 @@
-/* Dashboard home styles */
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIVING AI ANIMATED ORB (Boule Animée Fluide Vivante IA) - Dashboard Showcase
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* 1. Ambient Glowing Aura */
+.ai-orb-aura {
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.55) 0%, rgba(236, 72, 153, 0.40) 40%, rgba(6, 182, 212, 0.30) 70%, transparent 85%);
+  filter: blur(28px);
+  animation: auraPulse 6s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes auraPulse {
+  0% {
+    transform: scale(0.95) rotate(0deg);
+    filter: blur(24px);
+  }
+  50% {
+    transform: scale(1.10) rotate(180deg);
+    filter: blur(32px);
+  }
+  100% {
+    transform: scale(0.98) rotate(360deg);
+    filter: blur(26px);
+  }
+}
+
+/* 2. Shimmer Ripple Waves */
+.ai-orb-ripple {
+  animation: orbRipple 2.4s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+  pointer-events: none;
+}
+
+.ai-orb-ripple-delayed {
+  animation: orbRipple 2.4s cubic-bezier(0, 0.2, 0.8, 1) infinite 1.2s;
+  pointer-events: none;
+}
+
+@keyframes orbRipple {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+
+/* 3. Fluid Morphing Orb Container */
+.ai-orb-morph {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 
+    inset 0 0 25px rgba(255, 255, 255, 0.65),
+    0 10px 30px -5px rgba(99, 102, 241, 0.5),
+    0 0 45px rgba(236, 72, 153, 0.35);
+  animation: fluidMorph 8s ease-in-out infinite alternate;
+}
+
+@keyframes fluidMorph {
+  0% {
+    border-radius: 48% 52% 68% 32% / 42% 54% 46% 58%;
+    transform: rotate(0deg) scale(1);
+  }
+  33% {
+    border-radius: 62% 38% 46% 54% / 58% 38% 62% 42%;
+    transform: rotate(120deg) scale(1.04);
+  }
+  66% {
+    border-radius: 38% 62% 54% 46% / 46% 62% 38% 54%;
+    transform: rotate(240deg) scale(0.97);
+  }
+  100% {
+    border-radius: 54% 46% 38% 62% / 62% 46% 54% 38%;
+    transform: rotate(360deg) scale(1.02);
+  }
+}
+
+/* Fluid Gradient Layers inside Orb */
+.ai-orb-gradient-layer-1 {
+  position: absolute;
+  inset: -20%;
+  background: conic-gradient(from 0deg at 50% 50%, #4f46e5, #06b6d4, #ec4899, #8b5cf6, #3b82f6, #4f46e5);
+  animation: spinGradients 6s linear infinite;
+  filter: blur(10px);
+}
+
+.ai-orb-gradient-layer-2 {
+  position: absolute;
+  inset: -15%;
+  background: radial-gradient(circle at 35% 35%, #38bdf8 0%, transparent 60%),
+              radial-gradient(circle at 65% 75%, #f43f5e 0%, transparent 60%),
+              radial-gradient(circle at 75% 25%, #a855f7 0%, transparent 55%);
+  animation: spinGradientsReverse 8s linear infinite;
+  mix-blend-mode: overlay;
+}
+
+.ai-orb-gradient-layer-3 {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.25) 0%, transparent 70%);
+  mix-blend-mode: screen;
+}
+
+/* Specular gloss reflection */
+.ai-orb-specular {
+  position: absolute;
+  top: 6%;
+  left: 12%;
+  width: 45%;
+  height: 35%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 75%);
+  transform: rotate(-30deg);
+  pointer-events: none;
+}
+
+@keyframes spinGradients {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes spinGradientsReverse {
+  0% { transform: rotate(360deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.ai-orb-container:hover .ai-orb-morph {
+  animation-duration: 4s;
+  box-shadow: 
+    inset 0 0 35px rgba(255, 255, 255, 0.85),
+    0 12px 40px 0 rgba(236, 72, 153, 0.65),
+    0 0 60px 12px rgba(99, 102, 241, 0.55);
+}

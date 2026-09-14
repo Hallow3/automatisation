@@ -19,6 +19,8 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import java.util.Collections;
 
 /**
@@ -87,24 +89,30 @@ public class AuthService {
         String email = request.email().trim().toLowerCase();
 
         // Vérifie les identifiants
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(email, request.password())
-        );
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(email, request.password())
+            );
+        } catch (org.springframework.security.authentication.DisabledException | org.springframework.security.authentication.LockedException e) {
+            CandidateEntity unverifiedCandidate = candidateRepository.findByEmail(email).orElse(null);
+            if (unverifiedCandidate != null) {
+                if (unverifiedCandidate.getVerificationCode() == null ||
+                    unverifiedCandidate.getVerificationCodeExpiresAt() == null ||
+                    java.time.Instant.now().isAfter(unverifiedCandidate.getVerificationCodeExpiresAt())) {
+                    String newCode = String.format("%06d", new java.security.SecureRandom().nextInt(1_000_000));
+                    unverifiedCandidate.setVerificationCode(newCode);
+                    unverifiedCandidate.setVerificationCodeExpiresAt(java.time.Instant.now().plus(15, java.time.temporal.ChronoUnit.MINUTES));
+                    candidateRepository.save(unverifiedCandidate);
+                    authEmailService.sendEmailVerificationCode(unverifiedCandidate.getEmail(), newCode);
+                }
+            }
+            throw new IllegalStateException("EMAIL_NOT_VERIFIED: Votre adresse email n'a pas encore été validée. Veuillez saisir le code de confirmation envoyé à " + email);
+        }
 
         CandidateEntity candidate = candidateRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalStateException("Compte introuvable après authentification."));
 
         if (!candidate.isEnabled()) {
-            // Régénère un code si expiré
-            if (candidate.getVerificationCode() == null ||
-                candidate.getVerificationCodeExpiresAt() == null ||
-                java.time.Instant.now().isAfter(candidate.getVerificationCodeExpiresAt())) {
-                String newCode = String.format("%06d", new java.security.SecureRandom().nextInt(1_000_000));
-                candidate.setVerificationCode(newCode);
-                candidate.setVerificationCodeExpiresAt(java.time.Instant.now().plus(15, java.time.temporal.ChronoUnit.MINUTES));
-                candidateRepository.save(candidate);
-                authEmailService.sendEmailVerificationCode(candidate.getEmail(), newCode);
-            }
             throw new IllegalStateException("EMAIL_NOT_VERIFIED: Votre adresse email n'a pas encore été validée. Veuillez saisir le code de confirmation envoyé à " + candidate.getEmail());
         }
 
@@ -192,7 +200,8 @@ public class AuthService {
                 candidate.getRole(),
                 candidate.getPhone(),
                 candidate.getCity(),
-                candidate.getTargetRole()
+                candidate.getTargetRole(),
+                candidate.getProCredits() != null ? candidate.getProCredits() : 0
         );
     }
 
@@ -227,11 +236,11 @@ public class AuthService {
                 .orElseThrow(() -> new IllegalArgumentException("Compte introuvable pour l'adresse fournie."));
 
         String tokenOrCode = request.token() != null ? request.token().trim() : "";
-        if (candidate.getResetPasswordCode() != null && !candidate.getResetPasswordCode().equals(tokenOrCode)) {
-            throw new IllegalArgumentException("Code de réinitialisation incorrect.");
+        if (tokenOrCode.isBlank() || candidate.getResetPasswordCode() == null || !candidate.getResetPasswordCode().equals(tokenOrCode)) {
+            throw new IllegalArgumentException("Code de réinitialisation invalide ou absent.");
         }
 
-        if (candidate.getResetPasswordExpiresAt() != null && java.time.Instant.now().isAfter(candidate.getResetPasswordExpiresAt())) {
+        if (candidate.getResetPasswordExpiresAt() == null || java.time.Instant.now().isAfter(candidate.getResetPasswordExpiresAt())) {
             throw new IllegalArgumentException("Le code de réinitialisation a expiré.");
         }
 
@@ -252,17 +261,21 @@ public class AuthService {
         if (idTokenString == null || idTokenString.isBlank()) {
             throw new IllegalArgumentException("Le jeton de sécurité Google (credential) est manquant.");
         }
+        if (googleClientId == null || googleClientId.isBlank()) {
+            log.error("Google Sign-In rejeté : GOOGLE_CLIENT_ID non configuré sur le serveur.");
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "L'authentification Google n'est pas encore activée sur cette plateforme (configuration manquante)."
+            );
+        }
+
         try {
-            GoogleIdTokenVerifier.Builder verifierBuilder = new GoogleIdTokenVerifier.Builder(
+            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
                     new NetHttpTransport(),
                     GsonFactory.getDefaultInstance()
-            );
-
-            if (googleClientId != null && !googleClientId.isBlank()) {
-                verifierBuilder.setAudience(Collections.singletonList(googleClientId.trim()));
-            }
-
-            GoogleIdTokenVerifier verifier = verifierBuilder.build();
+            )
+            .setAudience(Collections.singletonList(googleClientId.trim()))
+            .build();
             GoogleIdToken idToken = verifier.verify(idTokenString);
 
             if (idToken == null) {

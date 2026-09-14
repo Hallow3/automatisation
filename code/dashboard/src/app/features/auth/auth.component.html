@@ -1,13 +1,10 @@
 <div class="flex min-h-screen flex-col items-center justify-center bg-canvas px-4 py-8 sm:py-12">
   <!-- Brand logo -->
   <div class="mb-6 flex flex-col items-center">
-    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-brand ring-1 ring-white/20">
-      <svg class="h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-      </svg>
-    </div>
-    <h1 class="mt-3 text-xl font-extrabold tracking-tight text-slate-900">JobPilot</h1>
-    <p class="text-xs text-slate-400">Plateforme d’automatisation de candidatures</p>
+    <a routerLink="/">
+      <img src="assets/logo/svg/blue-without-bg.svg" alt="FallaJobs" class="h-40 w-auto" />
+    </a>
+    <p class="mt-2 text-[11px] text-slate-400">Plateforme d'automatisation de candidatures</p>
   </div>
 
   <!-- Card -->
@@ -15,31 +12,39 @@
     <!-- Header -->
     <div class="mb-5 sm:mb-6">
       <h2 class="text-base sm:text-lg font-bold text-slate-900">
-        {{ mode() === 'login' ? 'Connexion à votre espace' : mode() === 'register' ? 'Créer votre compte candidat' : mode() === 'verify-email' ? 'Validation de votre adresse email' : mode() === 'reset-password' ? 'Définir un nouveau mot de passe' : 'Réinitialisation de mot de passe' }}
+        {{ mode() === 'login' ? 'Connexion à votre espace' : mode() === 'register' ? 'Créer votre compte' : mode() === 'verify-email' ? 'Validation de votre email' : mode() === 'reset-password' ? 'Nouveau mot de passe' : 'Réinitialisation' }}
       </h2>
-      <p class="mt-1 text-xs text-slate-400">
-        {{ mode() === 'login' ? 'Accédez à votre tableau de bord et pilotez vos opportunités.' : mode() === 'register' ? 'Configurez vos critères pour automatiser votre recherche d’emploi.' : mode() === 'verify-email' ? 'Entrez le code à 6 chiffres reçu sur votre boîte mail pour activer votre compte.' : mode() === 'reset-password' ? 'Saisissez le code de sécurité reçu et votre nouveau mot de passe.' : 'Entrez votre email pour recevoir votre code de réinitialisation.' }}
+      <p class="mt-1 text-xs text-slate-400 leading-relaxed">
+        {{ mode() === 'login' ? 'Accédez à votre tableau de bord.' : mode() === 'register' ? 'Automatisez votre recherche d\'emploi.' : mode() === 'verify-email' ? 'Entrez le code à 6 chiffres reçu par email.' : mode() === 'reset-password' ? 'Saisissez le code reçu et votre nouveau mot de passe.' : 'Entrez votre email pour recevoir un code.' }}
       </p>
     </div>
 
     <!-- Google Sign-In Button (When in Login / Register mode) -->
-    <div *ngIf="mode() === 'login' || mode() === 'register'" class="mb-4">
-      <button
-        type="button"
-        (click)="loginWithGoogle()"
-        class="w-full flex items-center justify-center gap-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs sm:text-sm font-medium text-slate-700 shadow-2xs transition active:scale-[0.99]">
-        <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24">
-          <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
-          <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.26v3.15C3.25 21.36 7.34 24 12 24z"/>
-          <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.26C.46 8.16 0 9.97 0 12s.46 3.84 1.26 5.42l4.02-3.15z"/>
-          <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.25 2.64 1.26 6.58l4.02 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
-        </svg>
-        <span>Continuer avec Google</span>
-      </button>
+    <div [class.hidden]="mode() !== 'login' && mode() !== 'register'" class="mb-4">
+      <div class="relative w-full min-h-[44px] flex items-center justify-center">
+        <!-- Google GSI Rendered Button Target -->
+        <div id="google-btn-container" class="w-full flex justify-center [&>div]:!w-full [&>iframe]:!w-full"></div>
 
-      <div class="relative my-4 sm:my-5 flex items-center justify-center">
-        <div class="w-full border-t border-slate-100"></div>
-        <span class="relative bg-white px-2.5 text-[11px] font-normal text-slate-400">ou avec votre email</span>
+        <!-- Fallback/Loading button while Google SDK initializes or if blocked -->
+        <button
+          *ngIf="!isGoogleLoaded()"
+          type="button"
+          (click)="loginWithGoogle()"
+          class="w-full flex items-center justify-center gap-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 shadow-2xs transition active:scale-[0.99]">
+          <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
+            <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.26v3.15C3.25 21.36 7.34 24 12 24z"/>
+            <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.26C.46 8.16 0 9.97 0 12s.46 3.84 1.26 5.42l4.02-3.15z"/>
+            <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.25 2.64 1.26 6.58l4.02 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+          </svg>
+          <span>Continuer avec Google</span>
+        </button>
+      </div>
+
+      <div class="relative my-4 sm:my-5 flex items-center">
+        <div class="flex-1 border-t border-slate-100"></div>
+        <span class="px-3 text-xs text-slate-300">ou avec votre email</span>
+        <div class="flex-1 border-t border-slate-100"></div>
       </div>
     </div>
 
@@ -48,13 +53,13 @@
       <button
         type="button"
         (click)="switchMode('login')"
-        [class]="'flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all ' + (mode() === 'login' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-800')">
+        [class]="'flex-1 rounded-lg py-2 text-sm font-semibold transition-all ' + (mode() === 'login' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-800')">
         Connexion
       </button>
       <button
         type="button"
         (click)="switchMode('register')"
-        [class]="'flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all ' + (mode() === 'register' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-800')">
+        [class]="'flex-1 rounded-lg py-2 text-sm font-semibold transition-all ' + (mode() === 'register' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-800')">
         Inscription
       </button>
     </div>
@@ -79,7 +84,7 @@
     <app-alert-banner
       *ngIf="errorMessage()"
       tone="danger"
-      title="Erreur d’authentification"
+      title="Erreur"
       [description]="errorMessage() || ''"
       customClass="mb-4" />
 
@@ -102,24 +107,24 @@
     <!-- Login Form -->
     <form *ngIf="mode() === 'login'" [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="space-y-4">
       <div>
-        <label class="block text-xs font-semibold text-slate-700">Email professionnel ou personnel</label>
+        <label class="block text-sm font-semibold text-slate-700">Email</label>
         <input
           type="email"
           formControlName="email"
           placeholder="nom@exemple.fr"
           autocomplete="email"
-          class="mt-1 w-full rounded-xl border border-brand-100 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-300 focus:outline-none transition" />
-        <p *ngIf="hasError(loginForm, 'email', 'required')" class="mt-1 text-2xs text-rose-600 font-medium">L'email est requis.</p>
-        <p *ngIf="hasError(loginForm, 'email', 'email')" class="mt-1 text-2xs text-rose-600 font-medium">Format d'email invalide.</p>
+          class="mt-1 w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-300 focus:outline-none transition" />
+        <p *ngIf="hasError(loginForm, 'email', 'required')" class="mt-1 text-xs text-rose-600 font-medium">L'email est requis.</p>
+        <p *ngIf="hasError(loginForm, 'email', 'email')" class="mt-1 text-xs text-rose-600 font-medium">Format d'email invalide.</p>
       </div>
 
       <div>
         <div class="flex items-center justify-between">
-          <label class="block text-xs font-semibold text-slate-700">Mot de passe</label>
+          <label class="block text-sm font-semibold text-slate-700">Mot de passe</label>
           <button
             type="button"
             (click)="switchMode('forgot-password')"
-            class="text-[11px] font-normal text-slate-400 hover:text-brand-600 transition-colors">
+            class="text-xs text-slate-400 hover:text-brand-600 transition-colors">
             Mot de passe oublié ?
           </button>
         </div>
@@ -129,7 +134,7 @@
             formControlName="password"
             placeholder="••••••••"
             autocomplete="current-password"
-            class="w-full rounded-xl border border-brand-100 bg-white px-3 py-2 pr-10 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-300 focus:outline-none transition" />
+            class="w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 pr-10 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-300 focus:outline-none transition" />
           <button
             type="button"
             (click)="togglePassword()"
@@ -143,7 +148,7 @@
             </svg>
           </button>
         </div>
-        <p *ngIf="hasError(loginForm, 'password', 'required')" class="mt-1 text-2xs text-rose-600 font-medium">Le mot de passe est requis.</p>
+        <p *ngIf="hasError(loginForm, 'password', 'required')" class="mt-1 text-xs text-rose-600 font-medium">Le mot de passe est requis.</p>
       </div>
 
       <app-button
@@ -159,36 +164,36 @@
     <!-- Register Form -->
     <form *ngIf="mode() === 'register'" [formGroup]="registerForm" (ngSubmit)="onSubmit()" class="space-y-4">
       <div>
-        <label class="block text-xs font-semibold text-slate-700">Nom complet</label>
+        <label class="block text-sm font-semibold text-slate-700">Nom complet</label>
         <input
           type="text"
           formControlName="fullName"
           placeholder="Léa Bernard"
-          class="mt-1 w-full rounded-xl border border-brand-100 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 focus:border-brand-300 focus:outline-none transition" />
-        <p *ngIf="hasError(registerForm, 'fullName', 'required')" class="mt-1 text-2xs text-rose-600 font-medium">Le nom complet est requis.</p>
+          class="mt-1 w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 text-sm text-slate-800 focus:border-brand-300 focus:outline-none transition" />
+        <p *ngIf="hasError(registerForm, 'fullName', 'required')" class="mt-1 text-xs text-rose-600 font-medium">Le nom complet est requis.</p>
       </div>
 
       <div>
-        <label class="block text-xs font-semibold text-slate-700">Adresse email</label>
+        <label class="block text-sm font-semibold text-slate-700">Adresse email</label>
         <input
           type="email"
           formControlName="email"
           placeholder="nom@exemple.fr"
           autocomplete="email"
-          class="mt-1 w-full rounded-xl border border-brand-100 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 focus:border-brand-300 focus:outline-none transition" />
-        <p *ngIf="hasError(registerForm, 'email', 'required')" class="mt-1 text-2xs text-rose-600 font-medium">L'email est requis.</p>
-        <p *ngIf="hasError(registerForm, 'email', 'email')" class="mt-1 text-2xs text-rose-600 font-medium">Format d'email invalide.</p>
+          class="mt-1 w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 text-sm text-slate-800 focus:border-brand-300 focus:outline-none transition" />
+        <p *ngIf="hasError(registerForm, 'email', 'required')" class="mt-1 text-xs text-rose-600 font-medium">L'email est requis.</p>
+        <p *ngIf="hasError(registerForm, 'email', 'email')" class="mt-1 text-xs text-rose-600 font-medium">Format d'email invalide.</p>
       </div>
 
       <div>
-        <label class="block text-xs font-semibold text-slate-700">Mot de passe (8 caractères min.)</label>
+        <label class="block text-sm font-semibold text-slate-700">Mot de passe <span class="font-normal text-slate-400">(8 car. min.)</span></label>
         <div class="relative mt-1">
           <input
             [type]="showPassword() ? 'text' : 'password'"
             formControlName="password"
             placeholder="••••••••"
             autocomplete="new-password"
-            class="w-full rounded-xl border border-brand-100 bg-white px-3 py-2 pr-10 text-xs sm:text-sm text-slate-800 focus:border-brand-300 focus:outline-none transition" />
+            class="w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 pr-10 text-sm text-slate-800 focus:border-brand-300 focus:outline-none transition" />
           <button
             type="button"
             (click)="togglePassword()"
@@ -202,7 +207,19 @@
             </svg>
           </button>
         </div>
-        <p *ngIf="hasError(registerForm, 'password', 'minlength')" class="mt-1 text-2xs text-rose-600 font-medium">8 caractères minimum requis.</p>
+        <p *ngIf="hasError(registerForm, 'password', 'minlength')" class="mt-1 text-xs text-rose-600 font-medium">8 caractères minimum requis.</p>
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold text-slate-700">Confirmer le mot de passe</label>
+        <input
+          type="password"
+          formControlName="confirmPassword"
+          placeholder="••••••••"
+          autocomplete="new-password"
+          class="mt-1 w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 text-sm text-slate-800 focus:border-brand-300 focus:outline-none transition" />
+        <p *ngIf="hasError(registerForm, 'confirmPassword', 'required')" class="mt-1 text-xs text-rose-600 font-medium">Ce champ est requis.</p>
+        <p *ngIf="hasError(registerForm, 'confirmPassword', 'mismatch')" class="mt-1 text-xs text-rose-600 font-medium">Les mots de passe ne correspondent pas.</p>
       </div>
 
       <app-button
@@ -218,21 +235,21 @@
     <!-- Email Verification Form -->
     <form *ngIf="mode() === 'verify-email'" [formGroup]="verifyForm" (ngSubmit)="submitVerifyEmail()" class="space-y-4">
       <div>
-        <label class="block text-xs font-semibold text-slate-700">Adresse email</label>
+        <label class="block text-sm font-semibold text-slate-700">Adresse email</label>
         <input
           type="email"
           formControlName="email"
-          class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs sm:text-sm text-slate-700 focus:outline-none" />
+          class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-500 focus:outline-none" />
       </div>
 
       <div>
         <div class="flex items-center justify-between">
-          <label class="block text-xs font-semibold text-slate-700">Code de validation (6 chiffres)</label>
+          <label class="block text-sm font-semibold text-slate-700">Code de validation</label>
           <button
             type="button"
             (click)="resendVerificationCode()"
-            class="text-2xs font-semibold text-brand-600 hover:text-brand-700 hover:underline">
-            Renvoyer le code
+            class="text-xs font-semibold text-brand-600 hover:text-brand-700 hover:underline">
+            Renvoyer
           </button>
         </div>
         <input
@@ -241,8 +258,8 @@
           maxlength="10"
           placeholder="••••••"
           autocomplete="one-time-code"
-          class="mt-1 w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 text-center text-lg tracking-widest font-mono font-bold text-slate-900 focus:border-brand-300 focus:outline-none transition" />
-        <p *ngIf="hasError(verifyForm, 'code', 'required')" class="mt-1 text-2xs text-rose-600 font-medium">Le code à 6 chiffres est requis.</p>
+          class="mt-1 w-full rounded-xl border border-brand-100 bg-white px-3 py-3 text-center text-xl tracking-widest font-mono font-bold text-slate-900 focus:border-brand-300 focus:outline-none transition" />
+        <p *ngIf="hasError(verifyForm, 'code', 'required')" class="mt-1 text-xs text-rose-600 font-medium">Le code est requis.</p>
       </div>
 
       <app-button
@@ -251,13 +268,13 @@
         [loading]="isLoading()"
         [fullWidth]="true"
         customClass="mt-2">
-        Valider et accéder à mon espace
+        Valider et accéder
       </app-button>
 
       <button
         type="button"
         (click)="switchMode('login')"
-        class="w-full text-center text-xs font-semibold text-slate-500 hover:text-slate-800 pt-2 block transition">
+        class="w-full text-center text-sm text-slate-500 hover:text-slate-800 pt-1 block transition">
         ← Retour à la connexion
       </button>
     </form>
@@ -265,15 +282,15 @@
     <!-- Forgot Password Request Form -->
     <form *ngIf="mode() === 'forgot-password'" [formGroup]="forgotForm" (ngSubmit)="submitForgotPassword()" class="space-y-4">
       <div>
-        <label class="block text-xs font-semibold text-slate-700">Votre adresse email de connexion</label>
+        <label class="block text-sm font-semibold text-slate-700">Votre adresse email</label>
         <input
           type="email"
           formControlName="email"
           placeholder="nom@exemple.fr"
           autocomplete="email"
-          class="mt-1 w-full rounded-xl border border-brand-100 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-300 focus:outline-none transition" />
-        <p *ngIf="hasError(forgotForm, 'email', 'required')" class="mt-1 text-2xs text-rose-600 font-medium">L'email est requis.</p>
-        <p *ngIf="hasError(forgotForm, 'email', 'email')" class="mt-1 text-2xs text-rose-600 font-medium">Format d'email invalide.</p>
+          class="mt-1 w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-300 focus:outline-none transition" />
+        <p *ngIf="hasError(forgotForm, 'email', 'required')" class="mt-1 text-xs text-rose-600 font-medium">L'email est requis.</p>
+        <p *ngIf="hasError(forgotForm, 'email', 'email')" class="mt-1 text-xs text-rose-600 font-medium">Format d'email invalide.</p>
       </div>
 
       <app-button
@@ -282,13 +299,13 @@
         [loading]="isLoading()"
         [fullWidth]="true"
         customClass="mt-2">
-        Envoyer le code de réinitialisation
+        Envoyer le code
       </app-button>
 
       <button
         type="button"
         (click)="switchMode('login')"
-        class="w-full text-center text-xs font-semibold text-slate-500 hover:text-slate-800 pt-2 block transition">
+        class="w-full text-center text-sm text-slate-500 hover:text-slate-800 pt-1 block transition">
         ← Retour à la connexion
       </button>
     </form>
@@ -296,34 +313,34 @@
     <!-- Reset Password Final Form -->
     <form *ngIf="mode() === 'reset-password'" [formGroup]="resetPasswordForm" (ngSubmit)="submitResetPassword()" class="space-y-4">
       <div>
-        <label class="block text-xs font-semibold text-slate-700">Adresse email</label>
+        <label class="block text-sm font-semibold text-slate-700">Adresse email</label>
         <input
           type="email"
           formControlName="email"
-          class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs sm:text-sm text-slate-700 focus:outline-none" />
+          class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-500 focus:outline-none" />
       </div>
 
       <div>
-        <label class="block text-xs font-semibold text-slate-700">Code de sécurité reçu par email</label>
+        <label class="block text-sm font-semibold text-slate-700">Code de sécurité</label>
         <input
           type="text"
           formControlName="code"
           maxlength="10"
           placeholder="••••••"
           autocomplete="one-time-code"
-          class="mt-1 w-full rounded-xl border border-brand-100 bg-white px-3 py-2 text-center text-base tracking-widest font-mono font-bold text-slate-900 focus:border-brand-300 focus:outline-none transition" />
-        <p *ngIf="hasError(resetPasswordForm, 'code', 'required')" class="mt-1 text-2xs text-rose-600 font-medium">Le code est requis.</p>
+          class="mt-1 w-full rounded-xl border border-brand-100 bg-white px-3 py-3 text-center text-xl tracking-widest font-mono font-bold text-slate-900 focus:border-brand-300 focus:outline-none transition" />
+        <p *ngIf="hasError(resetPasswordForm, 'code', 'required')" class="mt-1 text-xs text-rose-600 font-medium">Le code est requis.</p>
       </div>
 
       <div>
-        <label class="block text-xs font-semibold text-slate-700">Nouveau mot de passe (8 caractères min.)</label>
+        <label class="block text-sm font-semibold text-slate-700">Nouveau mot de passe <span class="font-normal text-slate-400">(8 car. min.)</span></label>
         <div class="relative mt-1">
           <input
             [type]="showPassword() ? 'text' : 'password'"
             formControlName="newPassword"
             placeholder="••••••••"
             autocomplete="new-password"
-            class="w-full rounded-xl border border-brand-100 bg-white px-3 py-2 pr-10 text-xs sm:text-sm text-slate-800 focus:border-brand-300 focus:outline-none transition" />
+            class="w-full rounded-xl border border-brand-100 bg-white px-3 py-2.5 pr-10 text-sm text-slate-800 focus:border-brand-300 focus:outline-none transition" />
           <button
             type="button"
             (click)="togglePassword()"
@@ -337,7 +354,7 @@
             </svg>
           </button>
         </div>
-        <p *ngIf="hasError(resetPasswordForm, 'newPassword', 'minlength')" class="mt-1 text-2xs text-rose-600 font-medium">8 caractères minimum requis.</p>
+        <p *ngIf="hasError(resetPasswordForm, 'newPassword', 'minlength')" class="mt-1 text-xs text-rose-600 font-medium">8 caractères minimum requis.</p>
       </div>
 
       <app-button
@@ -352,13 +369,9 @@
       <button
         type="button"
         (click)="switchMode('login')"
-        class="w-full text-center text-xs font-semibold text-slate-500 hover:text-slate-800 pt-2 block transition">
+        class="w-full text-center text-sm text-slate-500 hover:text-slate-800 pt-1 block transition">
         ← Retour à la connexion
       </button>
     </form>
   </div>
-
-  <p class="mt-6 text-center text-xs text-slate-400">
-    Données hébergées en France · Conformité RGPD stricte
-  </p>
 </div>

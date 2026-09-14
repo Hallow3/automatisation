@@ -1,0 +1,362 @@
+/* Feuille A4 Physique Normalisée */
+.classic-paper {
+  width: 794px;
+  min-height: 1123px;
+  background-color: #ffffff;
+  margin: 0 auto;
+  box-sizing: border-box;
+  font-family: 'Georgia', 'Cambria', 'Times New Roman', serif;
+  color: #1e293b;
+  position: relative;
+  overflow: hidden;
+  padding: 44px 48px;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08);
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* En-tête centré classique */
+.classic-header {
+  text-align: center;
+  margin-bottom: 24px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.classic-name {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #0f172a;
+  margin: 0;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.2;
+}
+
+.classic-title {
+  font-size: 14px;
+  font-weight: 600;
+  font-style: italic;
+  margin: 4px 0 0 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.3;
+}
+
+.classic-contact-line {
+  margin-top: 10px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 11px;
+  color: #475569;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.classic-contact-item {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.classic-dot {
+  color: #94a3b8;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.classic-divider {
+  margin-top: 16px;
+  border-bottom: 2px solid #0f172a;
+  width: 100%;
+}
+
+/* Corps monocolonne */
+.classic-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Titre de section */
+.classic-section {
+  break-inside: avoid;
+  page-break-inside: avoid;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.classic-section-title {
+  font-family: 'Georgia', 'Cambria', serif;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #0f172a;
+  border-bottom: 1px solid #cbd5e1;
+  padding-bottom: 4px;
+  margin: 0 0 10px 0;
+}
+
+/* Profil */
+.classic-summary-text {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #334155;
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-align: left;
+}
+
+/* Expériences */
+.classic-experiences-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.classic-exp-item {
+  break-inside: avoid;
+  page-break-inside: avoid;
+  width: 100%;
+  min-width: 0;
+}
+
+.classic-item-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.classic-item-title-col {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.classic-role {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.3;
+}
+
+.classic-company {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.classic-city {
+  font-size: 11px;
+  color: #64748b;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.classic-period {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.classic-exp-desc {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #475569;
+  margin: 4px 0 0 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.classic-bullets {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.classic-bullet-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #334155;
+  width: 100%;
+  min-width: 0;
+}
+
+.classic-bullet-item > span:last-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.classic-bullet-mark {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+/* Formations */
+.classic-edu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.classic-edu-item {
+  break-inside: avoid;
+  width: 100%;
+  min-width: 0;
+}
+
+.classic-edu-item .classic-item-row > div:first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.classic-degree {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  display: inline;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.3;
+}
+
+.classic-school {
+  font-size: 11.5px;
+  color: #475569;
+  margin-left: 6px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Compétences */
+.classic-skills-container {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #334155;
+  width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.classic-skill-tag {
+  display: inline;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.classic-skill-sep {
+  color: #94a3b8;
+}
+
+/* Projets */
+.classic-proj-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.classic-proj-item {
+  font-size: 11.5px;
+  break-inside: avoid;
+  width: 100%;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.classic-proj-name {
+  font-weight: 700;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.classic-proj-detail {
+  color: #475569;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Langues */
+.classic-lang-row {
+  font-size: 11.5px;
+  color: #334155;
+  width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.classic-lang-tag {
+  display: inline;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media print {
+  .classic-paper {
+    width: 210mm !important;
+    max-width: 210mm !important;
+    min-height: 297mm !important;
+    height: auto !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    margin: 0 auto !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .classic-section,
+  .classic-exp-item,
+  .classic-edu-item,
+  .classic-proj-item,
+  .classic-lang-row {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}

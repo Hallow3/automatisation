@@ -1,6 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { CvApiService } from '../../core/services/cv-api.service';
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
 import { ButtonComponent } from '../../shared/components/button/button.component';
 import { CardComponent } from '../../shared/components/card/card.component';
@@ -35,35 +36,37 @@ interface DocItem {
   styleUrl: './documents.component.css'
 })
 export class DocumentsComponent implements OnInit {
-  documents: DocItem[] = [
-    {
-      id: 'd1',
-      name: 'CV_Dev_FullStack_2026.pdf',
-      type: 'cv',
-      target: 'Générique (Modèle Rigueur)',
-      date: 'Aujourd’hui à 10:14',
-      size: '142 Ko',
-      status: 'Prête'
-    },
-    {
-      id: 'd2',
-      name: 'Lettre_Motivation_LeadTech.pdf',
-      type: 'lettre',
-      target: 'Candidature Lead Developer',
-      date: 'Hier à 14:30',
-      size: '88 Ko',
-      status: 'Envoyée'
-    },
-    {
-      id: 'd3',
-      name: 'CV_TechLead_Moderne.pdf',
-      type: 'cv',
-      target: 'Offre Architecte Web',
-      date: '18 août 2026',
-      size: '156 Ko',
-      status: 'Prête'
-    }
-  ];
+  private cvApi = inject(CvApiService);
+  documents: DocItem[] = [];
+  loading = true;
 
-  ngOnInit(): void {}
+  ngOnInit(): void {
+    this.cvApi.getCvs().subscribe({
+      next: (cvs) => {
+        this.documents = (cvs || []).map((cv) => {
+          let content: any = null;
+          if (cv.contentJson) {
+            try {
+              content = typeof cv.contentJson === 'string' ? JSON.parse(cv.contentJson) : cv.contentJson;
+            } catch {}
+          }
+          const target = content?.headline || cv.title || 'Générique';
+
+          return {
+            id: cv.id,
+            name: `${cv.title || 'CV'}.pdf`,
+            type: 'cv',
+            target,
+            date: cv.updatedAt ? new Date(cv.updatedAt).toLocaleDateString('fr-FR') : 'Récemment',
+            size: '~120 Ko',
+            status: cv.status === 'READY' ? 'Prête' : 'En cours'
+          };
+        });
+        this.loading = false;
+      },
+      error: () => {
+        this.loading = false;
+      }
+    });
+  }
 }

@@ -30,7 +30,10 @@ target/
 .env.local
 .env.*.local
 *.log
-!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+ressources/clé nokash/
+ressources/**/clés.txt
+maven-wrapper.jar
 
 ### Dump & local DB ###
 backup.sql

@@ -42,25 +42,27 @@
 
   .cv-scale-wrapper {
     transform: none !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    margin: 0 auto !important;
   }
 
   .cv-page-sheet-container {
-    page-break-after: always;
-    break-after: page;
-    margin: 0 !important;
-    width: 100% !important;
+    margin: 0 auto !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
   }
 
-  .cv-paper {
+  .cv-paper, .modern-paper, .classic-paper {
     box-shadow: none !important;
-    max-width: 100% !important;
-    height: 100vh !important;
-    margin: 0 !important;
-    page-break-inside: avoid;
-    break-inside: avoid;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    min-height: 297mm !important;
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 auto !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
   }
 }
 

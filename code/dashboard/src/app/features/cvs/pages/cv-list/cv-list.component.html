@@ -12,8 +12,8 @@
       <p class="text-xs text-slate-400 mt-0.5 truncate">Gérez, personnalisez et exportez vos différentes versions de CV.</p>
     </div>
 
-    <!-- Top Action Buttons (Single clean source for new CV) -->
-    <div class="flex items-center gap-2 shrink-0">
+    <!-- Top Action Buttons -->
+    <div class="flex items-center gap-1.5 shrink-0">
       <input
         #fileInput
         type="file"
@@ -23,25 +23,35 @@
 
       <button
         type="button"
-        (click)="fileInput.click()"
+        (click)="handleImportClick(fileInput)"
         [disabled]="isImporting()"
-        class="inline-flex h-8 sm:h-9 items-center justify-center gap-1.5 rounded-xl border border-brand-200 bg-white hover:bg-brand-50 px-3 sm:px-4 text-xs sm:text-sm font-semibold text-slate-700 shadow-sm transition disabled:opacity-50">
-        <svg class="h-4 w-4 text-brand-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        title="{{ isImporting() ? 'Analyse en cours…' : 'Importer un CV (2 crédits Pro)' }}"
+        class="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-brand-200 bg-white hover:bg-brand-50 px-2.5 sm:px-3.5 text-xs font-semibold text-slate-700 shadow-sm transition disabled:opacity-50">
+        <svg class="h-4 w-4 shrink-0 text-brand-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
         </svg>
-        {{ isImporting() ? 'Analyse en cours…' : 'Importer' }}
+        <span class="hidden sm:inline">{{ isImporting() ? 'Analyse…' : 'Importer' }}</span>
       </button>
 
       <a
         routerLink="/cv-builder"
-        class="inline-flex h-8 sm:h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 px-3.5 sm:px-4 text-xs sm:text-sm font-semibold text-white shadow-brand active:scale-95 transition">
-        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+        title="Nouveau CV"
+        class="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 px-2.5 sm:px-4 text-xs font-semibold text-white shadow-brand active:scale-95 transition">
+        <svg class="h-4 w-4 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
           <line x1="12" y1="5" x2="12" y2="19"/>
           <line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
         <span>Nouveau CV</span>
       </a>
     </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div
+    *ngIf="proNotification()"
+    class="rounded-lg bg-slate-900 text-white px-3.5 py-2.5 text-xs font-medium flex items-center justify-between animate-fade-in border border-slate-800">
+    <span>{{ proNotification() }}</span>
+    <button type="button" (click)="proNotification.set(null)" class="text-slate-400 hover:text-white ml-2">✕</button>
   </div>
 
   <!-- Search & View Mode Switcher -->
@@ -123,7 +133,7 @@
     <div class="mt-5 flex flex-wrap items-center justify-center gap-2.5">
       <a
         routerLink="/cv-builder"
-        class="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-brand-navy-900 px-4 text-xs font-bold text-white shadow-sm hover:bg-brand-navy-800 transition">
+        class="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-brand-navy-900 px-4 text-xs font-bold text-brand-600 shadow-sm hover:bg-brand-navy-800 transition">
         Créer mon premier CV →
       </a>
       <button
@@ -167,13 +177,13 @@
       <div class="mt-3 flex items-start justify-between gap-2">
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-1.5">
-            <h3 class="truncate text-xs sm:text-sm font-bold text-slate-900 group-hover:text-brand-600 transition">
+            <h3 class="truncate text-sm font-bold text-slate-900 group-hover:text-brand-600 transition">
               <a [routerLink]="['/cv-builder']" [queryParams]="{ action: 'editor', cvId: item.id }">
                 {{ item.title }}
               </a>
             </h3>
           </div>
-          <p class="mt-0.5 text-2xs text-slate-400 truncate">
+          <p class="mt-0.5 text-xs text-slate-400 truncate">
             {{ item.templateLabel }} · Modifié le {{ item.updatedDate }}
           </p>
         </div>
@@ -192,10 +202,17 @@
             </svg>
           </button>
 
-          <!-- Dropdown popup (Clean text without icons, Traduire instead of Télécharger) -->
+          <!-- Dropdown popup -->
           <div
             *ngIf="menuOpenId === item.id"
-            class="absolute right-0 top-8 z-30 w-40 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg animate-fade-in">
+            class="absolute right-0 top-8 z-30 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg animate-fade-in">
+            <button
+              type="button"
+              (click)="downloadCvPdf(item, $event)"
+              class="w-full px-3.5 py-2 text-left text-xs font-semibold text-slate-800 hover:bg-slate-50 flex items-center justify-between transition">
+              <span>Télécharger PDF</span>
+              <span class="text-xs text-slate-400 font-medium">Gratuit</span>
+            </button>
             <button
               type="button"
               (click)="openTranslateModal(item, $event)"
@@ -273,16 +290,16 @@
         <!-- Metadata -->
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2">
-            <h3 class="truncate text-xs sm:text-sm font-bold text-slate-900 group-hover:text-brand-600 transition">
+            <h3 class="truncate text-sm font-bold text-slate-900 group-hover:text-brand-600 transition">
               <a [routerLink]="['/cv-builder']" [queryParams]="{ action: 'editor', cvId: item.id }">
                 {{ item.title }}
               </a>
             </h3>
-            <span class="rounded-md bg-slate-100 px-2 py-0.5 text-2xs font-semibold text-slate-600 shrink-0">
+            <span class="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 shrink-0">
               {{ item.templateLabel }}
             </span>
           </div>
-          <p class="mt-0.5 text-2xs text-slate-400 truncate">
+          <p class="mt-0.5 text-xs text-slate-400 truncate">
             Dernière mise à jour : {{ item.updatedDate }} · {{ item.pages }} page{{ item.pages > 1 ? 's' : '' }}
           </p>
         </div>
@@ -415,8 +432,8 @@
       <!-- Modal Header -->
       <div class="flex items-center justify-between gap-2.5 border-b border-slate-200 bg-white px-3 sm:px-5 py-3 shrink-0">
         <div class="min-w-0">
-          <h3 class="text-xs sm:text-sm font-bold text-slate-900 truncate">{{ selectedCvForPreview()?.title }}</h3>
-          <p class="text-2xs text-slate-500 truncate">{{ selectedCvForPreview()?.templateLabel }} · Modifié le {{ selectedCvForPreview()?.updatedDate }}</p>
+          <h3 class="text-sm font-bold text-slate-900 truncate">{{ selectedCvForPreview()?.title }}</h3>
+          <p class="text-xs text-slate-500 truncate">{{ selectedCvForPreview()?.templateLabel }} · Modifié le {{ selectedCvForPreview()?.updatedDate }}</p>
         </div>
 
         <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
@@ -473,7 +490,7 @@
         <select
           [ngModel]="targetLanguage()"
           (ngModelChange)="targetLanguage.set($event)"
-          class="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm text-slate-900 focus:border-brand-500 focus:outline-none bg-white">
+          class="w-full rounded-xl border border-slate-300 p-2.5 text-sm text-slate-900 focus:border-brand-500 focus:outline-none bg-white">
           <option value="Anglais">🇬🇧 Anglais (English)</option>
           <option value="Espagnol">🇪🇸 Espagnol (Español)</option>
           <option value="Allemand">🇩🇪 Allemand (Deutsch)</option>
@@ -517,4 +534,13 @@
       </div>
     </div>
   </app-modal>
+
+  <!-- Modale de Paiement Mobile Money B2C -->
+  <app-payment-modal
+    [open]="paymentModalOpen()"
+    [cvId]="selectedCvForPayment()?.id || null"
+    [cvTitle]="selectedCvForPayment()?.title || 'Mon CV Professionnel'"
+    (close)="paymentModalOpen.set(false)"
+    (paymentSuccess)="onPaymentSuccess($event)">
+  </app-payment-modal>
 </div>

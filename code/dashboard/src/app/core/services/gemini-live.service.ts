@@ -2,10 +2,11 @@ import { Injectable, signal, computed, inject } from '@angular/core';
 import { Subject, firstValueFrom } from 'rxjs';
 import { CvInterviewApiService } from './cv-interview-api.service';
 import { AuthService } from './auth.service';
-import {
-  CV_INTERVIEW_START_TRIGGER,
-  CV_INTERVIEW_SYSTEM_PROMPT
-} from './cv-interview-system.prompt';
+import { AudioPcmEngineService } from './audio-pcm-engine.service';
+import { GeminiLiveWsClientService } from './gemini-live-ws-client.service';
+import { InterviewSessionCacheService } from './interview-session-cache.service';
+import { CV_INTERVIEW_START_TRIGGER, buildStartTrigger } from './cv-interview-system.prompt';
+import { CvAuditEngineService, CvAuditReport } from './cv-audit-engine.service';
 
 export type LiveInterviewState =
   | 'READY'
@@ -28,10 +29,15 @@ export interface TranscriptEntry {
 export class GeminiLiveService {
   private apiService = inject(CvInterviewApiService);
   private authService = inject(AuthService);
+  private audioEngine = inject(AudioPcmEngineService);
+  private wsClient = inject(GeminiLiveWsClientService);
+  private sessionCache = inject(InterviewSessionCacheService);
+  private auditEngine = inject(CvAuditEngineService);
 
   public state = signal<LiveInterviewState>('READY');
   public transcript = signal<TranscriptEntry[]>([]);
   public errorMessage = signal<string | null>(null);
+  public auditReport = signal<CvAuditReport | null>(null);
   public isQuotaReached = computed(() => {
     const msg = this.errorMessage();
     return !!msg && (msg.includes('limite de 3 entretiens') || msg.includes('QUOTA_REACHED') || msg.includes('crédits se réinitialiseront'));
@@ -39,66 +45,129 @@ export class GeminiLiveService {
 
   public currentDraft = signal<any>(this.createEmptyDraft());
   public interviewCompleted$ = new Subject<void>();
+  public currentCvId: string = 'cv_default';
+  public isMutedSignal = signal<boolean>(false);
 
-  private ws: WebSocket | null = null;
+  // Nouveaux signaux pour le contrôle manuel par l'utilisateur
+  public hasStarted = signal<boolean>(false);
+  public isStarting = signal<boolean>(false);
+  public isWsReady = signal<boolean>(false);
 
-  // Capture micro
-  private audioCtx: AudioContext | null = null;
-  private mediaStream: MediaStream | null = null;
-  private workletNode: AudioWorkletNode | null = null;
-  private workletUrl: string | null = null;
-  private scriptNode: ScriptProcessorNode | null = null;
-  private silentGainNode: GainNode | null = null;
-  private microphoneReadyPromise: Promise<void> | null = null;
-
-  // Lecture Gemini
-  private playbackCtx: AudioContext | null = null;
-  private nextPlayTime = 0;
-  private activeSources: AudioBufferSourceNode[] = [];
-  private pendingSourceCount = 0;
-  private modelTurnComplete = false;
-
-  private isSetupComplete = false;
-  private welcomeTriggered = false;
-
-  // Inactivité : on ferme uniquement lorsque Gemini a fini de parler
-  // et attend réellement une réponse utilisateur.
+  private isAiSpeakingCooldown = false;
+  private echoCooldownTimer: any = null;
   private inactivityTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly inactivityTimeoutMs = 90_000;
+  private _startAbortController: AbortController | null = null;
 
-  // Gestion du streaming transcript par tour de parole
-  private activeTurnRole: 'user' | 'ai' | null = null;
-  private activeTurnId: string | null = null;
+  // Verrou d'exclusion mutuelle et sas acoustique initial :
+  // Tant que l'accueil IA initial (CV_INTERVIEW_START_TRIGGER) n'a pas fini d'être énoncé
+  // par Bray, le microphone est STRICTEMENT MUTÉ côté client.
+  // Cela élimine radicalement tout double déclencheur audio et toute boucle acoustique
+  // générant deux voix Gemini en parallèle au démarrage.
+  private initialGreetingPending = false;
+  private isSessionStarting = false;
+  private pendingStartTriggerPrompt = '';
+  private userWantsToStart = false;
 
-  public currentCvId: string = 'cv_default';
+  private lineBuffers: { user: string; ai: string } = { user: '', ai: '' };
+  private flushTimeouts: { user?: any; ai?: any } = {};
 
+  setMuted(muted: boolean): void {
+    this.isMutedSignal.set(muted);
+    this.audioEngine.setMuted(muted);
+  }
+
+  /**
+   * Alias de rétrocompatibilité : prépare la session WebSocket sans démarrer la parole.
+   */
   async startSession(cvId: string = 'cv_default'): Promise<void> {
+    return this.prepareSession(cvId);
+  }
+
+  /**
+   * Prépare et ouvre la connexion Gemini Live en tâche de fond dès l'arrivée sur l'écran.
+   * L'IA reste silencieuse et le microphone n'est pas engagé tant que l'utilisateur
+   * n'a pas cliqué sur « Commencer l'entretien ».
+   */
+  async prepareSession(cvId: string = 'cv_default'): Promise<void> {
+    // 0. Protection contre les doubles déclenchements concurrents
+    if (this.isSessionStarting) {
+      console.warn('[GeminiLive] Une initialisation de session est déjà en cours, requête ignorée.');
+      return;
+    }
+
+    // Si déjà prêt sur le même cvId et non démarré, ne pas recharger inutilement
+    if (this.isWsReady() && this.currentCvId === cvId && !this.hasStarted() && !this.errorMessage()) {
+      return;
+    }
+
+    this.isSessionStarting = true;
+
+    // Annuler tout démarrage précédent
+    if (this._startAbortController) {
+      this._startAbortController.abort();
+    }
+    const abortController = new AbortController();
+    this._startAbortController = abortController;
+
     try {
+      // 1. Fermer rigoureusement toute session ou connexion WebSocket précédente
+      this.stopSession();
+
       this.currentCvId = cvId;
       this.state.set('CONNECTING');
       this.errorMessage.set(null);
       this.resetDraft();
-
-      this.isSetupComplete = false;
-      this.welcomeTriggered = false;
-      this.modelTurnComplete = false;
       this.clearInactivityTimer();
+      this.userWantsToStart = false;
+      this.hasStarted.set(false);
+      this.isStarting.set(false);
+      this.isWsReady.set(false);
 
-      /**
-       * Optimisation sans toucher au contrat Gemini :
-       * on demande le micro pendant que Spring crée le token éphémère.
-       * Le micro ne sera pas envoyé tant que setupComplete n'a pas été reçu.
-       */
-      this.microphoneReadyPromise = this.startMicrophone();
+      // Vérifier si une session récente (< 10 min) existe en cache
+      const cached = this.sessionCache.getSession(cvId);
+      let isResume = false;
+      let cachedContext = '';
+      if (cached) {
+        if (cached.draft) this.currentDraft.set(cached.draft);
+        if (cached.transcript?.length > 0) {
+          this.transcript.set(cached.transcript.map(t => ({
+            id: t.id,
+            role: t.role === 'user' ? 'user' : 'ai',
+            text: t.text,
+            isFinal: true
+          })));
+        }
+        const hasDraftData = cached.draft && (
+          (cached.draft.experiences && cached.draft.experiences.length > 0) ||
+          (cached.draft.skills && cached.draft.skills.length > 0) ||
+          cached.draft.headline ||
+          cached.draft.summary
+        );
+        if (hasDraftData || (cached.transcript && cached.transcript.length > 1)) {
+          isResume = true;
+          const parts: string[] = [];
+          if (cached.draft?.headline) parts.push(`- Métier visé / Titre : ${cached.draft.headline}`);
+          if (cached.draft?.experiences?.length) {
+            parts.push(`- Expériences déjà notées : ${cached.draft.experiences.map((e: any) => `${e.position} chez ${e.company} (${e.startDate || ''} - ${e.endDate || ''})`).join(', ')}`);
+          }
+          if (cached.draft?.education?.length) {
+            parts.push(`- Formations déjà notées : ${cached.draft.education.map((ed: any) => `${ed.degree} à ${ed.school} (${ed.year || ''})`).join(', ')}`);
+          }
+          if (cached.draft?.skills?.length) {
+            parts.push(`- Compétences notées : ${cached.draft.skills.join(', ')}`);
+          }
+          cachedContext = parts.join('\n');
+        }
+      }
+
+      // Obtenir le jeton de session backend
+      if (abortController.signal.aborted) return;
 
       const session = await firstValueFrom(
         this.apiService.createSession(cvId)
       ).catch((err) => {
-        let msg =
-          err?.error?.message ||
-          err?.error?.reason ||
-          err?.message ||
-          'Service vocal indisponible.';
+        let msg = err?.error?.message || err?.error?.reason || err?.message || 'Service vocal indisponible.';
         if (typeof msg === 'string' && msg.includes('QUOTA_REACHED:')) {
           msg = msg.split('QUOTA_REACHED:')[1]?.trim() || msg;
         }
@@ -108,1628 +177,417 @@ export class GeminiLiveService {
         throw new Error(msg);
       });
 
+      if (abortController.signal.aborted) {
+        this.stopSession();
+        return;
+      }
+
       const token = session?.token;
-      const model =
-        session?.model ||
-        'gemini-3.1-flash-live-preview';
+      const model = session?.model || 'gemini-3.1-flash-live-preview';
 
       if (session?.cvId) {
         this.currentCvId = session.cvId;
       }
 
       if (!token) {
-        throw new Error(
-          'Aucun token reçu depuis le backend.'
-        );
+        throw new Error('Aucun token reçu depuis le backend.');
       }
 
-      // On conserve exactement le mécanisme de connexion déjà fonctionnel.
-      const isEphemeralToken =
-        token.startsWith('auth_tokens/');
+      if (abortController.signal.aborted) {
+        this.stopSession();
+        return;
+      }
 
-      const wsUrl = isEphemeralToken
-        ? `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=${token}`
-        : `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${token}`;
+      const candidateFirstName = this.extractCandidateFirstName();
+      this.pendingStartTriggerPrompt = buildStartTrigger(candidateFirstName, isResume, cachedContext);
 
-      this.ws = new WebSocket(wsUrl);
-
-      this.ws.onopen = () => {
-        this.sendInitialSetup(model);
-      };
-
-      this.ws.onmessage = async (event) => {
-        await this.handleServerMessage(event.data);
-      };
-
-      this.ws.onerror = () => {
-        this.setError(
-          'Connexion WebSocket impossible. Vérifiez votre connexion internet.'
-        );
-      };
-
-      this.ws.onclose = (event) => {
-        this.clearInactivityTimer();
-
-        if (this.state() !== 'COMPLETED') {
-          if (
-            event.code !== 1000 &&
-            !this.isSetupComplete
-          ) {
-            this.setError(
-              `Connexion à l’assistant IA perdue (code ${event.code}). Veuillez réessayer.`
-            );
-          } else if (this.state() !== 'ERROR') {
+      // Connecter le WebSocket avec callbacks réactifs
+      this.wsClient.connect(token, model, {
+        onSetupComplete: () => {
+          this.isWsReady.set(true);
+          // Si l'utilisateur a cliqué sur "Commencer" pendant que la connexion s'établissait
+          if (this.userWantsToStart) {
+            this.beginInterview();
+          } else {
             this.state.set('READY');
           }
+        },
+        onAudioChunkReceived: (base64Pcm) => {
+          this.state.set('AI_SPEAKING');
+          this.clearInactivityTimer();
+          if (this.echoCooldownTimer) {
+            clearTimeout(this.echoCooldownTimer);
+            this.echoCooldownTimer = null;
+          }
+          this.audioEngine.playPcmChunk(base64Pcm, () => {
+            // Fin de parole effective de l'IA dans les haut-parleurs
+            this.initialGreetingPending = false;
+            this.state.set('LISTENING');
+            this.isAiSpeakingCooldown = true;
+            if (this.echoCooldownTimer) clearTimeout(this.echoCooldownTimer);
+            this.echoCooldownTimer = setTimeout(() => {
+              this.isAiSpeakingCooldown = false;
+              this.armInactivityTimer();
+            }, 400);
+          });
+        },
+        onTextChunkReceived: (role, text) => {
+          this.appendTranscriptChunk(role, text);
+        },
+        onModelTurnComplete: () => {
+          this.finalizeCurrentTurn();
+        },
+        onInterrupted: () => {
+          this.audioEngine.interruptPlayback();
+          this.initialGreetingPending = false;
+          this.isAiSpeakingCooldown = false;
+          this.state.set('LISTENING');
+          this.finalizeCurrentTurn();
+        },
+        onToolCall: async (name, callId, args) => {
+          return await this.handleToolCall(name, callId, args);
+        },
+        onError: (err) => {
+          this.initialGreetingPending = false;
+          this.isStarting.set(false);
+          this.setError(err);
+        },
+        onClose: (code) => {
+          this.initialGreetingPending = false;
+          this.isStarting.set(false);
+          if (this.state() !== 'COMPLETED' && code !== 1000 && this.state() !== 'ERROR') {
+            this.setError(`Connexion à l’assistant perdue (code ${code}).`);
+          }
         }
-      };
+      }, candidateFirstName);
     } catch (err: any) {
+      this.initialGreetingPending = false;
+      this.isStarting.set(false);
+      if (abortController.signal.aborted) return;
       this.stopSession();
-      this.setError(
-        err?.message ||
-        'Impossible de démarrer la session vocale.'
-      );
-    }
-  }
-
-  private setError(message: string): void {
-    this.errorMessage.set(message);
-    this.state.set('ERROR');
-  }
-
-  private sendInitialSetup(model: string): void {
-    if (
-      !this.ws ||
-      this.ws.readyState !== WebSocket.OPEN
-    ) {
-      return;
-    }
-
-    const fullModelName = model.startsWith('models/')
-      ? model
-      : `models/${model}`;
-
-    const setupPayload = {
-      setup: {
-        model: fullModelName,
-
-        generationConfig: {
-          responseModalities: ['AUDIO'],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: {
-                voiceName: 'Puck'
-              }
-            }
-          }
-        },
-
-        realtimeInputConfig: {
-          automaticActivityDetection: {
-            disabled: false,
-            // Valeurs volontairement conservatrices pour une conversation naturelle.
-            prefixPaddingMs: 40,
-            silenceDurationMs: 650
-          },
-          activityHandling:
-            'START_OF_ACTIVITY_INTERRUPTS'
-        },
-
-        // Le code gérait déjà ces messages côté réception ;
-        // on les active explicitement.
-        inputAudioTranscription: {},
-        outputAudioTranscription: {},
-
-        systemInstruction: {
-          parts: [
-            {
-              text: CV_INTERVIEW_SYSTEM_PROMPT
-            }
-          ]
-        },
-
-        tools: [
-          {
-            functionDeclarations: [
-              {
-                name: 'update_cv_draft',
-                description:
-                  'Met à jour les informations structurées et rédigées du CV à partir des faits confirmés par le candidat.',
-                parameters: {
-                  type: 'OBJECT',
-                  properties: {
-                    identity: {
-                      type: 'OBJECT',
-                      properties: {
-                        fullName: {
-                          type: 'STRING'
-                        },
-                        email: {
-                          type: 'STRING'
-                        },
-                        phone: {
-                          type: 'STRING'
-                        },
-                        city: {
-                          type: 'STRING'
-                        }
-                      }
-                    },
-
-                    headline: {
-                      type: 'STRING'
-                    },
-
-                    summary: {
-                      type: 'STRING',
-                      description:
-                        'Paragraphe professionnel rédigé, synthétique et factuellement fidèle.'
-                    },
-
-                    skills: {
-                      type: 'ARRAY',
-                      items: {
-                        type: 'STRING'
-                      }
-                    },
-
-                    experiences: {
-                      type: 'ARRAY',
-                      items: {
-                        type: 'OBJECT',
-                        properties: {
-                          company: {
-                            type: 'STRING'
-                          },
-                          position: {
-                            type: 'STRING'
-                          },
-                          startDate: {
-                            type: 'STRING'
-                          },
-                          endDate: {
-                            type: 'STRING'
-                          },
-                          context: {
-                            type: 'STRING',
-                            description:
-                              'Contexte rédigé de la mission, du produit ou du projet.'
-                          },
-                          responsibilities: {
-                            type: 'ARRAY',
-                            items: {
-                              type: 'STRING'
-                            }
-                          },
-                          achievements: {
-                            type: 'ARRAY',
-                            items: {
-                              type: 'STRING'
-                            }
-                          },
-                          technologies: {
-                            type: 'ARRAY',
-                            items: {
-                              type: 'STRING'
-                            }
-                          }
-                        }
-                      }
-                    },
-
-                    education: {
-                      type: 'ARRAY',
-                      items: {
-                        type: 'OBJECT',
-                        properties: {
-                          school: {
-                            type: 'STRING'
-                          },
-                          degree: {
-                            type: 'STRING'
-                          },
-                          year: {
-                            type: 'STRING'
-                          },
-                          details: {
-                            type: 'STRING'
-                          }
-                        }
-                      }
-                    },
-
-                    languages: {
-                      type: 'ARRAY',
-                      items: {
-                        type: 'STRING'
-                      }
-                    },
-
-                    projects: {
-                      type: 'ARRAY',
-                      items: {
-                        type: 'OBJECT',
-                        properties: {
-                          name: {
-                            type: 'STRING'
-                          },
-                          role: {
-                            type: 'STRING'
-                          },
-                          context: {
-                            type: 'STRING'
-                          },
-                          description: {
-                            type: 'STRING'
-                          },
-                          contributions: {
-                            type: 'ARRAY',
-                            items: {
-                              type: 'STRING'
-                            }
-                          },
-                          achievements: {
-                            type: 'ARRAY',
-                            items: {
-                              type: 'STRING'
-                            }
-                          },
-                          technologies: {
-                            type: 'ARRAY',
-                            items: {
-                              type: 'STRING'
-                            }
-                          },
-                          url: {
-                            type: 'STRING'
-                          }
-                        }
-                      }
-                    },
-
-                    certifications: {
-                      type: 'ARRAY',
-                      items: {
-                        type: 'OBJECT',
-                        properties: {
-                          name: {
-                            type: 'STRING'
-                          },
-                          issuer: {
-                            type: 'STRING'
-                          },
-                          year: {
-                            type: 'STRING'
-                          }
-                        }
-                      }
-                    },
-
-                    additionalSections: {
-                      type: 'ARRAY',
-                      items: {
-                        type: 'OBJECT',
-                        properties: {
-                          title: {
-                            type: 'STRING'
-                          },
-                          content: {
-                            type: 'STRING'
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              },
-
-              {
-                name: 'complete_interview',
-                description:
-                  'Termine l’entretien uniquement lorsque suffisamment de matière a été collectée et que le candidat confirme ne plus avoir d’élément important à ajouter.',
-                parameters: {
-                  type: 'OBJECT',
-                  properties: {
-                    finished: {
-                      type: 'BOOLEAN'
-                    }
-                  }
-                }
-              }
-            ]
-          }
-        ]
+      this.setError(err?.message || 'Impossible de démarrer la session vocale.');
+    } finally {
+      this.isSessionStarting = false;
+      if (this._startAbortController === abortController) {
+        this._startAbortController = null;
       }
-    };
-
-    this.ws.send(
-      JSON.stringify(setupPayload)
-    );
+    }
   }
 
   /**
-   * Le systemInstruction donne le comportement mais ne déclenche pas
-   * à lui seul une génération. Après setupComplete, on envoie donc un
-   * clientContent interne qui demande à Gemini de prendre la parole.
+   * Déclenche activement l'entretien vocal au clic explicite de l'utilisateur :
+   * 1. Engage le microphone
+   * 2. Initialise la lecture audio
+   * 3. Envoie le trigger à Gemini pour qu'il commence sa prise de parole d'accueil
    */
-  private triggerAssistantWelcome(): void {
-    if (
-      this.welcomeTriggered ||
-      !this.ws ||
-      this.ws.readyState !== WebSocket.OPEN ||
-      !this.isSetupComplete
-    ) {
+  async beginInterview(): Promise<void> {
+    if (this.hasStarted()) {
+      return;
+    }
+    if (this.isQuotaReached() || this.errorMessage()) {
       return;
     }
 
-    this.welcomeTriggered = true;
+    this.userWantsToStart = true;
+    this.isStarting.set(true);
 
-    this.ws.send(
-      JSON.stringify({
-        clientContent: {
-          turns: [
-            {
-              role: 'user',
-              parts: [
-                {
-                  text: CV_INTERVIEW_START_TRIGGER
-                }
-              ]
-            }
-          ],
-          turnComplete: true
-        }
-      })
-    );
-  }
-
-  private async startMicrophone(): Promise<void> {
-    if (
-      this.mediaStream &&
-      this.audioCtx
-    ) {
+    // Si la connexion WebSocket n'a pas encore finalisé le setup, attendre onSetupComplete
+    if (!this.isWsReady()) {
       return;
     }
 
     try {
-      this.mediaStream =
-        await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-            channelCount: 1
-          },
-          video: false
-        });
+      // 1. Démarrer le microphone avec la barrière anti-écho
+      await this.audioEngine.startMicrophone((base64Pcm) => {
+        if (this.initialGreetingPending || this.state() === 'AI_SPEAKING' || this.isAiSpeakingCooldown || this.isMutedSignal()) {
+          return;
+        }
+        this.wsClient.sendAudioChunk(base64Pcm);
+      });
 
-      this.audioCtx =
-        new (
-          window.AudioContext ||
-          (window as any).webkitAudioContext
-        )({
-          sampleRate: 16000
-        });
+      // 2. Initialiser l'AudioContext de lecture sur le gesture utilisateur
+      this.audioEngine.initPlayback();
 
-      const source =
-        this.audioCtx.createMediaStreamSource(
-          this.mediaStream
-        );
+      // 3. Activer le sas d'accueil : le micro est hermétiquement bloqué pendant la salutation de Bray
+      this.initialGreetingPending = true;
 
-      /**
-       * On garde le graphe audio actif sans renvoyer le micro
-       * dans les haut-parleurs.
-       */
-      this.silentGainNode =
-        this.audioCtx.createGain();
-      this.silentGainNode.gain.value = 0;
-      this.silentGainNode.connect(
-        this.audioCtx.destination
-      );
+      // 4. Envoyer le trigger pour faire parler Gemini
+      this.wsClient.sendClientContent(this.pendingStartTriggerPrompt);
 
-      if (this.audioCtx.audioWorklet) {
-        const workletCode = `
-          class PcmProcessor extends AudioWorkletProcessor {
-            process(inputs) {
-              const input = inputs[0];
-              if (input && input.length > 0) {
-                const channelData = input[0];
-                if (channelData && channelData.length > 0) {
-                  this.port.postMessage(channelData);
-                }
-              }
-              return true;
-            }
-          }
-
-          registerProcessor('pcm-processor', PcmProcessor);
-        `;
-
-        const blob = new Blob(
-          [workletCode],
-          {
-            type: 'application/javascript'
-          }
-        );
-
-        this.workletUrl =
-          URL.createObjectURL(blob);
-
-        await this.audioCtx.audioWorklet.addModule(
-          this.workletUrl
-        );
-
-        this.workletNode =
-          new AudioWorkletNode(
-            this.audioCtx,
-            'pcm-processor'
-          );
-
-        this.workletNode.port.onmessage = (
-          e: MessageEvent<Float32Array>
-        ) => {
-          this.processAudioChunk(e.data);
-        };
-
-        source.connect(
-          this.workletNode
-        );
-
-        this.workletNode.connect(
-          this.silentGainNode
-        );
-      } else {
-        this.scriptNode =
-          this.audioCtx.createScriptProcessor(
-            2048,
-            1,
-            1
-          );
-
-        this.scriptNode.onaudioprocess = (
-          e
-        ) => {
-          const inputData =
-            e.inputBuffer.getChannelData(0);
-
-          this.processAudioChunk(
-            inputData
-          );
-        };
-
-        source.connect(
-          this.scriptNode
-        );
-
-        this.scriptNode.connect(
-          this.silentGainNode
-        );
-      }
+      // 5. Basculer l'état
+      this.hasStarted.set(true);
+      this.isStarting.set(false);
     } catch (err: any) {
-      if (
-        err?.name === 'NotAllowedError' ||
-        err?.name ===
-        'PermissionDeniedError'
-      ) {
-        throw new Error(
-          'Accès au microphone refusé. Veuillez autoriser le microphone dans votre navigateur.'
-        );
-      }
-
-      throw new Error(
-        'Impossible d’accéder au microphone.'
-      );
+      this.isStarting.set(false);
+      this.setError(err?.message || 'Impossible d’accéder au microphone. Vérifiez vos autorisations.');
     }
   }
 
-  private processAudioChunk(
-    inputData: Float32Array
-  ): void {
-    if (
-      !this.ws ||
-      this.ws.readyState !== WebSocket.OPEN ||
-      !this.isSetupComplete
-    ) {
-      return;
+  /**
+   * Extrait le prénom du candidat à partir du profil connecté ou du brouillon de CV.
+   */
+  private extractCandidateFirstName(): string {
+    const user = this.authService.currentUser();
+    const draft = this.currentDraft();
+    const rawName = (draft?.identity?.fullName || user?.fullName || '').trim();
+    if (!rawName) return '';
+    const parts = rawName.split(/\s+/);
+    let first = parts[0] || '';
+    if (first.length > 0) {
+      first = first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
     }
-
-    const pcm16 =
-      new Int16Array(
-        inputData.length
-      );
-
-    for (
-      let i = 0;
-      i < inputData.length;
-      i++
-    ) {
-      const sample = Math.max(
-        -1,
-        Math.min(
-          1,
-          inputData[i]
-        )
-      );
-
-      pcm16[i] =
-        sample < 0
-          ? sample * 0x8000
-          : sample * 0x7fff;
-    }
-
-    const base64Audio =
-      this.arrayBufferToBase64(
-        pcm16.buffer
-      );
-
-    this.ws.send(
-      JSON.stringify({
-        realtimeInput: {
-          audio: {
-            data: base64Audio,
-            mimeType:
-              'audio/pcm;rate=16000'
-          }
-        }
-      })
-    );
+    return first;
   }
 
-  private async handleServerMessage(
-    data: any
-  ): Promise<void> {
-    try {
-      let rawText = data;
-
-      if (data instanceof Blob) {
-        rawText =
-          await data.text();
-      }
-
-      const msg =
-        JSON.parse(rawText);
-
-      if (msg.setupComplete) {
-        this.isSetupComplete = true;
-
-        this.ensurePlaybackContext();
-
-        if (this.microphoneReadyPromise) {
-          await this.microphoneReadyPromise;
-        } else {
-          await this.startMicrophone();
-        }
-
-        this.state.set('LISTENING');
-
-        // Gemini prend réellement la parole ici.
-        this.triggerAssistantWelcome();
-      }
-
-      if (msg.serverContent) {
-        const serverContent =
-          msg.serverContent;
-
-        if (
-          serverContent.interrupted
-        ) {
-          this.stopPlayback();
-          this.modelTurnComplete =
-            false;
-          this.state.set('LISTENING');
-          this.finalizeCurrentTurn();
-
-          // L'utilisateur vient d'interrompre Gemini :
-          // il est actif, donc on ne doit pas fermer la session.
-          this.clearInactivityTimer();
-        }
-
-        if (
-          serverContent
-            .inputTranscription
-            ?.text
-        ) {
-          this.markUserActivity();
-
-          this.appendTranscriptChunk(
-            'user',
-            serverContent
-              .inputTranscription.text
-          );
-        }
-
-        if (
-          serverContent
-            .outputTranscription
-            ?.text
-        ) {
-          this.appendTranscriptChunk(
-            'ai',
-            serverContent
-              .outputTranscription.text
-          );
-        }
-
-        const parts =
-          serverContent
-            .modelTurn?.parts ||
-          [];
-
-        for (
-          const part of parts
-        ) {
-          if (
-            part.inlineData?.data
-          ) {
-            this.clearInactivityTimer();
-
-            this.modelTurnComplete =
-              false;
-
-            this.state.set(
-              'AI_SPEAKING'
-            );
-
-            this.enqueuePcmAudio24k(
-              part.inlineData.data
-            );
-          }
-        }
-
-        if (
-          serverContent.turnComplete
-        ) {
-          this.modelTurnComplete =
-            true;
-          this.finalizeCurrentTurn();
-          this.tryEnterListeningState();
-        }
-      }
-
-      if (msg.toolCall) {
-        const calls =
-          msg.toolCall
-            .functionCalls || [];
-
-        for (
-          const call of calls
-        ) {
-          if (
-            call.name ===
-            'update_cv_draft'
-          ) {
-            await this.handleUpdateCvDraft(
-              call.args
-            );
-
-            this.respondToolCall(
-              call.id,
-              {
-                success: true
-              }
-            );
-          } else if (
-            call.name ===
-            'complete_interview'
-          ) {
-            /**
-             * On répond au tool call avant de fermer la socket.
-             */
-            await this.saveAndCompleteInterview();
-
-            this.respondToolCall(
-              call.id,
-              {
-                finished: true
-              }
-            );
-
-            this.state.set(
-              'COMPLETED'
-            );
-
-            setTimeout(() => {
-              this.stopSession();
-              this.interviewCompleted$.next();
-            }, 100);
-          }
-        }
-      }
-    } catch (e) {
-      console.error(
-        'Erreur traitement message Gemini:',
-        e
-      );
+  stopSession(): void {
+    this.initialGreetingPending = false;
+    this.isSessionStarting = false;
+    this.userWantsToStart = false;
+    this.hasStarted.set(false);
+    this.isStarting.set(false);
+    this.isWsReady.set(false);
+    if (this.echoCooldownTimer) {
+      clearTimeout(this.echoCooldownTimer);
+      this.echoCooldownTimer = null;
+    }
+    this.isAiSpeakingCooldown = false;
+    this.clearInactivityTimer();
+    this.finalizeCurrentTurn();
+    this.audioEngine.destroy();
+    this.wsClient.disconnect();
+    if (this.state() !== 'COMPLETED' && this.state() !== 'ERROR') {
+      this.state.set('READY');
     }
   }
 
-  private respondToolCall(
-    callId: string,
-    result: any
-  ): void {
-    if (
-      !this.ws ||
-      this.ws.readyState !==
-      WebSocket.OPEN
-    ) {
-      return;
-    }
-
-    // Contrat déjà utilisé par le code actuel : conservé.
-    this.ws.send(
-      JSON.stringify({
-        toolResponse: {
-          functionResponses: [
-            {
-              response: {
-                output: result
-              },
-              id: callId
-            }
-          ]
-        }
-      })
-    );
-  }
-
-  public async handleUpdateCvDraft(
-    newInfo: any
-  ): Promise<void> {
-    if (!newInfo) {
-      return;
-    }
-
-    const current =
-      this.currentDraft();
-
-    const updated = {
-      ...current,
-      ...newInfo,
-
-      identity: {
-        ...current.identity,
-        ...(newInfo.identity || {})
-      },
-
-      skills:
-        newInfo.skills
-          ? this.mergeUniqueStrings(
-            current.skills || [],
-            newInfo.skills
-          )
-          : current.skills,
-
-      languages:
-        newInfo.languages
-          ? this.mergeUniqueStrings(
-            current.languages || [],
-            newInfo.languages
-          )
-          : current.languages,
-
-      experiences:
-        newInfo.experiences
-          ? this.mergeExperiences(
-            current.experiences || [],
-            newInfo.experiences
-          )
-          : current.experiences,
-
-      education:
-        newInfo.education
-          ? this.mergeEducation(
-            current.education || [],
-            newInfo.education
-          )
-          : current.education,
-
-      projects:
-        newInfo.projects
-          ? this.mergeProjects(
-            current.projects || [],
-            newInfo.projects
-          )
-          : current.projects,
-
-      certifications:
-        newInfo.certifications
-          ? this.mergeCertifications(
-            current.certifications || [],
-            newInfo.certifications
-          )
-          : current.certifications,
-
-      additionalSections:
-        newInfo.additionalSections
-          ? this.mergeAdditionalSections(
-            current.additionalSections || [],
-            newInfo.additionalSections
-          )
-          : current.additionalSections
-    };
-
-    this.currentDraft.set(
-      updated
-    );
-
-    await firstValueFrom(
-      this.apiService.saveDraft(
-        this.currentCvId,
-        updated
-      )
-    ).catch(() => null);
-  }
-
-  public async handleCompleteInterview(): Promise<void> {
-    await this.saveAndCompleteInterview();
-
+  handleCompleteInterview(): void {
     this.state.set('COMPLETED');
+    this.sessionCache.clearSession(this.currentCvId);
     this.stopSession();
     this.interviewCompleted$.next();
   }
 
-  private isDraftEmptyOrIncomplete(draft: any): boolean {
-    const userMessages = this.transcript().filter(t => t.role === 'user');
-    // S'il y a eu moins de 2 messages utilisateur, l'entretien n'a pas vraiment eu lieu
-    if (userMessages.length < 2) return false;
-
-    const hasNoExperience = !draft?.experiences || draft.experiences.length === 0;
-    const hasNoEducation = !draft?.education || draft.education.length === 0;
-    const hasNoSummary = !draft?.summary || draft.summary.trim().length < 20;
-    const hasNoSkills = !draft?.skills || draft.skills.length === 0;
-
-    // Déclenché si (aucune expérience ET aucune formation) OU (aucun résumé ET aucune compétence)
-    return (hasNoExperience && hasNoEducation) || (hasNoSummary && hasNoSkills);
-  }
-
-  private async saveAndCompleteInterview(): Promise<void> {
-    const current = this.currentDraft();
-
-    if (this.isDraftEmptyOrIncomplete(current)) {
-      const fullTranscript = this.transcript()
-        .map(t => `${t.role === 'user' ? 'Candidat' : 'Recruteur IA'}: ${t.text}`)
-        .join('\n');
-
-      if (fullTranscript.trim().length > 30) {
-        try {
-          const synthesized = await firstValueFrom(
-            this.apiService.synthesize(this.currentCvId, fullTranscript)
-          );
-          if (synthesized?.contentJson) {
-            const parsed = typeof synthesized.contentJson === 'string'
-              ? JSON.parse(synthesized.contentJson)
-              : synthesized.contentJson;
-            this.currentDraft.set(parsed);
-          }
-        } catch (e) {
-          console.warn('Synthèse IA de secours échouée, conservation du draft courant:', e);
-        }
-      }
-    } else {
-      await firstValueFrom(
-        this.apiService.saveDraft(
-          this.currentCvId,
-          this.currentDraft()
-        )
-      ).catch(() => null);
-    }
-
-    await firstValueFrom(
-      this.apiService.completeInterview(
-        this.currentCvId
-      )
-    ).catch(() => null);
-  }
-
-  // ---------------------------------------------------------------------
-  // Lecture audio en flux continu
-  // ---------------------------------------------------------------------
-
-  private ensurePlaybackContext(): void {
-    if (
-      !this.playbackCtx ||
-      this.playbackCtx.state ===
-      'closed'
-    ) {
-      this.playbackCtx =
-        new (
-          window.AudioContext ||
-          (window as any)
-            .webkitAudioContext
-        )({
-          sampleRate: 24000
+  private async handleToolCall(name: string, callId: string, args: any): Promise<any> {
+    if (name === 'update_cv_draft') {
+      this.mergeDraft(args);
+      this.sessionCache.saveSession(this.currentCvId, this.currentDraft(), this.transcript());
+      if (this.currentCvId && this.currentCvId !== 'cv_default' && this.currentCvId !== 'new') {
+        this.apiService.saveDraft(this.currentCvId, this.currentDraft()).subscribe({
+          next: (res) => { if (res?.id) this.currentCvId = res.id; },
+          error: (e) => console.warn('[GeminiLive] Save draft silencieux:', e)
         });
-
-      this.nextPlayTime =
-        this.playbackCtx.currentTime;
-    }
-  }
-
-  private enqueuePcmAudio24k(
-    base64Data: string
-  ): void {
-    try {
-      this.ensurePlaybackContext();
-
-      const ctx =
-        this.playbackCtx!;
-
-      const binary =
-        atob(base64Data);
-
-      const len =
-        binary.length;
-
-      const bytes =
-        new Uint8Array(len);
-
-      for (
-        let i = 0;
-        i < len;
-        i++
-      ) {
-        bytes[i] =
-          binary.charCodeAt(i);
       }
-
-      const pcm16 =
-        new Int16Array(
-          bytes.buffer
-        );
-
-      const float32 =
-        new Float32Array(
-          pcm16.length
-        );
-
-      for (
-        let i = 0;
-        i < pcm16.length;
-        i++
-      ) {
-        float32[i] =
-          pcm16[i] /
-          32768.0;
-      }
-
-      const buffer =
-        ctx.createBuffer(
-          1,
-          float32.length,
-          24000
-        );
-
-      buffer
-        .getChannelData(0)
-        .set(float32);
-
-      const source =
-        ctx.createBufferSource();
-
-      source.buffer =
-        buffer;
-
-      source.connect(
-        ctx.destination
-      );
-
-      const startAt =
-        Math.max(
-          this.nextPlayTime,
-          ctx.currentTime
-        );
-
-      source.start(startAt);
-
-      this.nextPlayTime =
-        startAt +
-        buffer.duration;
-
-      this.pendingSourceCount++;
-      this.activeSources.push(
-        source
-      );
-
-      source.onended = () => {
-        this.activeSources =
-          this.activeSources.filter(
-            (item) =>
-              item !== source
-          );
-
-        this.pendingSourceCount =
-          Math.max(
-            0,
-            this.pendingSourceCount -
-            1
-          );
-
-        this.tryEnterListeningState();
-      };
-    } catch (e) {
-      console.error(
-        'Erreur lecture audio PCM 24k:',
-        e
-      );
-    }
-  }
-
-  private tryEnterListeningState(): void {
-    if (
-      !this.modelTurnComplete ||
-      this.pendingSourceCount > 0 ||
-      this.state() ===
-      'COMPLETED' ||
-      this.state() === 'ERROR'
-    ) {
-      return;
+      return { status: 'success', updated: true };
     }
 
-    this.modelTurnComplete =
-      false;
+    if (name === 'audit_cv_integrity') {
+      const report = this.auditEngine.audit(this.currentDraft());
+      this.auditReport.set(report);
+      return report;
+    }
 
-    this.state.set(
-      'LISTENING'
-    );
+    if (name === 'complete_interview') {
+      this.handleCompleteInterview();
+      return { status: 'completed' };
+    }
 
-    this.armInactivityTimer();
+    return { status: 'unsupported' };
   }
 
-  private stopPlayback(): void {
-    for (
-      const src of
-      this.activeSources
-    ) {
-      try {
-        src.onended = null;
-        src.stop();
-      } catch {
-        // déjà arrêté
+  /**
+   * Ajoute un chunk de transcription en le regroupant STRICTEMENT ligne par ligne.
+   * Ne modifie pas l'affichage mot par mot pour éviter tout sautillement visuel.
+   */
+  private appendTranscriptChunk(role: 'user' | 'ai', chunk: string): void {
+    if (!chunk) return;
+    this.lineBuffers[role] += chunk;
+
+    // Détection des phrases ou lignes complètes (terminées par . ? ! : ou saut de ligne)
+    let match: RegExpMatchArray | null;
+    while ((match = this.lineBuffers[role].match(/^([\s\S]*?[.?!:\n]+)(?:\s+|$)/))) {
+      const completedLine = match[1].trim();
+      this.lineBuffers[role] = this.lineBuffers[role].slice(match[0].length);
+      if (completedLine) {
+        this.commitLine(role, completedLine);
       }
     }
 
-    this.activeSources = [];
-    this.pendingSourceCount = 0;
-
-    if (this.playbackCtx) {
-      this.nextPlayTime =
-        this.playbackCtx.currentTime;
+    // Sécurité : si le locuteur fait une pause prolongée (> 800ms) sans ponctuation finale
+    if (this.flushTimeouts[role]) {
+      clearTimeout(this.flushTimeouts[role]);
     }
-  }
-
-  // ---------------------------------------------------------------------
-  // Inactivité
-  // ---------------------------------------------------------------------
-
-  private markUserActivity(): void {
-    this.clearInactivityTimer();
-  }
-
-  private armInactivityTimer(): void {
-    this.clearInactivityTimer();
-
-    if (
-      this.state() !==
-      'LISTENING'
-    ) {
-      return;
-    }
-
-    this.inactivityTimer =
-      setTimeout(() => {
-        if (
-          this.state() !==
-          'LISTENING'
-        ) {
-          return;
-        }
-
-        this.stopSession();
-
-        this.setError(
-          'Entretien interrompu après 90 secondes sans réponse. Vous pouvez le relancer pour continuer.'
-        );
-      }, this.inactivityTimeoutMs);
-  }
-
-  private clearInactivityTimer(): void {
-    if (
-      this.inactivityTimer
-    ) {
-      clearTimeout(
-        this.inactivityTimer
-      );
-
-      this.inactivityTimer =
-        null;
-    }
-  }
-
-  // ---------------------------------------------------------------------
-  // Merge du draft : évite de dupliquer une expérience à chaque enrichissement
-  // ---------------------------------------------------------------------
-
-  private normalizeKey(
-    value: unknown
-  ): string {
-    return String(
-      value || ''
-    )
-      .normalize('NFD')
-      .replace(
-        /[\u0300-\u036f]/g,
-        ''
-      )
-      .toLowerCase()
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
-
-  private mergeUniqueStrings(
-    current: string[],
-    incoming: string[]
-  ): string[] {
-    const map =
-      new Map<
-        string,
-        string
-      >();
-
-    for (
-      const value of [
-        ...current,
-        ...incoming
-      ]
-    ) {
-      const clean =
-        String(
-          value || ''
-        ).trim();
-
-      const key =
-        this.normalizeKey(
-          clean
-        );
-
-      if (
-        clean &&
-        !map.has(key)
-      ) {
-        map.set(
-          key,
-          clean
-        );
+    this.flushTimeouts[role] = setTimeout(() => {
+      const pending = this.lineBuffers[role].trim();
+      if (pending.length >= 25 || pending.includes(' ')) {
+        this.commitLine(role, pending);
+        this.lineBuffers[role] = '';
       }
-    }
-
-    return Array.from(
-      map.values()
-    );
+    }, 800);
   }
 
-  private mergeExperiences(
-    current: any[],
-    incoming: any[]
-  ): any[] {
-    const result =
-      current.map(
-        (item) => ({
-          ...item
-        })
-      );
+  private commitLine(role: 'user' | 'ai', line: string): void {
+    if (!line) return;
 
-    for (
-      const experience of incoming
-    ) {
-      const key =
-        this.experienceKey(
-          experience
-        );
-
-      const index =
-        result.findIndex(
-          (item) =>
-            this.experienceKey(
-              item
-            ) === key
-        );
-
-      if (
-        index === -1 ||
-        !key
-      ) {
-        result.push({
-          ...experience
-        });
-        continue;
-      }
-
-      const existing =
-        result[index];
-
-      result[index] = {
-        ...existing,
-        ...experience,
-
-        responsibilities:
-          this.mergeUniqueStrings(
-            existing.responsibilities ||
-            [],
-            experience.responsibilities ||
-            []
-          ),
-
-        achievements:
-          this.mergeUniqueStrings(
-            existing.achievements ||
-            [],
-            experience.achievements ||
-            []
-          ),
-
-        technologies:
-          this.mergeUniqueStrings(
-            existing.technologies ||
-            [],
-            experience.technologies ||
-            []
-          )
-      };
-    }
-
-    return result;
-  }
-
-  private experienceKey(
-    item: any
-  ): string {
-    return [
-      item?.company,
-      item?.position,
-      item?.startDate
-    ]
-      .map((value) =>
-        this.normalizeKey(
-          value
-        )
-      )
-      .filter(Boolean)
-      .join('|');
-  }
-
-  private mergeEducation(
-    current: any[],
-    incoming: any[]
-  ): any[] {
-    return this.mergeObjectsByKey(
-      current,
-      incoming,
-      (item) =>
-        [
-          item?.school,
-          item?.degree,
-          item?.year
-        ]
-          .map((value) =>
-            this.normalizeKey(
-              value
-            )
-          )
-          .filter(Boolean)
-          .join('|')
-    );
-  }
-
-  private mergeProjects(
-    current: any[],
-    incoming: any[]
-  ): any[] {
-    return this.mergeObjectsByKey(
-      current,
-      incoming,
-      (item) =>
-        this.normalizeKey(
-          item?.name
-        )
-    );
-  }
-
-  private mergeCertifications(
-    current: any[],
-    incoming: any[]
-  ): any[] {
-    return this.mergeObjectsByKey(
-      current,
-      incoming,
-      (item) =>
-        [
-          item?.name,
-          item?.issuer
-        ]
-          .map((value) =>
-            this.normalizeKey(
-              value
-            )
-          )
-          .filter(Boolean)
-          .join('|')
-    );
-  }
-
-  private mergeAdditionalSections(
-    current: any[],
-    incoming: any[]
-  ): any[] {
-    return this.mergeObjectsByKey(
-      current,
-      incoming,
-      (item) =>
-        this.normalizeKey(
-          item?.title
-        )
-    );
-  }
-
-  private mergeObjectsByKey(
-    current: any[],
-    incoming: any[],
-    keyFn: (
-      item: any
-    ) => string
-  ): any[] {
-    const result =
-      current.map(
-        (item) => ({
-          ...item
-        })
-      );
-
-    for (
-      const item of incoming
-    ) {
-      const key =
-        keyFn(item);
-
-      const index =
-        result.findIndex(
-          (existing) =>
-            key &&
-            keyFn(existing) ===
-            key
-        );
-
-      if (
-        index === -1 ||
-        !key
-      ) {
-        result.push({
-          ...item
-        });
-      } else {
-        result[index] = {
-          ...result[index],
-          ...item
+    this.transcript.update((items) => {
+      const last = items[items.length - 1];
+      // Si le dernier message appartient au même interlocuteur et est toujours en cours, on insère un retour ligne
+      if (last && last.role === role && !last.isFinal) {
+        const updated = [...items];
+        updated[updated.length - 1] = {
+          ...last,
+          text: last.text ? `${last.text}\n${line}` : line
         };
-      }
-    }
-
-    return result;
-  }
-
-  private appendTranscriptChunk(
-    role: 'user' | 'ai',
-    chunkText: string
-  ): void {
-    const text = String(chunkText || '');
-    if (!text) {
-      return;
-    }
-
-    this.transcript.update((entries) => {
-      const lastEntry = entries[entries.length - 1];
-
-      // Si le dernier message appartient au même locuteur et n'est pas encore finalisé, on concatène
-      if (lastEntry && lastEntry.role === role && lastEntry.id === this.activeTurnId) {
-        const updatedEntries = [...entries];
-        updatedEntries[updatedEntries.length - 1] = {
-          ...lastEntry,
-          text: lastEntry.text + text
-        };
-        return updatedEntries;
+        return updated;
       }
 
-      // Nouveau tour de parole
-      const newId = `${Date.now()}-${Math.random()}`;
-      this.activeTurnRole = role;
-      this.activeTurnId = newId;
-
+      // Nouveau bloc de conversation avec la ligne complète
       return [
-        ...entries,
+        ...items,
         {
-          id: newId,
+          id: Math.random().toString(36).substring(2, 9),
           role,
-          text: text.trimStart(),
+          text: line,
           isFinal: false
         }
       ];
     });
+
+    this.sessionCache.saveSession(this.currentCvId, this.currentDraft(), this.transcript());
   }
 
   private finalizeCurrentTurn(): void {
-    this.activeTurnId = null;
-    this.activeTurnRole = null;
-    this.transcript.update((entries) =>
-      entries.map((e) => ({
-        ...e,
-        text: e.text.trim(),
-        isFinal: true
-      }))
+    // Vider tout reliquat dans les buffers de lignes
+    for (const role of ['user', 'ai'] as const) {
+      if (this.flushTimeouts[role]) {
+        clearTimeout(this.flushTimeouts[role]);
+        delete this.flushTimeouts[role];
+      }
+      const pending = this.lineBuffers[role].trim();
+      if (pending) {
+        this.commitLine(role, pending);
+        this.lineBuffers[role] = '';
+      }
+    }
+
+    this.transcript.update((items) =>
+      items.map((item) => (item.isFinal ? item : { ...item, isFinal: true }))
     );
+    this.sessionCache.saveSession(this.currentCvId, this.currentDraft(), this.transcript());
   }
 
-  // ---------------------------------------------------------------------
-  // Cleanup / reset
-  // ---------------------------------------------------------------------
+  private mergeDraft(patch: any): void {
+    if (!patch) return;
+    const current = this.currentDraft();
+    const updated = { ...current };
 
-  stopSession(): void {
-    this.isSetupComplete =
-      false;
+    if (patch.headline) updated.headline = patch.headline;
+    if (patch.summary) updated.summary = patch.summary;
 
-    this.clearInactivityTimer();
-    this.stopPlayback();
-
-    if (
-      this.playbackCtx
-    ) {
-      this.playbackCtx
-        .close()
-        .catch(() => null);
-
-      this.playbackCtx =
-        null;
+    if (Array.isArray(patch.skills) && patch.skills.length > 0) {
+      const set = new Set([...(updated.skills || []), ...patch.skills]);
+      updated.skills = Array.from(set);
     }
 
-    if (
-      this.workletNode
-    ) {
-      this.workletNode
-        .disconnect();
+    if (Array.isArray(patch.experiences) && patch.experiences.length > 0) {
+      const existing = updated.experiences || [];
+      const merged = [...existing];
 
-      this.workletNode =
-        null;
-    }
-
-    if (
-      this.workletUrl
-    ) {
-      URL.revokeObjectURL(
-        this.workletUrl
-      );
-
-      this.workletUrl =
-        null;
-    }
-
-    if (
-      this.scriptNode
-    ) {
-      this.scriptNode
-        .disconnect();
-
-      this.scriptNode =
-        null;
-    }
-
-    if (
-      this.silentGainNode
-    ) {
-      this.silentGainNode
-        .disconnect();
-
-      this.silentGainNode =
-        null;
-    }
-
-    if (this.audioCtx) {
-      this.audioCtx
-        .close()
-        .catch(() => null);
-
-      this.audioCtx =
-        null;
-    }
-
-    if (
-      this.mediaStream
-    ) {
-      this.mediaStream
-        .getTracks()
-        .forEach((track) =>
-          track.stop()
+      for (const newExp of patch.experiences) {
+        const idx = merged.findIndex(
+          (e: any) =>
+            e.company?.toLowerCase() === newExp.company?.toLowerCase() &&
+            e.position?.toLowerCase() === newExp.position?.toLowerCase()
         );
-
-      this.mediaStream =
-        null;
+        if (idx !== -1) {
+          merged[idx] = { ...merged[idx], ...newExp };
+        } else {
+          merged.push(newExp);
+        }
+      }
+      updated.experiences = merged;
     }
 
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
+    if (Array.isArray(patch.education) && patch.education.length > 0) {
+      const existing = updated.education || [];
+      const merged = [...existing];
+
+      for (const newEdu of patch.education) {
+        const idx = merged.findIndex(
+          (e: any) =>
+            (e.school && newEdu.school && e.school.toLowerCase() === newEdu.school.toLowerCase()) ||
+            (e.degree && newEdu.degree && e.degree.toLowerCase() === newEdu.degree.toLowerCase())
+        );
+        if (idx !== -1) {
+          merged[idx] = { ...merged[idx], ...newEdu };
+        } else {
+          merged.push(newEdu);
+        }
+      }
+      updated.education = merged;
     }
 
-    this.microphoneReadyPromise =
-      null;
-
-    this.welcomeTriggered =
-      false;
-
-    this.modelTurnComplete =
-      false;
-
-    if (
-      this.state() !==
-      'COMPLETED'
-    ) {
-      this.state.set(
-        'READY'
-      );
+    if (Array.isArray(patch.languages) && patch.languages.length > 0) {
+      const existing = updated.languages || [];
+      const merged = [...existing];
+      for (const newLang of patch.languages) {
+        const langName = typeof newLang === 'string' ? newLang : (newLang.name || newLang.language || newLang.lang || '');
+        const idx = merged.findIndex((l: any) => {
+          const lName = typeof l === 'string' ? l : (l.name || l.language || l.lang || '');
+          return lName.toLowerCase() === langName.toLowerCase();
+        });
+        if (idx !== -1) {
+          merged[idx] = newLang;
+        } else {
+          merged.push(newLang);
+        }
+      }
+      updated.languages = merged;
     }
 
-    // currentDraft est volontairement conservé après stopSession.
+    this.currentDraft.set(updated);
   }
 
-  resetDraft(): void {
-    this.currentDraft.set(
-      this.createEmptyDraft()
-    );
-
+  private resetDraft(): void {
+    this.currentDraft.set(this.createEmptyDraft());
     this.transcript.set([]);
+    this.auditReport.set(null);
   }
 
   private createEmptyDraft(): any {
-    const u = this.authService.currentUser();
+    const user = this.authService.currentUser();
     return {
       identity: {
-        fullName: u?.fullName || '',
-        email: u?.email || '',
-        phone: u?.phone || '',
-        city: u?.city || ''
+        fullName: user?.fullName || '',
+        email: user?.email || '',
+        phone: user?.phone || '',
+        city: user?.city || ''
       },
-      headline: u?.targetRole || '',
+      headline: user?.targetRole || '',
       summary: '',
+      skills: [],
       experiences: [],
       education: [],
-      skills: [],
-      languages: [],
-      projects: [],
-      certifications: [],
-      additionalSections: []
+      languages: []
     };
   }
 
-  private arrayBufferToBase64(
-    buffer: ArrayBuffer
-  ): string {
-    let binary = '';
+  private setError(msg: string): void {
+    this.errorMessage.set(msg);
+    this.state.set('ERROR');
+  }
 
-    const bytes =
-      new Uint8Array(
-        buffer
-      );
+  private armInactivityTimer(): void {
+    this.clearInactivityTimer();
+    this.inactivityTimer = setTimeout(() => {
+      console.warn('[GeminiLive] Délai d\'inactivité atteint.');
+      this.stopSession();
+    }, this.inactivityTimeoutMs);
+  }
 
-    for (
-      let i = 0;
-      i < bytes.byteLength;
-      i++
-    ) {
-      binary +=
-        String.fromCharCode(
-          bytes[i]
-        );
+  private clearInactivityTimer(): void {
+    if (this.inactivityTimer) {
+      clearTimeout(this.inactivityTimer);
+      this.inactivityTimer = null;
     }
-
-    return window.btoa(
-      binary
-    );
   }
 }
