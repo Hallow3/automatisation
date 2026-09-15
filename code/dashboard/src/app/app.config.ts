@@ -1,10 +1,11 @@
-import { ApplicationConfig, provideZoneChangeDetection, APP_INITIALIZER } from '@angular/core';
+import { ApplicationConfig, provideZoneChangeDetection, APP_INITIALIZER, ErrorHandler } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 
 import { routes } from './app.routes';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
 import { AuthService } from './core/services/auth.service';
+import { GlobalErrorHandler } from './core/handlers/global-error-handler';
 
 /**
  * Factory pour APP_INITIALIZER.
@@ -39,6 +40,12 @@ export const appConfig: ApplicationConfig = {
       useFactory: initializeAuth,
       deps: [AuthService],
       multi: true
+    },
+
+    // Gestionnaire global pour rechargement automatique en cas de mise à jour de version/chunks
+    {
+      provide: ErrorHandler,
+      useClass: GlobalErrorHandler
     }
   ]
 };
