@@ -43,10 +43,13 @@ export class PdfExportService {
     try {
       const ticket = await firstValueFrom(this.cvApi.createDownloadTicket(resolvedId, templateId));
       if (ticket?.downloadUrl) {
-        const backendOrigin = environment.apiUrl.replace(/\/api\/v1\/?$/, '');
+        const backendOrigin = environment.apiUrl.startsWith('http')
+          ? environment.apiUrl.replace(/\/api\/v1\/?$/, '')
+          : (typeof window !== 'undefined' ? window.location.origin : '');
+        const cleanPath = ticket.downloadUrl.startsWith('/') ? ticket.downloadUrl : `/${ticket.downloadUrl}`;
         const fullDownloadUrl = ticket.downloadUrl.startsWith('http')
           ? ticket.downloadUrl
-          : `${backendOrigin}${ticket.downloadUrl}`;
+          : `${backendOrigin}${cleanPath}`;
 
         // Déclencher le téléchargement direct du fichier via un élément ancre invisible
         // Cela évite d'ouvrir un onglet vierge orphelin qui tournerait indéfiniment

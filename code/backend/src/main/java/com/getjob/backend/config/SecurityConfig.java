@@ -60,9 +60,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // ── Désactivation CSRF ────────────────────────────────────────
-                // Justification : SameSite=Strict sur le cookie + CORS strict
-                // assurent la protection équivalente pour notre cas d'usage.
+                // ── CORS & CSRF ──────────────────────────────────────────────
+                .cors(org.springframework.security.config.Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
 
                 // ── Routes publiques et protégées ─────────────────────────────

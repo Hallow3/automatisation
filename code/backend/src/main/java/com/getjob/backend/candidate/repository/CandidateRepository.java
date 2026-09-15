@@ -13,7 +13,7 @@ public interface CandidateRepository extends JpaRepository<CandidateEntity, Inte
 
     boolean existsByEmail(String email);
 
-    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true)
     @org.springframework.data.jpa.repository.Query("UPDATE CandidateEntity c SET c.proCredits = c.proCredits - 1 WHERE c.id = :candidateId AND c.proCredits > 0")
     int decrementProCreditIfAvailable(@org.springframework.data.repository.query.Param("candidateId") Integer candidateId);
 }

@@ -135,6 +135,30 @@ export class AuthService {
   }
 
   /**
+   * Rafraîchit le profil de l'utilisateur connecté depuis le backend (GET /auth/me).
+   */
+  refreshCurrentUser(): Observable<AuthUser | null> {
+    return this.http.get<AuthUser>(`${this.base}/me`, { withCredentials: true }).pipe(
+      tap(user => {
+        if (user) {
+          this._currentUser.set(user);
+        }
+      }),
+      catchError(() => of(null))
+    );
+  }
+
+  /**
+   * Met à jour directement le solde de crédits Pro dans le signal local.
+   */
+  updateProCredits(newCredits: number): void {
+    const current = this._currentUser();
+    if (current) {
+      this._currentUser.set({ ...current, proCredits: Math.max(0, newCredits) });
+    }
+  }
+
+  /**
    * Appelé par l'AuthInterceptor quand Spring retourne 401.
    * Nettoie le state et redirige vers /login sans appeler logout (le cookie est déjà mort).
    */

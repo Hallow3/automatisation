@@ -167,6 +167,18 @@ export class PaymentService {
       });
   }
 
+  public decrementCreditLocally(): void {
+    const updated = Math.max(0, this.proCredits() - 1);
+    this.proCredits.set(updated);
+    this.saveProCredits(updated);
+  }
+
+  public setProCreditsValue(val: number): void {
+    const safe = Math.max(0, val);
+    this.proCredits.set(safe);
+    this.saveProCredits(safe);
+  }
+
   // ── Méthodes Publiques ───────────────────────────────────────────────────
 
   public setCountry(countryCode: string): void {

@@ -7,6 +7,7 @@ export interface InterviewSessionResponse {
   token: string;
   model: string;
   cvId?: string;
+  proCredits?: string;
 }
 
 export interface CompleteInterviewResponse {

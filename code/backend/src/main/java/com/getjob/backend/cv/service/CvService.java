@@ -28,6 +28,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -164,19 +165,29 @@ public class CvService {
     @Transactional
     public Map<String, String> createInterviewSession(String cvId) {
         CandidateEntity candidate = resolveCurrentCandidate();
-        log.info("Création de session d'entretien pour candidate_id={} (email: {})", candidate.getId(), candidate.getEmail());
+        log.info("Création de session d'entretien vocal pour candidate_id={} (email: {})", candidate.getId(), candidate.getEmail());
 
-        Optional<CvEntity> existingCv = findCvEntityForCurrentUser(cvId);
-        if (existingCv.isEmpty()) {
-            existingCv = cvRepository.findByCandidateId(candidate.getId()).stream()
-                    .filter(c -> "IN_PROGRESS".equalsIgnoreCase(c.getInterviewStatus()) || "DRAFT_UPDATED".equalsIgnoreCase(c.getInterviewStatus()))
-                    .max(Comparator.comparing(CvEntity::getId));
+        // Contrôle strict de la reprise : uniquement si un CV précis a été démarré et actif dans les 15 dernières minutes
+        Optional<CvEntity> existingCv = Optional.empty();
+        boolean isResumingActiveSession = false;
+
+        if (cvId != null && cvId.matches("^\\d+$")) {
+            existingCv = findCvEntityForCurrentUser(cvId);
+            if (existingCv.isPresent()) {
+                CvEntity cv = existingCv.get();
+                boolean isStatusActive = "IN_PROGRESS".equalsIgnoreCase(cv.getInterviewStatus()) ||
+                                         "DRAFT_UPDATED".equalsIgnoreCase(cv.getInterviewStatus());
+                boolean isRecent = cv.getUpdatedAt() != null &&
+                        cv.getUpdatedAt().isAfter(Instant.now().minus(Duration.ofMinutes(15)));
+                if (isStatusActive && isRecent) {
+                    isResumingActiveSession = true;
+                    log.info("Reprise autorisée d'une session active récente (< 15 min) pour candidate_id={} cv_id={}",
+                            candidate.getId(), cv.getId());
+                }
+            }
         }
-        boolean isResumingActiveSession = existingCv.isPresent() &&
-                ("IN_PROGRESS".equalsIgnoreCase(existingCv.get().getInterviewStatus()) ||
-                 "DRAFT_UPDATED".equalsIgnoreCase(existingCv.get().getInterviewStatus()));
 
-        // ── Monétisation de l'entretien vocal IA (1 crédit Pro débité au démarrage) ─────
+        // ── Monétisation stricte de l'entretien vocal IA (1 crédit Pro débité au démarrage) ─────
         if (!isResumingActiveSession) {
             if (candidate.getProCredits() == null || candidate.getProCredits() < 1) {
                 log.warn("Tentative d'entretien vocal sans crédit Pro pour candidate_id={} (crédits: {})",
@@ -193,44 +204,42 @@ public class CvService {
                         "INSUFFICIENT_CREDITS:Solde de crédits Pro insuffisant pour démarrer l'entretien vocal IA."
                 );
             }
-            // Télémétrie d'usage interne
+            // Mettre à jour l'entité candidate en mémoire pour refléter le débit et incrémenter l'usage
+            candidate.setProCredits(Math.max(0, (candidate.getProCredits() != null ? candidate.getProCredits() : 1) - 1));
             candidate.setAiInterviewsUsed((candidate.getAiInterviewsUsed() != null ? candidate.getAiInterviewsUsed() : 0) + 1);
             candidateRepository.save(candidate);
+            log.info("1 crédit Pro débité avec succès pour la session d'entretien vocal de candidate_id={} (solde restant: {})",
+                    candidate.getId(), candidate.getProCredits());
         }
 
         CvEntity cvEntity;
-
-        if (existingCv.isPresent()) {
+        if (isResumingActiveSession && existingCv.isPresent()) {
             cvEntity = existingCv.get();
             if (!"DRAFT_UPDATED".equalsIgnoreCase(cvEntity.getInterviewStatus())) {
                 cvEntity.setInterviewStatus("IN_PROGRESS");
                 cvEntity = cvRepository.save(cvEntity);
             }
+        } else if (existingCv.isPresent()) {
+            cvEntity = existingCv.get();
+            cvEntity.setInterviewStatus("IN_PROGRESS");
+            cvEntity = cvRepository.save(cvEntity);
         } else {
-            // Réutilisation d'un CV actif non encore alimenté pour éviter la prolifération de CVs vides
-            Optional<CvEntity> pendingCv = cvRepository.findByCandidateId(candidate.getId()).stream()
-                    .filter(c -> ("IN_PROGRESS".equalsIgnoreCase(c.getInterviewStatus()) || "DRAFT_UPDATED".equalsIgnoreCase(c.getInterviewStatus()))
-                            && !isDraftMeaningful(c.getContentJson()))
-                    .max(Comparator.comparing(CvEntity::getId));
-
-            if (pendingCv.isPresent()) {
-                cvEntity = pendingCv.get();
-            } else {
-                CvEntity newCv = CvEntity.builder()
-                        .candidateId(candidate.getId())
-                        .templateId(parseTemplateCodeToId("moderne"))
-                        .title("CV Entretien IA")
-                        .contentJson(buildInitialContentJson(candidate))
-                        .status("DRAFT")
-                        .interviewStatus("IN_PROGRESS")
-                        .build();
-                cvEntity = cvRepository.save(newCv);
-            }
+            // Création d'un nouveau CV dédié à cet entretien
+            CvEntity newCv = CvEntity.builder()
+                    .candidateId(candidate.getId())
+                    .templateId(parseTemplateCodeToId("moderne"))
+                    .title("CV Entretien IA")
+                    .contentJson(buildInitialContentJson(candidate))
+                    .status("DRAFT")
+                    .interviewStatus("IN_PROGRESS")
+                    .build();
+            cvEntity = cvRepository.save(newCv);
         }
 
         String returnCvId = cvEntity.getId().toString();
         Map<String, String> tokenInfo = tokenService.createEphemeralToken();
         tokenInfo.put("cvId", returnCvId);
+        tokenInfo.put("proCredits", String.valueOf(candidate.getProCredits() != null ? candidate.getProCredits() : 0));
         return tokenInfo;
     }
 
@@ -352,7 +361,23 @@ public class CvService {
             return mapToDto(cv);
         }
 
-        consumeInterviewQuotaIfNeeded(candidate, cv);
+        if (!("IN_PROGRESS".equalsIgnoreCase(cv.getInterviewStatus()) || "DRAFT_UPDATED".equalsIgnoreCase(cv.getInterviewStatus()))) {
+            if (candidate.getProCredits() == null || candidate.getProCredits() < 1) {
+                throw new ResponseStatusException(
+                        HttpStatus.PAYMENT_REQUIRED,
+                        "INSUFFICIENT_CREDITS:La synthèse IA du CV nécessite au moins 1 crédit Pro."
+                );
+            }
+            boolean consumed = consumeAiCredit(candidate.getId());
+            if (!consumed) {
+                throw new ResponseStatusException(
+                        HttpStatus.PAYMENT_REQUIRED,
+                        "INSUFFICIENT_CREDITS:Solde de crédits Pro insuffisant pour la synthèse IA."
+                );
+            }
+            candidate.setProCredits(Math.max(0, (candidate.getProCredits() != null ? candidate.getProCredits() : 1) - 1));
+            candidateRepository.save(candidate);
+        }
 
         String systemInstruction = """
             Tu es un expert senior en recrutement et rédaction de CV professionnels.
@@ -707,6 +732,8 @@ public class CvService {
                     "INSUFFICIENT_CREDITS:Solde de crédits Pro insuffisant pour cette optimisation IA."
             );
         }
+        candidate.setProCredits(Math.max(0, (candidate.getProCredits() != null ? candidate.getProCredits() : 1) - 1));
+        candidateRepository.save(candidate);
 
         CvEntity cv = findCvEntityForCurrentUser(cvId).orElseGet(() -> {
             CvEntity newCv = CvEntity.builder()

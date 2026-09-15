@@ -76,10 +76,20 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
   private animInterval: any = null;
 
   startInterview(): void {
+    const credits = this.authService.currentUser()?.proCredits ?? 0;
+    if (credits < 1) {
+      this.paymentService.openPackModal();
+      return;
+    }
     this.geminiService.beginInterview();
   }
 
   retrySession(): void {
+    const credits = this.authService.currentUser()?.proCredits ?? 0;
+    if (credits < 1) {
+      this.paymentService.openPackModal();
+      return;
+    }
     const targetId = (this.geminiService.currentCvId && this.geminiService.currentCvId !== 'cv_default' && this.geminiService.currentCvId !== 'new')
       ? this.geminiService.currentCvId
       : this.cvId;
@@ -214,6 +224,15 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
       const realCvId = this.geminiService.currentCvId;
       this.router.navigate(['/cv-builder'], { queryParams: { action: 'editor', cvId: realCvId } });
     });
+
+    const credits = this.authService.currentUser()?.proCredits ?? 0;
+    if (credits < 1) {
+      this.geminiService.errorMessage.set(
+        "Solde insuffisant : l'accès à l'entretien vocal IA nécessite au moins 1 crédit Pro. Veuillez recharger votre compte pour démarrer une session."
+      );
+      this.paymentService.openPackModal();
+      return;
+    }
 
     this.geminiService.prepareSession(this.cvId);
   }

@@ -1,9 +1,11 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { OpportunityApiService } from '../../../../core/services/opportunity-api.service';
 import { ApplicationApiService } from '../../../../core/services/application-api.service';
+import { AuthService } from '../../../../core/services/auth.service';
+import { PaymentService } from '../../../../core/services/payment.service';
 import { Opportunity } from '../../../../core/models/opportunity.model';
 import { Application } from '../../../../core/models/application.model';
 
@@ -41,6 +43,18 @@ interface RecommendedJob {
 export class DashboardHomeComponent implements OnInit {
   private opportunityApi = inject(OpportunityApiService);
   private applicationApi = inject(ApplicationApiService);
+  public authService = inject(AuthService);
+  public paymentService = inject(PaymentService);
+  private router = inject(Router);
+
+  startVoiceInterview(): void {
+    const credits = this.authService.currentUser()?.proCredits ?? 0;
+    if (credits < 1) {
+      this.paymentService.openPackModal();
+      return;
+    }
+    this.router.navigate(['/cvs/interview']);
+  }
 
   private readonly SENT_STATUSES = new Set(['APPLIED', 'SUBMITTED', 'INTERVIEW', 'REJECTED', 'OFFER']);
   private readonly PENDING_STATUSES = new Set(['PENDING', 'DRAFT', 'READY']);

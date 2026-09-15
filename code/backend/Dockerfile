@@ -20,6 +20,20 @@ FROM eclipse-temurin:17-jre-alpine
 
 WORKDIR /app
 
+# Installation de Chromium et des polices nécessaires au rendu PDF headless A4
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    font-noto \
+    font-noto-cjk
+
+ENV CHROME_BIN=/usr/bin/chromium-browser \
+    CHROMIUM_BIN=/usr/bin/chromium-browser
+
 # Sécurité : utilisateur non-root
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 

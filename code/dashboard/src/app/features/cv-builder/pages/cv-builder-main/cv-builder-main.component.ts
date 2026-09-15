@@ -68,7 +68,7 @@ interface AiMessage {
 export class CvBuilderMainComponent implements OnInit, OnDestroy {
   private geminiService = inject(GeminiLiveService);
   readonly editor = inject(CvEditorService);
-  private authService = inject(AuthService);
+  public authService = inject(AuthService);
   private pdfService = inject(PdfExportService);
   public paymentService = inject(PaymentService);
   private route = inject(ActivatedRoute);
@@ -470,6 +470,11 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
 
   setPhase(phase: Phase): void {
     if (phase === 'voice') {
+      const credits = this.authService.currentUser()?.proCredits ?? 0;
+      if (credits < 1) {
+        this.paymentService.openPackModal();
+        return;
+      }
       if (this.currentCvId && this.currentCvId !== 'sample' && this.currentCvId !== 'demo') {
         this.router.navigate(['/cvs', this.currentCvId, 'interview']);
       } else {
@@ -568,6 +573,7 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
         this.isAiLoading.set(false);
         // Synchronisation du solde de crédits après déduction
         this.paymentService.syncWithBackend();
+        this.authService.refreshCurrentUser().subscribe();
         if (updatedCv?.contentJson) {
           try {
             const parsed = typeof updatedCv.contentJson === 'string'

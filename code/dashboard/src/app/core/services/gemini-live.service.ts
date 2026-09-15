@@ -2,6 +2,7 @@ import { Injectable, signal, computed, inject } from '@angular/core';
 import { Subject, firstValueFrom } from 'rxjs';
 import { CvInterviewApiService } from './cv-interview-api.service';
 import { AuthService } from './auth.service';
+import { PaymentService } from './payment.service';
 import { AudioPcmEngineService } from './audio-pcm-engine.service';
 import { GeminiLiveWsClientService } from './gemini-live-ws-client.service';
 import { InterviewSessionCacheService } from './interview-session-cache.service';
@@ -29,6 +30,7 @@ export interface TranscriptEntry {
 export class GeminiLiveService {
   private apiService = inject(CvInterviewApiService);
   private authService = inject(AuthService);
+  private paymentService = inject(PaymentService);
   private audioEngine = inject(AudioPcmEngineService);
   private wsClient = inject(GeminiLiveWsClientService);
   private sessionCache = inject(InterviewSessionCacheService);
@@ -40,7 +42,9 @@ export class GeminiLiveService {
   public auditReport = signal<CvAuditReport | null>(null);
   public isQuotaReached = computed(() => {
     const msg = this.errorMessage();
-    return !!msg && (msg.includes('crédit Pro') || msg.includes('INSUFFICIENT_CREDITS') || msg.includes('Solde insuffisant') || msg.includes('limite de 3 entretiens') || msg.includes('QUOTA_REACHED'));
+    const credits = this.authService.currentUser()?.proCredits ?? 0;
+    const hasCached = !!this.sessionCache.getSession(this.currentCvId);
+    return (!hasCached && credits < 1) || (!!msg && (msg.includes('crédit Pro') || msg.includes('INSUFFICIENT_CREDITS') || msg.includes('Solde insuffisant') || msg.includes('limite de 3 entretiens') || msg.includes('QUOTA_REACHED')));
   });
 
   public currentDraft = signal<any>(this.createEmptyDraft());
@@ -97,6 +101,15 @@ export class GeminiLiveService {
     // 0. Protection contre les doubles déclenchements concurrents
     if (this.isSessionStarting) {
       console.warn('[GeminiLive] Une initialisation de session est déjà en cours, requête ignorée.');
+      return;
+    }
+
+    // Protection stricte contre les accès sans crédit Pro
+    const credits = this.authService.currentUser()?.proCredits ?? 0;
+    const cachedSession = this.sessionCache.getSession(cvId);
+    if (credits < 1 && !cachedSession) {
+      this.setError("Solde insuffisant : l'accès à l'entretien vocal IA nécessite au moins 1 crédit Pro. Veuillez recharger votre compte.");
+      this.paymentService.openPackModal();
       return;
     }
 
@@ -174,8 +187,10 @@ export class GeminiLiveService {
         let msg = err?.error?.detail || err?.error?.message || err?.error?.reason || err?.message || 'Service vocal indisponible.';
         if (typeof msg === 'string' && msg.includes('INSUFFICIENT_CREDITS:')) {
           msg = msg.split('INSUFFICIENT_CREDITS:')[1]?.trim() || msg;
+          this.paymentService.openPackModal();
         } else if (err?.status === 402 || (typeof msg === 'string' && msg.includes('INSUFFICIENT_CREDITS'))) {
           msg = "Solde insuffisant : l'accès à l'entretien vocal IA nécessite au moins 1 crédit Pro. Veuillez recharger votre compte.";
+          this.paymentService.openPackModal();
         } else if (typeof msg === 'string' && msg.includes('QUOTA_REACHED:')) {
           msg = msg.split('QUOTA_REACHED:')[1]?.trim() || msg;
         }
@@ -192,6 +207,17 @@ export class GeminiLiveService {
 
       if (session?.cvId) {
         this.currentCvId = session.cvId;
+      }
+
+      if (session?.proCredits !== undefined) {
+        const remaining = parseInt(session.proCredits, 10);
+        if (!isNaN(remaining)) {
+          this.paymentService.setProCreditsValue(remaining);
+          this.authService.updateProCredits(remaining);
+        }
+      } else {
+        this.paymentService.fetchProStatus();
+        this.authService.refreshCurrentUser().subscribe();
       }
 
       if (!token) {
@@ -305,6 +331,8 @@ export class GeminiLiveService {
             next: (res) => {
               if (res?.refunded) {
                 console.log('[GeminiLive] 1 crédit Pro remboursé automatiquement suite à la rupture technique de connexion.');
+                this.paymentService.fetchProStatus();
+                this.authService.refreshCurrentUser().subscribe();
               }
             },
             error: (e) => console.warn('[GeminiLive] Échec de la notification de remboursement automatique:', e)
@@ -348,6 +376,15 @@ export class GeminiLiveService {
     if (this.hasStarted()) {
       return;
     }
+
+    const credits = this.authService.currentUser()?.proCredits ?? 0;
+    const cached = this.sessionCache.getSession(this.currentCvId);
+    if (credits < 1 && !cached) {
+      this.setError("Solde insuffisant : l'accès à l'entretien vocal IA nécessite au moins 1 crédit Pro. Veuillez recharger votre compte.");
+      this.paymentService.openPackModal();
+      return;
+    }
+
     if (this.isQuotaReached() || this.errorMessage()) {
       return;
     }
@@ -433,7 +470,11 @@ export class GeminiLiveService {
     this.stopSession();
     if (targetCvId && targetCvId !== 'cv_default' && targetCvId !== 'new') {
       this.apiService.completeInterview(targetCvId).subscribe({
-        next: (res) => console.log('[GeminiLive] Entretien finalisé avec succès:', res),
+        next: (res) => {
+          console.log('[GeminiLive] Entretien finalisé avec succès:', res);
+          this.paymentService.fetchProStatus();
+          this.authService.refreshCurrentUser().subscribe();
+        },
         error: (e) => console.warn('[GeminiLive] Erreur finalisation entretien:', e)
       });
     }
