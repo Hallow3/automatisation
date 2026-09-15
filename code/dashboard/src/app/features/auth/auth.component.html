@@ -252,13 +252,17 @@
             Renvoyer
           </button>
         </div>
-        <input
-          type="text"
-          formControlName="code"
-          maxlength="10"
-          placeholder="••••••"
-          autocomplete="one-time-code"
-          class="mt-1 w-full rounded-xl border border-brand-100 bg-white px-3 py-3 text-center text-xl tracking-widest font-mono font-bold text-slate-900 focus:border-brand-300 focus:outline-none transition" />
+        <div class="mt-2 flex items-center justify-between gap-2">
+          <input *ngFor="let d of otpDigits(); let i = index"
+            #otpInput
+            type="text" inputmode="numeric" maxlength="1"
+            [value]="d"
+            (input)="onOtpInput($event, i)"
+            (keydown)="onOtpKeydown($event, i)"
+            (paste)="onOtpPaste($event)"
+            autocomplete="one-time-code"
+            class="h-12 w-full rounded-xl border border-brand-100 bg-white text-center text-xl font-bold text-slate-900 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 focus:outline-none transition" />
+        </div>
         <p *ngIf="hasError(verifyForm, 'code', 'required')" class="mt-1 text-xs text-rose-600 font-medium">Le code est requis.</p>
       </div>
 
@@ -322,13 +326,17 @@
 
       <div>
         <label class="block text-sm font-semibold text-slate-700">Code de sécurité</label>
-        <input
-          type="text"
-          formControlName="code"
-          maxlength="10"
-          placeholder="••••••"
-          autocomplete="one-time-code"
-          class="mt-1 w-full rounded-xl border border-brand-100 bg-white px-3 py-3 text-center text-xl tracking-widest font-mono font-bold text-slate-900 focus:border-brand-300 focus:outline-none transition" />
+        <div class="mt-2 flex items-center justify-between gap-2">
+          <input *ngFor="let d of otpDigits(); let i = index"
+            #otpInput
+            type="text" inputmode="numeric" maxlength="1"
+            [value]="d"
+            (input)="onOtpInput($event, i)"
+            (keydown)="onOtpKeydown($event, i)"
+            (paste)="onOtpPaste($event)"
+            autocomplete="one-time-code"
+            class="h-12 w-full rounded-xl border border-brand-100 bg-white text-center text-xl font-bold text-slate-900 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 focus:outline-none transition" />
+        </div>
         <p *ngIf="hasError(resetPasswordForm, 'code', 'required')" class="mt-1 text-xs text-rose-600 font-medium">Le code est requis.</p>
       </div>
 

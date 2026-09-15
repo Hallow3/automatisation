@@ -408,7 +408,11 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
       }
 
       if (action === 'interview') {
-        this.router.navigate(['/cvs', 'cv_' + Date.now(), 'interview']);
+        if (this.currentCvId && this.currentCvId !== 'sample' && this.currentCvId !== 'demo') {
+          this.router.navigate(['/cvs', this.currentCvId, 'interview']);
+        } else {
+          this.router.navigate(['/cvs', 'interview']);
+        }
       } else if (action === 'editor' || cvId) {
         this.currentPhase = 'editor';
         if (cvId) this.loadCvById(cvId);
@@ -466,7 +470,11 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
 
   setPhase(phase: Phase): void {
     if (phase === 'voice') {
-      this.router.navigate(['/cvs', 'cv_' + Date.now(), 'interview']);
+      if (this.currentCvId && this.currentCvId !== 'sample' && this.currentCvId !== 'demo') {
+        this.router.navigate(['/cvs', this.currentCvId, 'interview']);
+      } else {
+        this.router.navigate(['/cvs', 'interview']);
+      }
       return;
     }
     this.currentPhase = phase;
@@ -538,6 +546,13 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
     const text = promptText || this.aiInput;
     if (!text.trim() || this.isAiLoading()) return;
 
+    // Contrôle préalable du solde de crédits Pro (1 crédit par action)
+    const credits = this.authService.currentUser()?.proCredits ?? 0;
+    if (credits < 1) {
+      this.paymentService.openPackModal();
+      return;
+    }
+
     this.aiMessages.push({
       id: 'msg_' + Date.now(),
       role: 'user',
@@ -551,6 +566,8 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
     this.cvApi.aiEdit(cvId, text.trim(), this.editor.toCvData()).subscribe({
       next: (updatedCv) => {
         this.isAiLoading.set(false);
+        // Synchronisation du solde de crédits après déduction
+        this.paymentService.syncWithBackend();
         if (updatedCv?.contentJson) {
           try {
             const parsed = typeof updatedCv.contentJson === 'string'
@@ -566,13 +583,22 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
           content: '✨ Votre CV a été optimisé avec succès selon votre demande ! Vous pouvez visualiser les changements en direct.'
         });
       },
-      error: () => {
+      error: (err) => {
         this.isAiLoading.set(false);
-        this.aiMessages.push({
-          id: 'msg_' + Date.now(),
-          role: 'assistant',
-          content: 'Désolé, une erreur est survenue lors de l’optimisation de votre CV. Veuillez réessayer.'
-        });
+        if (err.status === 402 || err.error?.detail?.includes('INSUFFICIENT_CREDITS') || err.error?.message?.includes('INSUFFICIENT_CREDITS')) {
+          this.paymentService.openPackModal();
+          this.aiMessages.push({
+            id: 'msg_' + Date.now(),
+            role: 'assistant',
+            content: 'Solde insuffisant : l’utilisation de l’Assistant IA nécessite au moins 1 crédit Pro. Veuillez recharger votre compte.'
+          });
+        } else {
+          this.aiMessages.push({
+            id: 'msg_' + Date.now(),
+            role: 'assistant',
+            content: 'Désolé, une erreur est survenue lors de l’optimisation de votre CV. Veuillez réessayer.'
+          });
+        }
       }
     });
   }

@@ -1,0 +1,11 @@
+target/
+.git
+.idea
+*.iml
+.vscode
+*.log
+backup.sql
+*.dump
+*.h2.db
+*.mv.db
+*.trace.db

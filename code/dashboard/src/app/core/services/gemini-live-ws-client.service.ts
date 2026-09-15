@@ -10,6 +10,8 @@ export interface WsCallbacks {
   onToolCall: (name: string, callId: string, args: any) => Promise<any>;
   onError: (errorMessage: string) => void;
   onClose: (code: number, reason: string) => void;
+  onSessionResumptionUpdate?: (handle: string) => void;
+  onGoAway?: (timeLeft?: string) => void;
 }
 
 @Injectable({
@@ -20,6 +22,15 @@ export class GeminiLiveWsClientService {
   private callbacks: WsCallbacks | null = null;
   private isSetupComplete = false;
   private candidateName = '';
+  private currentResumptionHandle: string | null = null;
+
+  setResumptionHandle(handle: string | null): void {
+    this.currentResumptionHandle = handle;
+  }
+
+  getResumptionHandle(): string | null {
+    return this.currentResumptionHandle;
+  }
 
   connect(token: string, model: string, callbacks: WsCallbacks, candidateName?: string): void {
     this.disconnect();
@@ -136,7 +147,7 @@ export class GeminiLiveWsClientService {
       systemPromptText += `\n\n<candidate_identity>\nLe candidat que tu reçois en entretien s'appelle : ${this.candidateName}.\nSalue-le dès ta première prise de parole par : « Bonjour ${this.candidateName} ! ».\nAdresse-toi régulièrement à lui par son prénom « ${this.candidateName} » avec chaleur et respect tout au long de l'échange.\n</candidate_identity>`;
     }
 
-    const setupPayload = {
+    const setupPayload: any = {
       setup: {
         model: fullModelName,
         generationConfig: {
@@ -151,6 +162,10 @@ export class GeminiLiveWsClientService {
         },
         inputAudioTranscription: {},
         outputAudioTranscription: {},
+        // ── Point 2: Compression de fenêtre de contexte pour prolonger les sessions vocales ──
+        contextWindowCompression: {
+          slidingWindow: {}
+        },
         realtimeInputConfig: {
           automaticActivityDetection: {
             disabled: false,
@@ -220,13 +235,13 @@ export class GeminiLiveWsClientService {
               },
               {
                 name: 'audit_cv_integrity',
-                description: 'Analyse l\'ensemble du CV actuel pour détecter les incohérences chronologiques (expériences qui se chevauchent, dates inversées), les doublons, les sections incomplètes (technologies manquantes, réalisations sans impact) et les trous de parcours. Retourne les anomalies et des suggestions de questions orales.',
+                description: 'Analyse l\'ensemble du CV actuel pour détecter les incohérences chronologiques (expériences qui se chevauchent, dates inversées), les doublons, les sections incomplètes et la densité de contenu (densityScore, thinSections). Retourne les anomalies, les sections trop succinctes et des suggestions de relances concrètes.',
                 parameters: {
                   type: 'OBJECT',
                   properties: {
                     focus: {
                       type: 'STRING',
-                      description: 'Focus optionnel de l\'audit : "all" (défaut), "dates", "duplicates", "completeness"'
+                      description: 'Focus optionnel de l\'audit : "all" (défaut), "dates", "duplicates", "completeness", "density"'
                     }
                   }
                 }
@@ -247,6 +262,14 @@ export class GeminiLiveWsClientService {
       }
     };
 
+    // ── Point 1: Handle de reprise de session Gemini Live ──
+    if (this.currentResumptionHandle) {
+      setupPayload.setup.sessionResumption = {
+        handle: this.currentResumptionHandle
+      };
+      console.log('[GeminiWsClient] Envoi setup avec sessionResumption handle:', this.currentResumptionHandle);
+    }
+
     this.ws.send(JSON.stringify(setupPayload));
   }
 
@@ -263,6 +286,25 @@ export class GeminiLiveWsClientService {
 
       if (!rawText) return;
       const message = JSON.parse(rawText);
+
+      // ── Point 1: Écoute du signal go_away / goAway ──
+      const goAway = message.goAway || message.go_away;
+      if (goAway) {
+        const timeLeft = goAway.timeLeft || goAway.time_left;
+        console.warn('[GeminiWsClient] Signal go_away reçu du serveur Gemini (temps restant:', timeLeft, ').');
+        this.callbacks?.onGoAway?.(timeLeft);
+      }
+
+      // ── Point 1: Maintien du jeton de reprise SessionResumptionUpdate ──
+      const resumptionUpdate = message.sessionResumptionUpdate || message.SessionResumptionUpdate || message.serverContent?.sessionResumptionUpdate;
+      if (resumptionUpdate) {
+        const handle = resumptionUpdate.newHandle || resumptionUpdate.new_handle || resumptionUpdate.handle;
+        if (handle) {
+          console.log('[GeminiWsClient] Jeton SessionResumptionUpdate reçu:', handle);
+          this.currentResumptionHandle = handle;
+          this.callbacks?.onSessionResumptionUpdate?.(handle);
+        }
+      }
 
       if (message.setupComplete) {
         this.isSetupComplete = true;

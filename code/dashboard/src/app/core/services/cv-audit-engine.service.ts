@@ -11,7 +11,9 @@ export interface CvAnomaly {
 }
 
 export interface CvAuditReport {
-  score: number; // 0 à 100
+  score: number; // 0 à 100 (cohérence globale)
+  densityScore: number; // 0 à 100 (richesse et consistance de contenu selon outcome_strategy)
+  thinSections: string[]; // Sections nécessitant d'être enrichies
   totalChecks: number;
   anomaliesCount: number;
   anomalies: CvAnomaly[];
@@ -39,11 +41,14 @@ export class CvAuditEngineService {
    */
   audit(draft: any): CvAuditReport {
     const anomalies: CvAnomaly[] = [];
+    const thinSections: string[] = [];
     let totalChecks = 0;
 
     if (!draft) {
       return {
         score: 0,
+        densityScore: 0,
+        thinSections: ['cv_vide'],
         totalChecks: 1,
         anomaliesCount: 1,
         anomalies: [{
@@ -62,6 +67,7 @@ export class CvAuditEngineService {
     // ── 1. Vérification Titre & Résumé ─────────────────────────────────────
     totalChecks += 2;
     if (!draft.headline || draft.headline.trim().length < 3) {
+      thinSections.push('headline (titre de poste absent)');
       anomalies.push({
         id: 'missing_headline',
         type: 'INCOMPLETE',
@@ -73,7 +79,8 @@ export class CvAuditEngineService {
       });
     }
 
-    if (!draft.summary || draft.summary.trim().length < 20) {
+    if (!draft.summary || draft.summary.trim().length < 30) {
+      thinSections.push('summary (profil / accroche trop courte ou absente)');
       anomalies.push({
         id: 'missing_summary',
         type: 'INCOMPLETE',
@@ -88,6 +95,9 @@ export class CvAuditEngineService {
     // ── 2. Vérification des Compétences & Doublons ─────────────────────────
     totalChecks += 2;
     const rawSkills: string[] = Array.isArray(draft.skills) ? draft.skills : [];
+    if (rawSkills.length < 4) {
+      thinSections.push(`skills (${rawSkills.length} compétence(s) enregistrée(s), viser au moins 4)`);
+    }
     if (rawSkills.length === 0) {
       anomalies.push({
         id: 'missing_skills',
@@ -131,6 +141,7 @@ export class CvAuditEngineService {
 
     if (experiences.length === 0) {
       totalChecks += 1;
+      thinSections.push('experiences (aucune expérience enregistrée)');
       anomalies.push({
         id: 'no_experiences',
         type: 'INCOMPLETE',
@@ -148,8 +159,24 @@ export class CvAuditEngineService {
         const comp = exp.company || 'Entreprise inconnue';
         totalChecks += 4;
 
-        // Incomplétudes : Réalisations concrètes
+        // Incomplétudes : Réalisations concrètes et densité de contenu
         const achievements: any[] = Array.isArray(exp.achievements) ? exp.achievements : [];
+        const responsibilities: any[] = Array.isArray(exp.responsibilities) ? exp.responsibilities : [];
+        const bulletsCount = achievements.length + responsibilities.length;
+
+        if (bulletsCount < 2) {
+          thinSections.push(`experiences[${i}] "${pos}" chez ${comp} (${bulletsCount} tâche(s)/réalisation(s))`);
+          anomalies.push({
+            id: `exp_${i}_thin_content`,
+            type: 'INCOMPLETE',
+            severity: 'WARNING',
+            field: `experiences[${i}]`,
+            title: `Expérience trop succincte (${comp})`,
+            message: `L'expérience "${pos}" chez ${comp} ne comporte que ${bulletsCount} élément(s). Selon <outcome_strategy>, Bray doit proposer des pistes concrètes (gestion de planning, relations clients, formation, amélioration de méthode) au lieu de questions ouvertes.`,
+            suggestedQuestion: `Pour ton rôle chez ${comp}, souvent on fait plus de choses qu'on ne le réalise : gérais-tu une partie du planning, des relations clients, la formation de collègues ou l'amélioration d'un processus ?`
+          });
+        }
+
         if (achievements.length === 0) {
           anomalies.push({
             id: `exp_${i}_no_achievements`,
@@ -291,6 +318,15 @@ export class CvAuditEngineService {
       }
     }
 
+    // Équilibre de densité pour profil avec peu d'expériences
+    if (experiences.length <= 1 && education.length === 0) {
+      thinSections.push('education (profil débutant nécessitant formations ou projets pour équilibrer la densité)');
+    }
+
+    // ── Calcul du score de densité / richesse de contenu (0 à 100) ───────────
+    const densityPenalty = thinSections.length * 15;
+    const densityScore = Math.max(10, Math.min(100, 100 - densityPenalty));
+
     // ── Calcul du score global de cohérence (0 à 100) ──────────────────────
     let penalty = 0;
     for (const anom of anomalies) {
@@ -300,14 +336,18 @@ export class CvAuditEngineService {
     }
     const score = Math.max(20, Math.min(100, 100 - penalty));
 
-    let summary = 'Le CV est parfaitement cohérent et prêt à être finalisé.';
-    if (anomalies.length > 0) {
+    let summary = 'Le CV est parfaitement dense, cohérent et prêt à être finalisé.';
+    if (thinSections.length > 0) {
+      summary = `Densité de contenu à enrichir (${thinSections.length} section(s) trop succincte(s)). Propose des pistes concrètes au candidat pour enrichir : ${thinSections.slice(0, 2).join(', ')}.`;
+    } else if (anomalies.length > 0) {
       const topIssue = anomalies[0];
       summary = `${anomalies.length} point(s) d'attention détecté(s). Point principal : ${topIssue.title}.`;
     }
 
     return {
       score,
+      densityScore,
+      thinSections,
       totalChecks,
       anomaliesCount: anomalies.length,
       anomalies,

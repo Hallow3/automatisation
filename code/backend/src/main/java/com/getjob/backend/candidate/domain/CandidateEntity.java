@@ -74,7 +74,7 @@ public class CandidateEntity {
 
     @Column(name = "pro_credits", nullable = false)
     @Builder.Default
-    private Integer proCredits = 0;
+    private Integer proCredits = 1;
 
     @Column(name = "is_pro_agent", nullable = false)
     @Builder.Default

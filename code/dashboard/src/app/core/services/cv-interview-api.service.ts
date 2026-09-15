@@ -38,6 +38,10 @@ export class CvInterviewApiService {
     return this.http.post<any>(`${this.base}/${cvId}/synthesize`, { transcript });
   }
 
+  refundAbortedSession(cvId: string): Observable<{ refunded: boolean }> {
+    return this.http.post<{ refunded: boolean }>(`${this.base}/${cvId}/interview/refund-aborted`, {});
+  }
+
   getCv(cvId: string): Observable<any> {
     return this.http.get<any>(`${this.base}/${cvId}`);
   }

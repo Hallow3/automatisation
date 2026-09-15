@@ -1,10 +1,15 @@
 import { IDENTITY_AND_GUARDRAILS_PROMPT } from './identity-and-guardrails.prompt';
+import { OUTCOME_STRATEGY_PROMPT } from './outcome-strategy.prompt';
 import { RECRUITER_PERSONA_PROMPT } from './recruiter-persona.prompt';
 import { INTERVIEW_ALGORITHM_PROMPT } from './interview-algorithm.prompt';
 import { DRAFT_TOOL_RULES_PROMPT } from './draft-tool-rules.prompt';
 
+export { OUTCOME_STRATEGY_PROMPT };
+
 export const CV_INTERVIEW_SYSTEM_PROMPT = `
 ${IDENTITY_AND_GUARDRAILS_PROMPT}
+
+${OUTCOME_STRATEGY_PROMPT}
 
 ${RECRUITER_PERSONA_PROMPT}
 

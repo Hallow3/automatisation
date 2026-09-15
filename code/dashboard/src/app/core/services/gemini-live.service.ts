@@ -40,7 +40,7 @@ export class GeminiLiveService {
   public auditReport = signal<CvAuditReport | null>(null);
   public isQuotaReached = computed(() => {
     const msg = this.errorMessage();
-    return !!msg && (msg.includes('limite de 3 entretiens') || msg.includes('QUOTA_REACHED') || msg.includes('crédits se réinitialiseront'));
+    return !!msg && (msg.includes('crédit Pro') || msg.includes('INSUFFICIENT_CREDITS') || msg.includes('Solde insuffisant') || msg.includes('limite de 3 entretiens') || msg.includes('QUOTA_REACHED'));
   });
 
   public currentDraft = signal<any>(this.createEmptyDraft());
@@ -71,6 +71,10 @@ export class GeminiLiveService {
 
   private lineBuffers: { user: string; ai: string } = { user: '', ai: '' };
   private flushTimeouts: { user?: any; ai?: any } = {};
+
+  private hasMeaningfulUsage = false;
+  private isResumingConnection = false;
+  private currentCandidateFirstName = '';
 
   setMuted(muted: boolean): void {
     this.isMutedSignal.set(muted);
@@ -167,12 +171,13 @@ export class GeminiLiveService {
       const session = await firstValueFrom(
         this.apiService.createSession(cvId)
       ).catch((err) => {
-        let msg = err?.error?.message || err?.error?.reason || err?.message || 'Service vocal indisponible.';
-        if (typeof msg === 'string' && msg.includes('QUOTA_REACHED:')) {
+        let msg = err?.error?.detail || err?.error?.message || err?.error?.reason || err?.message || 'Service vocal indisponible.';
+        if (typeof msg === 'string' && msg.includes('INSUFFICIENT_CREDITS:')) {
+          msg = msg.split('INSUFFICIENT_CREDITS:')[1]?.trim() || msg;
+        } else if (err?.status === 402 || (typeof msg === 'string' && msg.includes('INSUFFICIENT_CREDITS'))) {
+          msg = "Solde insuffisant : l'accès à l'entretien vocal IA nécessite au moins 1 crédit Pro. Veuillez recharger votre compte.";
+        } else if (typeof msg === 'string' && msg.includes('QUOTA_REACHED:')) {
           msg = msg.split('QUOTA_REACHED:')[1]?.trim() || msg;
-        }
-        if (err?.status === 429 && (!msg || msg === 'Service vocal indisponible.' || msg.includes('429'))) {
-          msg = "Vous avez atteint votre limite de 3 entretiens vocaux IA pour aujourd'hui. Vos crédits se réinitialiseront demain à minuit.";
         }
         throw new Error(msg);
       });
@@ -199,67 +204,11 @@ export class GeminiLiveService {
       }
 
       const candidateFirstName = this.extractCandidateFirstName();
+      this.currentCandidateFirstName = candidateFirstName;
       this.pendingStartTriggerPrompt = buildStartTrigger(candidateFirstName, isResume, cachedContext);
 
       // Connecter le WebSocket avec callbacks réactifs
-      this.wsClient.connect(token, model, {
-        onSetupComplete: () => {
-          this.isWsReady.set(true);
-          // Si l'utilisateur a cliqué sur "Commencer" pendant que la connexion s'établissait
-          if (this.userWantsToStart) {
-            this.beginInterview();
-          } else {
-            this.state.set('READY');
-          }
-        },
-        onAudioChunkReceived: (base64Pcm) => {
-          this.state.set('AI_SPEAKING');
-          this.clearInactivityTimer();
-          if (this.echoCooldownTimer) {
-            clearTimeout(this.echoCooldownTimer);
-            this.echoCooldownTimer = null;
-          }
-          this.audioEngine.playPcmChunk(base64Pcm, () => {
-            // Fin de parole effective de l'IA dans les haut-parleurs
-            this.initialGreetingPending = false;
-            this.state.set('LISTENING');
-            this.isAiSpeakingCooldown = true;
-            if (this.echoCooldownTimer) clearTimeout(this.echoCooldownTimer);
-            this.echoCooldownTimer = setTimeout(() => {
-              this.isAiSpeakingCooldown = false;
-              this.armInactivityTimer();
-            }, 400);
-          });
-        },
-        onTextChunkReceived: (role, text) => {
-          this.appendTranscriptChunk(role, text);
-        },
-        onModelTurnComplete: () => {
-          this.finalizeCurrentTurn();
-        },
-        onInterrupted: () => {
-          this.audioEngine.interruptPlayback();
-          this.initialGreetingPending = false;
-          this.isAiSpeakingCooldown = false;
-          this.state.set('LISTENING');
-          this.finalizeCurrentTurn();
-        },
-        onToolCall: async (name, callId, args) => {
-          return await this.handleToolCall(name, callId, args);
-        },
-        onError: (err) => {
-          this.initialGreetingPending = false;
-          this.isStarting.set(false);
-          this.setError(err);
-        },
-        onClose: (code) => {
-          this.initialGreetingPending = false;
-          this.isStarting.set(false);
-          if (this.state() !== 'COMPLETED' && code !== 1000 && this.state() !== 'ERROR') {
-            this.setError(`Connexion à l’assistant perdue (code ${code}).`);
-          }
-        }
-      }, candidateFirstName);
+      this.wsClient.connect(token, model, this.buildWsCallbacks(candidateFirstName), candidateFirstName);
     } catch (err: any) {
       this.initialGreetingPending = false;
       this.isStarting.set(false);
@@ -271,6 +220,121 @@ export class GeminiLiveService {
       if (this._startAbortController === abortController) {
         this._startAbortController = null;
       }
+    }
+  }
+
+  private buildWsCallbacks(candidateFirstName: string): any {
+    return {
+      onSetupComplete: () => {
+        this.isWsReady.set(true);
+        if (this.userWantsToStart) {
+          this.beginInterview();
+        } else {
+          this.state.set('READY');
+        }
+      },
+      onAudioChunkReceived: (base64Pcm: string) => {
+        this.state.set('AI_SPEAKING');
+        this.clearInactivityTimer();
+        if (this.echoCooldownTimer) {
+          clearTimeout(this.echoCooldownTimer);
+          this.echoCooldownTimer = null;
+        }
+        this.audioEngine.playPcmChunk(base64Pcm, () => {
+          this.initialGreetingPending = false;
+          this.state.set('LISTENING');
+          this.isAiSpeakingCooldown = true;
+          if (this.echoCooldownTimer) clearTimeout(this.echoCooldownTimer);
+          this.echoCooldownTimer = setTimeout(() => {
+            this.isAiSpeakingCooldown = false;
+            this.armInactivityTimer();
+          }, 400);
+        });
+      },
+      onTextChunkReceived: (role: 'user' | 'ai', text: string) => {
+        this.appendTranscriptChunk(role, text);
+      },
+      onModelTurnComplete: () => {
+        this.finalizeCurrentTurn();
+        if (this.hasStarted()) {
+          const hasUserSpoken = this.transcript().some(t => t.role === 'user' && t.text.trim().length > 5);
+          if (hasUserSpoken) {
+            this.hasMeaningfulUsage = true;
+          }
+        }
+      },
+      onInterrupted: () => {
+        this.audioEngine.interruptPlayback();
+        this.initialGreetingPending = false;
+        this.isAiSpeakingCooldown = false;
+        this.state.set('LISTENING');
+        this.finalizeCurrentTurn();
+      },
+      onToolCall: async (name: string, callId: string, args: any) => {
+        return await this.handleToolCall(name, callId, args);
+      },
+      onError: (err: string) => {
+        this.initialGreetingPending = false;
+        this.isStarting.set(false);
+        this.setError(err);
+      },
+      onSessionResumptionUpdate: (handle: string) => {
+        console.log('[GeminiLive] Handle de reprise de session mis à jour:', handle);
+        this.wsClient.setResumptionHandle(handle);
+      },
+      onGoAway: (timeLeft?: string) => {
+        console.warn('[GeminiLive] Signal go_away reçu du serveur Gemini (coupure imminente, délai:', timeLeft, '). Préparation de la reconnexion transparente.');
+        this.isResumingConnection = true;
+      },
+      onClose: (code: number) => {
+        this.initialGreetingPending = false;
+        this.isStarting.set(false);
+
+        // 1. Reprise de session transparente si signal go_away reçu et handle présent
+        if (this.isResumingConnection && this.wsClient.getResumptionHandle() && this.state() !== 'COMPLETED') {
+          console.log('[GeminiLive] Bascule transparente vers une nouvelle session avec jeton de reprise...');
+          this.isResumingConnection = false;
+          this.attemptSeamlessResume();
+          return;
+        }
+
+        // 2. Remboursement automatique en cas de déconnexion anormale avant usage réel (codes 1006 / 1008)
+        if ((code === 1006 || code === 1008) && !this.hasMeaningfulUsage && this.currentCvId && this.currentCvId !== 'cv_default' && this.currentCvId !== 'new') {
+          console.warn(`[GeminiLive] Déconnexion anormale (${code}) sans utilisation effective. Demande de remboursement automatique pour cvId=${this.currentCvId}`);
+          this.apiService.refundAbortedSession(this.currentCvId).subscribe({
+            next: (res) => {
+              if (res?.refunded) {
+                console.log('[GeminiLive] 1 crédit Pro remboursé automatiquement suite à la rupture technique de connexion.');
+              }
+            },
+            error: (e) => console.warn('[GeminiLive] Échec de la notification de remboursement automatique:', e)
+          });
+        }
+
+        if (this.state() !== 'COMPLETED' && code !== 1000 && this.state() !== 'ERROR') {
+          this.setError(`Connexion à l’assistant perdue (code ${code}).`);
+        }
+      }
+    };
+  }
+
+  private async attemptSeamlessResume(): Promise<void> {
+    try {
+      console.log('[GeminiLive] Obtention d\'un jeton de session pour reprise transparente (sans débit de crédit)...');
+      const session = await firstValueFrom(this.apiService.createSession(this.currentCvId));
+      if (session?.token) {
+        const token = session.token;
+        const model = session.model || 'gemini-3.1-flash-live-preview';
+        this.wsClient.connect(
+          token,
+          model,
+          this.buildWsCallbacks(this.currentCandidateFirstName),
+          this.currentCandidateFirstName
+        );
+      }
+    } catch (e) {
+      console.warn('[GeminiLive] Échec de la reprise transparente:', e);
+      this.setError('Connexion interrompue avec le serveur.');
     }
   }
 
@@ -342,6 +406,7 @@ export class GeminiLiveService {
   stopSession(): void {
     this.initialGreetingPending = false;
     this.isSessionStarting = false;
+    this.isResumingConnection = false;
     this.userWantsToStart = false;
     this.hasStarted.set(false);
     this.isStarting.set(false);
@@ -362,18 +427,27 @@ export class GeminiLiveService {
 
   handleCompleteInterview(): void {
     this.state.set('COMPLETED');
-    this.sessionCache.clearSession(this.currentCvId);
+    const targetCvId = this.currentCvId;
+    this.sessionCache.clearSession(targetCvId);
+    this.wsClient.setResumptionHandle(null);
     this.stopSession();
+    if (targetCvId && targetCvId !== 'cv_default' && targetCvId !== 'new') {
+      this.apiService.completeInterview(targetCvId).subscribe({
+        next: (res) => console.log('[GeminiLive] Entretien finalisé avec succès:', res),
+        error: (e) => console.warn('[GeminiLive] Erreur finalisation entretien:', e)
+      });
+    }
     this.interviewCompleted$.next();
   }
 
   private async handleToolCall(name: string, callId: string, args: any): Promise<any> {
     if (name === 'update_cv_draft') {
+      this.hasMeaningfulUsage = true;
       this.mergeDraft(args);
       this.sessionCache.saveSession(this.currentCvId, this.currentDraft(), this.transcript());
       if (this.currentCvId && this.currentCvId !== 'cv_default' && this.currentCvId !== 'new') {
         this.apiService.saveDraft(this.currentCvId, this.currentDraft()).subscribe({
-          next: (res) => { if (res?.id) this.currentCvId = res.id; },
+          next: (res) => { if (res?.id) this.currentCvId = String(res.id); },
           error: (e) => console.warn('[GeminiLive] Save draft silencieux:', e)
         });
       }

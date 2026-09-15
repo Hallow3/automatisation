@@ -158,7 +158,7 @@ export class CvEditorService {
 
     return this.cvApi.saveDraft(this._currentCvId, this._toApiPayload()).pipe(
       tap((savedCv) => {
-        if (savedCv?.id && (!this._currentCvId || this._currentCvId === 'latest' || this._currentCvId === 'new' || this._currentCvId === 'cv_default')) {
+        if (savedCv?.id) {
           this._currentCvId = String(savedCv.id);
         }
         this.saveStatus.set('saved');

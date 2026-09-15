@@ -1,5 +1,31 @@
 # CHANGELOG — Suivi de Développement & Intégration
 
+## [1.2.1] - 2026-09-14
+
+### 🛡️ Correctifs Majeurs Production : Monétisation du Chat IA, 1 Crédit Gratuit & Éradication des CVs Doublons
+
+#### 1. Monétisation de l'Assistant Chat IA (`POST /api/v1/cvs/{id}/ai-edit`)
+- **Contrôle & Débit Atomique** : Chaque demande d'optimisation de CV via l'Assistant IA vérifie `proCredits >= 1` et prélève 1 crédit Pro de manière atomique via `decrementProCreditIfAvailable()`.
+- **Remboursement Automatique sur Erreur** : Si l'appel API Google Gemini échoue pour une raison technique, le crédit prélevé est immédiatement restitué au candidat (`refundProCredit()`).
+- **Erreur Standardisée RFC 7807 (HTTP 402)** : Retour explicite `INSUFFICIENT_CREDITS` si solde insuffisant, intercepté par le frontend pour ouvrir automatiquement le tunnel de paiement NotchPay / WhatsApp.
+- **Transparence Visuelle** : Badge `1 crédit / action` ajouté sur l'onglet « Assistant IA » dans le créateur de CV.
+
+#### 2. Restauration du Crédit Gratuit de Bienvenue (1 Crédit à l'Inscription)
+- **Entité & Valeurs par Défaut** : `CandidateEntity.proCredits` fixé à `1` par défaut (`@Builder.Default private Integer proCredits = 1`).
+- **Inscription Email & Google** : `AuthService.register()` et `AuthService.loginWithGoogle()` attribuent explicitement 1 crédit Pro de bienvenue.
+- **Migration Flyway V12 (`V12__grant_initial_free_credit_to_candidates.sql`)** :
+  - Modification de la valeur par défaut de `candidate.pro_credits` à `1` en base MySQL.
+  - Attribution rétroactive d'1 crédit Pro à tous les utilisateurs déjà inscrits ayant 0 crédit et aucune transaction payante réussie.
+
+#### 3. Éradication de la Duplication des CVs lors du Tool Calling Gemini
+- **Élimination des Identifiants Fictifs** : Suppression de `'cv_' + Date.now()` dans `cv-builder-main.component.ts`. La navigation vers l'entretien utilise désormais l'identifiant réel du CV existant ou route vers `/cvs/interview`.
+- **Résilience de Recherche Multi-Statuts (`CvService`)** :
+  - Dans `createInterviewSession()` et `updateDraft()`, recherche étendue aux CVs `IN_PROGRESS` **ET** `DRAFT_UPDATED`.
+  - Empêche la création d'un second CV en base lorsqu'un outil Gemini (`update_cv_draft`) est invoqué en rafale ou après le premier basculement d'état.
+- **Finalisation Propre de l'Entretien** : Appel effectif de `POST /api/v1/cvs/{id}/interview/complete` dans `GeminiLiveService.handleCompleteInterview()`.
+
+---
+
 ## [1.2.0] - 2026-09-13
 
 ### 💳 Migration vers NotchPay (Paiements Programmatiques) & Résilience avec Fallback WhatsApp

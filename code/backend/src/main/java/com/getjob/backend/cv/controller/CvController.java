@@ -90,6 +90,12 @@ public class CvController {
         return ResponseEntity.ok(cvService.completeInterview(id));
     }
 
+    @PostMapping("/cvs/{id}/interview/refund-aborted")
+    public ResponseEntity<Map<String, Object>> refundAbortedInterviewSession(@PathVariable String id) {
+        boolean refunded = cvService.refundAbortedInterviewSession(id);
+        return ResponseEntity.ok(Map.of("refunded", refunded));
+    }
+
     @PostMapping("/cvs/{id}/synthesize")
     public ResponseEntity<CvDto> synthesizeFromTranscript(@PathVariable String id, @RequestBody Map<String, Object> payload) {
         String transcript = (String) payload.get("transcript");

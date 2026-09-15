@@ -20,7 +20,7 @@
 
     <div class="flex items-center gap-2 shrink-0">
       <span *ngIf="isQuotaReached()" class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] sm:text-xs font-bold text-amber-800 border border-amber-200">
-        ⚠️ Quota 3/3 atteint
+        ⚠️ Crédits insuffisants
       </span>
       <span *ngIf="!isQuotaReached() && errorMessage()" class="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-0.5 text-[10px] sm:text-xs font-bold text-rose-700 border border-rose-200">
         ⚠️ Déconnecté
@@ -52,16 +52,22 @@
         </svg>
       </div>
       <div class="flex-1 min-w-0">
-        <h3 class="text-sm font-bold text-slate-900">Limite d'entretiens vocaux IA atteinte</h3>
+        <h3 class="text-sm font-bold text-slate-900">Crédits pour l'entretien vocal IA</h3>
         <p class="mt-1 text-xs text-slate-600 leading-relaxed">
-          {{ errorMessage() || "Vous avez atteint votre limite de 3 entretiens vocaux IA pour aujourd'hui. Vos crédits se réinitialiseront demain à minuit." }}
+          {{ errorMessage() || "L'accès à l'entretien vocal IA nécessite au moins 1 crédit Pro. Veuillez recharger votre compte pour démarrer une session." }}
         </p>
         <p class="mt-1 text-2xs text-amber-700 font-semibold">
-          💡 Vous pouvez continuer à créer et modifier vos CV gratuitement par saisie assistée ou manuelle !
+          💡 Vous pouvez également continuer à créer et modifier vos CV gratuitement par saisie assistée ou manuelle !
         </p>
       </div>
     </div>
     <div class="flex flex-wrap items-center gap-2.5 pt-1 sm:pl-[54px]">
+      <button
+        type="button"
+        (click)="paymentService.openPackModal()"
+        class="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-orange-500 to-brand-orange-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:from-brand-orange-600 hover:to-brand-orange-700 active:scale-95 transition">
+        <span>💳 Recharger mes crédits Pro</span>
+      </button>
       <a
         routerLink="/cv-builder"
         [queryParams]="{ action: 'create' }"
@@ -198,10 +204,10 @@
         <div *ngIf="hasStarted()">
           <!-- Status labels -->
           <h2 class="mt-2.5 sm:mt-3 text-xs sm:text-sm font-bold text-slate-900">
-            {{ isQuotaReached() ? 'Limite quotidienne atteinte' : errorMessage() ? 'Connexion en pause' : isAiSpeaking() ? 'L’assistant vous répond…' : isUserSpeaking() ? 'Je vous écoute…' : isMuted() ? 'Micro désactivé' : 'Parlez naturellement' }}
+            {{ isQuotaReached() ? 'Crédits Pro insuffisants' : errorMessage() ? 'Connexion en pause' : isAiSpeaking() ? 'L’assistant vous répond…' : isUserSpeaking() ? 'Je vous écoute…' : isMuted() ? 'Micro désactivé' : 'Parlez naturellement' }}
           </h2>
           <p class="mt-0.5 text-2xs text-slate-500 max-w-sm mx-auto">
-            {{ isQuotaReached() ? 'Vos crédits vocaux se réinitialiseront cette nuit à minuit.' : errorMessage() ? errorMessage() : 'L’IA écoute vos réponses et met à jour votre CV en direct sur la droite.' }}
+            {{ isQuotaReached() ? 'Rechargez votre compte en crédits Pro pour démarrer une session vocale IA.' : errorMessage() ? errorMessage() : 'L’IA écoute vos réponses et met à jour votre CV en direct sur la droite.' }}
           </p>
 
           <!-- Live audio visualizer bars -->

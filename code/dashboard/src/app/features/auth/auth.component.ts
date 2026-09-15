@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, AfterViewInit, NgZone, HostListener } from '@angular/core';
+import { Component, inject, signal, OnInit, AfterViewInit, NgZone, HostListener, ViewChildren, QueryList, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl } from '@angular/forms';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
@@ -32,6 +32,61 @@ export class AuthComponent implements OnInit, AfterViewInit {
   resendSuccessMessage = signal<string | null>(null);
   verifyEmailTarget = signal<string>('');
   showPassword = signal(false);
+
+  otpDigits = signal<string[]>(['', '', '', '', '', '']);
+
+  @ViewChildren('otpInput') otpInputs!: QueryList<ElementRef<HTMLInputElement>>;
+
+  onOtpInput(event: Event, index: number): void {
+    const input = event.target as HTMLInputElement;
+    const val = input.value.replace(/\D/g, '').slice(-1);
+    input.value = val;
+    const digits = [...this.otpDigits()];
+    digits[index] = val;
+    this.otpDigits.set(digits);
+    this._syncOtpToForm();
+    if (val && index < 5) {
+      this.otpInputs.toArray()[index + 1].nativeElement.focus();
+    }
+  }
+
+  onOtpKeydown(event: KeyboardEvent, index: number): void {
+    if (event.key === 'Backspace') {
+      const digits = [...this.otpDigits()];
+      if (digits[index]) {
+        digits[index] = '';
+        this.otpDigits.set(digits);
+        this._syncOtpToForm();
+      } else if (index > 0) {
+        this.otpInputs.toArray()[index - 1].nativeElement.focus();
+      }
+    }
+  }
+
+  onOtpPaste(event: ClipboardEvent): void {
+    event.preventDefault();
+    const pasted = (event.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, 6);
+    const digits = ['', '', '', '', '', ''];
+    pasted.split('').forEach((d, i) => { digits[i] = d; });
+    this.otpDigits.set(digits);
+    this._syncOtpToForm();
+    const inputs = this.otpInputs.toArray();
+    inputs.forEach((el, i) => { el.nativeElement.value = digits[i]; });
+    const focusIdx = Math.min(pasted.length, 5);
+    inputs[focusIdx].nativeElement.focus();
+  }
+
+  private _syncOtpToForm(): void {
+    const val = this.otpDigits().join('');
+    this.verifyForm.get('code')?.setValue(val);
+    this.resetPasswordForm.get('code')?.setValue(val);
+  }
+
+  resetOtp(): void {
+    this.otpDigits.set(['', '', '', '', '', '']);
+    this._syncOtpToForm();
+    this.otpInputs?.toArray().forEach(el => { el.nativeElement.value = ''; });
+  }
 
   loginForm: FormGroup = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
@@ -232,6 +287,8 @@ export class AuthComponent implements OnInit, AfterViewInit {
     this.loginForm.reset();
     this.registerForm.reset();
     this.forgotForm.reset();
+    this.otpDigits.set(['', '', '', '', '', '']);
+    this._syncOtpToForm();
 
     // Nettoie l'URL des query params de session expirée lors du changement de mode
     if (this.route.snapshot.queryParamMap.get('reason')) {

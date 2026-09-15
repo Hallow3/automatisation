@@ -67,6 +67,7 @@ public class AuthService {
                 .enabled(false) // Validation d'email requise avant connexion
                 .verificationCode(code)
                 .verificationCodeExpiresAt(java.time.Instant.now().plus(15, java.time.temporal.ChronoUnit.MINUTES))
+                .proCredits(1)
                 .build();
 
         CandidateEntity saved = candidateRepository.save(candidate);
@@ -201,7 +202,7 @@ public class AuthService {
                 candidate.getPhone(),
                 candidate.getCity(),
                 candidate.getTargetRole(),
-                candidate.getProCredits() != null ? candidate.getProCredits() : 0
+                candidate.getProCredits() != null ? candidate.getProCredits() : 1
         );
     }
 
@@ -317,6 +318,7 @@ public class AuthService {
                     .passwordHash(passwordEncoder.encode(java.util.UUID.randomUUID().toString()))
                     .role("ROLE_USER")
                     .enabled(true)
+                    .proCredits(1)
                     .build();
 
             CandidateEntity saved = candidateRepository.save(newCandidate);
