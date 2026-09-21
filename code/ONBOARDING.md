@@ -11,7 +11,7 @@ Ce guide est conçu pour permettre à tout nouvel ingénieur, contributeur ou ag
 | :--- | :--- |
 | **Produit** | Plateforme SaaS B2B/B2C d'accélération de carrière assistée par IA. |
 | **Piliers Clés** | 1. Coach vocal d'entretien pour création de CV (Gemini 3.1 Live).<br>2. Galerie & Éditeur de CV A4 haute fidélité (9 templates Word/ATS).<br>3. Agrégation d'offres d'emploi & scoring d'affinité algorithmique (45-95%).<br>4. Rédaction IA de lettres de motivation personnalisées (Gemini 2.0 Flash).<br>5. Paiement programmatique Mobile Money (NotchPay) avec résilience WhatsApp. |
-| **Backend** | Spring Boot 3.3.2, Java 17/21, Spring Security 6 (JWT HttpOnly), Flyway V1 -> V10, MySQL 8. |
+| **Backend** | Spring Boot 3.3.2, Java 17/21, Spring Security 6 (JWT HttpOnly), Flyway V1 -> V14, MySQL 8. |
 | **Frontend** | Angular 18 (100% Standalone, Signals), Tailwind CSS v3, Web Audio API (PCM 16k/24k). |
 | **IA & Audio** | Google Gemini 3.1 Flash Live (WebSocket), Gemini 2.0 Flash (REST multimodal/texte). |
 | **Paiements** | NotchPay API (`POST /payments`), Webhook HMAC-SHA256, Idempotence, WhatsApp fallback. |
@@ -51,7 +51,7 @@ Ce guide est conçu pour permettre à tout nouvel ingénieur, contributeur ou ag
 cd backend
 mvn spring-boot:run
 ```
-> Le serveur démarre sur le port **8081** (`http://localhost:8081`). Les migrations Flyway V1 à V10 s'exécutent automatiquement au démarrage.
+> Le serveur démarre sur le port **8081** (`http://localhost:8081`). Les migrations Flyway V1 à V14 s'exécutent automatiquement au démarrage.
 
 #### Terminal 2 — Frontend Angular :
 ```bash
@@ -70,6 +70,7 @@ npm start
 - `auth/` : Sécurité Spring Security 6, JWT en cookie HttpOnly, filtres `JwtAuthenticationFilter` et `RateLimitFilter`.
 - `candidate/` : Profils candidats, contrôleur `/api/v1/candidate/profile`, synchronisation de données.
 - `cv/` : Cycle de vie des CVs, validation des brouillons (`CvDraftValidator`), et export PDF headless (`CvPdfExportService`).
+- `cv/interview/` : Sous-système d'orchestration vocal V2 (State Machine déterministe, Observer LLM, Writer Service, persistance des sessions).
 - `opportunity/` : Moteur de matching et scoring d'affinité (45% - 95%), rédaction de lettres de motivation IA.
 - `application/` : Gestion et suivi des candidatures (pipeline Kanban).
 - `payment/` : Intégration NotchPay programmatique, client HTTP dédié (`NotchPayClient`), circuit breaker (`NotchPayCircuitBreaker`), webhook HMAC-SHA256 et repli WhatsApp.
@@ -86,23 +87,24 @@ npm start
 - `features/applications/` : Tableau et Kanban de suivi des candidatures.
 - `core/prompts/cv-interview/` : Prompts modulaires pour l'IA d'entretien vocal (Bray).
 - `core/services/` :
-  - `cv-audit-engine.service.ts` : Moteur algorithmique déterministe d'analyse de cohérence (`audit_cv_integrity`).
-  - `gemini-live-ws-client.service.ts` : Communication WebSocket audio bidirectionnelle avec Gemini Live.
+  - `cv-interview-api.service.ts` : API d'orchestration vocale V2 (session, tour de parole, arrêt anticipé, remboursement).
+  - `gemini-live-ws-client.service.ts` : Communication WebSocket audio bidirectionnelle avec Gemini Live (tool `request_end_interview`).
   - `audio-pcm-engine.service.ts` : Capture micro PCM 16kHz via Worklet et lecture PCM 24kHz.
   - `interview-session-cache.service.ts` : Cache de résilience locale (10 min) en cas de déconnexion.
-  - `payment.service.ts` : Gestion des sessions de paiement NotchPay et modales de repli WhatsApp.
+  - `payment.service.ts` : Tunnel NotchPay, crédits pro synchronisés et modales de repli WhatsApp.
 
 ---
 
 ## 💡 4. Les 5 Grands Flux Métier
 
-### 1. Entretien Vocal IA & Détection d'Anomalies
-- Le candidat démarre une session vocale (`POST /api/v1/cvs/{id}/interview/session`).
-- Le backend génère un token éphémère à usage unique auprès de Google Gemini.
-- Le frontend ouvre un WebSocket direct `wss://generativelanguage.googleapis.com/...` en PCM 16kHz entrant et 24kHz sortant.
-- L'IA appelle `update_cv_draft` pour enrichir le CV au fil de la discussion.
-- L'IA déclenche l'outil déterministe `audit_cv_integrity` : le client détecte immédiatement chevauchements de dates, inversions ou doublons, et l'IA demande des clarifications si nécessaire.
-- En fin d'échange, `POST /interview/complete` fige le CV et synchronise le profil candidat.
+### 1. Entretien Vocal IA Découplé (Architecture V2)
+- Le candidat démarre une session vocale (`POST /api/v1/cvs/{id}/interview/session`) : 1 crédit Pro est débité avec garantie de remboursement immédiat (`/interview/refund`) en cas d'interruption technique.
+- La reprise d'une session en cours (< 15 min) est gratuite quel que soit le format de route (`new`, `cv_default`, ou id numérique).
+- Le frontend ouvre un WebSocket direct `wss://generativelanguage.googleapis.com/...` en PCM 16kHz entrant et 24kHz sortant, guidé par le persona *Bray*.
+- À chaque fin de tour de parole, le frontend synchronise la transcription avec le backend (`POST /interview/v2/turn`).
+- La State Machine backend (`InterviewStateMachineService`) progresse à travers 10 sections strictes et réinjecte des instructions contextuelles `[INTERVIEW_STATE]`.
+- L'Observateur LLM extrait les informations factuelles en tâche de fond et consolide le CV sans impacter la latence vocale.
+- Clôture : si le candidat exprime son souhait de quitter, Gemini Live appelle `request_end_interview`, validé de façon déterministe par le backend.
 
 ### 2. Double Moteur d'Export PDF (100% Gratuit)
 - **Serveur (Headless Chromium)** : Via `POST /api/v1/cvs/{id}/download-ticket`, puis `GET /api/v1/cvs/{id}/download?token=...`. Un sémaphore borne la concurrence à 2 instances Chromium simultanées pour préserver le processeur et la mémoire. L'exportation est 100% gratuite et sans restriction de paiement.

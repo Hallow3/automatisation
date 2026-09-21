@@ -167,23 +167,32 @@ public class CvService {
         CandidateEntity candidate = resolveCurrentCandidate();
         log.info("Création de session d'entretien vocal pour candidate_id={} (email: {})", candidate.getId(), candidate.getEmail());
 
-        // Contrôle strict de la reprise : uniquement si un CV précis a été démarré et actif dans les 15 dernières minutes
+        // Contrôle de la reprise : CV spécifié ou session récente (< 15 min) en cours
         Optional<CvEntity> existingCv = Optional.empty();
         boolean isResumingActiveSession = false;
 
         if (cvId != null && cvId.matches("^\\d+$")) {
             existingCv = findCvEntityForCurrentUser(cvId);
-            if (existingCv.isPresent()) {
-                CvEntity cv = existingCv.get();
-                boolean isStatusActive = "IN_PROGRESS".equalsIgnoreCase(cv.getInterviewStatus()) ||
-                                         "DRAFT_UPDATED".equalsIgnoreCase(cv.getInterviewStatus());
-                boolean isRecent = cv.getUpdatedAt() != null &&
-                        cv.getUpdatedAt().isAfter(Instant.now().minus(Duration.ofMinutes(15)));
-                if (isStatusActive && isRecent) {
-                    isResumingActiveSession = true;
-                    log.info("Reprise autorisée d'une session active récente (< 15 min) pour candidate_id={} cv_id={}",
-                            candidate.getId(), cv.getId());
-                }
+        } else {
+            // Si cvId n'est pas numérique (ex: "cv_default", "new"), chercher une session active récente (< 15 min)
+            existingCv = cvRepository.findByCandidateId(candidate.getId()).stream()
+                    .filter(c -> c.getUpdatedAt() != null &&
+                            c.getUpdatedAt().isAfter(Instant.now().minus(Duration.ofMinutes(15))))
+                    .filter(c -> "IN_PROGRESS".equalsIgnoreCase(c.getInterviewStatus()) ||
+                                 "DRAFT_UPDATED".equalsIgnoreCase(c.getInterviewStatus()))
+                    .max(Comparator.comparing(CvEntity::getUpdatedAt, Comparator.nullsLast(Comparator.naturalOrder())));
+        }
+
+        if (existingCv.isPresent()) {
+            CvEntity cv = existingCv.get();
+            boolean isStatusActive = "IN_PROGRESS".equalsIgnoreCase(cv.getInterviewStatus()) ||
+                                     "DRAFT_UPDATED".equalsIgnoreCase(cv.getInterviewStatus());
+            boolean isRecent = cv.getUpdatedAt() != null &&
+                    cv.getUpdatedAt().isAfter(Instant.now().minus(Duration.ofMinutes(15)));
+            if (isStatusActive && isRecent) {
+                isResumingActiveSession = true;
+                log.info("Reprise autorisée d'une session active récente (< 15 min) pour candidate_id={} cv_id={}",
+                        candidate.getId(), cv.getId());
             }
         }
 
@@ -204,8 +213,8 @@ public class CvService {
                         "INSUFFICIENT_CREDITS:Solde de crédits Pro insuffisant pour démarrer l'entretien vocal IA."
                 );
             }
-            // Mettre à jour l'entité candidate en mémoire pour refléter le débit et incrémenter l'usage
-            candidate.setProCredits(Math.max(0, (candidate.getProCredits() != null ? candidate.getProCredits() : 1) - 1));
+            // Recharger le candidat après décrémentation atomique en base pour synchroniser l'état
+            candidate = candidateRepository.findById(candidate.getId()).orElse(candidate);
             candidate.setAiInterviewsUsed((candidate.getAiInterviewsUsed() != null ? candidate.getAiInterviewsUsed() : 0) + 1);
             candidateRepository.save(candidate);
             log.info("1 crédit Pro débité avec succès pour la session d'entretien vocal de candidate_id={} (solde restant: {})",
@@ -696,16 +705,20 @@ public class CvService {
         if (cvOpt.isEmpty()) {
             cvOpt = cvRepository.findByCandidateId(candidate.getId()).stream()
                     .filter(c -> ("IN_PROGRESS".equalsIgnoreCase(c.getInterviewStatus()) || "DRAFT_UPDATED".equalsIgnoreCase(c.getInterviewStatus())))
-                    .max(Comparator.comparing(CvEntity::getId));
+                    .max(Comparator.comparing(CvEntity::getUpdatedAt, Comparator.nullsLast(Comparator.naturalOrder())));
         }
         if (cvOpt.isPresent()) {
             CvEntity cv = cvOpt.get();
-            if (("IN_PROGRESS".equalsIgnoreCase(cv.getInterviewStatus()) || "DRAFT_UPDATED".equalsIgnoreCase(cv.getInterviewStatus()))
-                    && !isDraftMeaningful(cv.getContentJson())) {
-                refundProCredit(candidate.getId());
+            if ("IN_PROGRESS".equalsIgnoreCase(cv.getInterviewStatus()) || "DRAFT_UPDATED".equalsIgnoreCase(cv.getInterviewStatus())) {
+                candidate.setProCredits((candidate.getProCredits() != null ? candidate.getProCredits() : 0) + 1);
+                if (candidate.getAiInterviewsUsed() != null && candidate.getAiInterviewsUsed() > 0) {
+                    candidate.setAiInterviewsUsed(candidate.getAiInterviewsUsed() - 1);
+                }
+                candidateRepository.save(candidate);
                 cv.setInterviewStatus("ABORTED");
                 cvRepository.save(cv);
-                log.info("[CvService] Remboursement automatique effectué pour session interrompue : candidate_id={}, cv_id={}", candidate.getId(), cv.getId());
+                log.info("[CvService] Remboursement automatique effectué pour session interrompue : candidate_id={}, cv_id={}, nouveau_solde={}",
+                        candidate.getId(), cv.getId(), candidate.getProCredits());
                 return true;
             }
         }
@@ -732,8 +745,7 @@ public class CvService {
                     "INSUFFICIENT_CREDITS:Solde de crédits Pro insuffisant pour cette optimisation IA."
             );
         }
-        candidate.setProCredits(Math.max(0, (candidate.getProCredits() != null ? candidate.getProCredits() : 1) - 1));
-        candidateRepository.save(candidate);
+        candidate = candidateRepository.findById(candidate.getId()).orElse(candidate);
 
         CvEntity cv = findCvEntityForCurrentUser(cvId).orElseGet(() -> {
             CvEntity newCv = CvEntity.builder()

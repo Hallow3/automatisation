@@ -161,7 +161,7 @@ public class CandidateProfileService {
                 .skills(skills)
                 .aiInstructions((String) rawData.getOrDefault("aiInstructions", ""))
                 .notifications(notifications)
-                .proCredits(candidate.getProCredits() != null ? candidate.getProCredits() : 1)
+                .proCredits(candidate.getProCredits() != null ? candidate.getProCredits() : 0)
                 .isProAgent(candidate.isProAgent())
                 .agentShopName(candidate.getAgentShopName())
                 .build();

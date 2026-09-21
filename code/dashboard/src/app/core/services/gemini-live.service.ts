@@ -14,6 +14,9 @@ export type LiveInterviewState =
   | 'CONNECTING'
   | 'LISTENING'
   | 'AI_SPEAKING'
+  | 'USER_STOPPED'
+  | 'TEMPORARILY_UNAVAILABLE'
+  | 'REVIEW'
   | 'ERROR'
   | 'COMPLETED';
 
@@ -56,6 +59,16 @@ export class GeminiLiveService {
   public hasStarted = signal<boolean>(false);
   public isStarting = signal<boolean>(false);
   public isWsReady = signal<boolean>(false);
+
+  // ── Signaux State Machine & Orchestrateur V2 (Spec V2) ──
+  public currentV2SessionId = signal<string | null>(null);
+  public currentState = signal<string>('IDENTITY');
+  public sectionStatus = signal<string>('IN_PROGRESS');
+  public turnsInSection = signal<number>(0);
+  public latestControlMessage = signal<string>('');
+
+  private lastUserTurnText = '';
+  private lastAiTurnText = '';
 
   private isAiSpeakingCooldown = false;
   private echoCooldownTimer: any = null;
@@ -209,6 +222,23 @@ export class GeminiLiveService {
         this.currentCvId = session.cvId;
       }
 
+      // Initialisation / reprise de l'orchestrateur V2 en base
+      try {
+        const v2Session = await firstValueFrom(this.apiService.initOrResumeV2Session(this.currentCvId));
+        if (v2Session) {
+          this.currentV2SessionId.set(v2Session.sessionId);
+          this.currentState.set(v2Session.currentState);
+          this.sectionStatus.set(v2Session.sectionStatus);
+          this.turnsInSection.set(v2Session.turnsInSection);
+          this.latestControlMessage.set(v2Session.controlMessage);
+          if (v2Session.cvDataSoFar && Object.keys(v2Session.cvDataSoFar).length > 0) {
+            this.currentDraft.set(v2Session.cvDataSoFar);
+          }
+        }
+      } catch (e) {
+        console.warn('[GeminiLive] Échec initialisation V2 non bloquante:', e);
+      }
+
       if (session?.proCredits !== undefined) {
         const remaining = parseInt(session.proCredits, 10);
         if (!isNaN(remaining)) {
@@ -239,6 +269,7 @@ export class GeminiLiveService {
       this.initialGreetingPending = false;
       this.isStarting.set(false);
       if (abortController.signal.aborted) return;
+      this.triggerRefundIfAborted('prepare_session_error');
       this.stopSession();
       this.setError(err?.message || 'Impossible de démarrer la session vocale.');
     } finally {
@@ -280,12 +311,52 @@ export class GeminiLiveService {
       onTextChunkReceived: (role: 'user' | 'ai', text: string) => {
         this.appendTranscriptChunk(role, text);
       },
-      onModelTurnComplete: () => {
+      onModelTurnComplete: async () => {
         this.finalizeCurrentTurn();
         if (this.hasStarted()) {
           const hasUserSpoken = this.transcript().some(t => t.role === 'user' && t.text.trim().length > 5);
           if (hasUserSpoken) {
             this.hasMeaningfulUsage = true;
+          }
+        }
+
+        // Orchestrateur V2 : synchronisation du tour et injection du contrôle (Spec V2, Section 6, 8, 10)
+        const sessionId = this.currentV2SessionId();
+        if (sessionId && this.hasStarted() && this.lastUserTurnText.trim().length > 0) {
+          const userTurnToSend = this.lastUserTurnText.trim();
+          const aiTurnToSend = this.lastAiTurnText.trim();
+          this.lastUserTurnText = '';
+          this.lastAiTurnText = '';
+
+          try {
+            const v2Res = await firstValueFrom(
+              this.apiService.syncTurnV2(this.currentCvId, {
+                sessionId,
+                userTurn: userTurnToSend,
+                aiTurn: aiTurnToSend
+              })
+            );
+
+            if (v2Res) {
+              this.currentState.set(v2Res.currentState);
+              this.sectionStatus.set(v2Res.sectionStatus);
+              this.turnsInSection.set(v2Res.turnsInSection);
+              if (v2Res.cvDataSoFar) {
+                this.currentDraft.set(v2Res.cvDataSoFar);
+              }
+
+              // Injection du contexte [INTERVIEW_STATE] dans Gemini Live
+              if (v2Res.controlMessage && v2Res.controlMessage !== this.latestControlMessage()) {
+                this.latestControlMessage.set(v2Res.controlMessage);
+                this.wsClient.sendClientContent(v2Res.controlMessage, false);
+              }
+
+              if (v2Res.interviewStatus === 'REVIEW' || v2Res.interviewStatus === 'COMPLETED') {
+                this.handleCompleteInterview();
+              }
+            }
+          } catch (err) {
+            console.warn('[GeminiLive] Erreur synchronisation tour V2:', err);
           }
         }
       },
@@ -302,7 +373,9 @@ export class GeminiLiveService {
       onError: (err: string) => {
         this.initialGreetingPending = false;
         this.isStarting.set(false);
-        this.setError(err);
+        this.state.set('TEMPORARILY_UNAVAILABLE');
+        this.triggerRefundIfAborted('ws_error: ' + err);
+        this.setError('Le service vocal n\'est pas disponible pour le moment. Votre progression a été conservée.');
       },
       onSessionResumptionUpdate: (handle: string) => {
         console.log('[GeminiLive] Handle de reprise de session mis à jour:', handle);
@@ -317,33 +390,46 @@ export class GeminiLiveService {
         this.isStarting.set(false);
 
         // 1. Reprise de session transparente si signal go_away reçu et handle présent
-        if (this.isResumingConnection && this.wsClient.getResumptionHandle() && this.state() !== 'COMPLETED') {
+        if (this.isResumingConnection && this.wsClient.getResumptionHandle() && this.state() !== 'COMPLETED' && this.state() !== 'USER_STOPPED') {
           console.log('[GeminiLive] Bascule transparente vers une nouvelle session avec jeton de reprise...');
           this.isResumingConnection = false;
           this.attemptSeamlessResume();
           return;
         }
 
-        // 2. Remboursement automatique en cas de déconnexion anormale avant usage réel (codes 1006 / 1008)
-        if ((code === 1006 || code === 1008) && !this.hasMeaningfulUsage && this.currentCvId && this.currentCvId !== 'cv_default' && this.currentCvId !== 'new') {
-          console.warn(`[GeminiLive] Déconnexion anormale (${code}) sans utilisation effective. Demande de remboursement automatique pour cvId=${this.currentCvId}`);
-          this.apiService.refundAbortedSession(this.currentCvId).subscribe({
-            next: (res) => {
-              if (res?.refunded) {
-                console.log('[GeminiLive] 1 crédit Pro remboursé automatiquement suite à la rupture technique de connexion.');
-                this.paymentService.fetchProStatus();
-                this.authService.refreshCurrentUser().subscribe();
-              }
-            },
-            error: (e) => console.warn('[GeminiLive] Échec de la notification de remboursement automatique:', e)
-          });
+        // 2. Remboursement automatique en cas de rupture de connexion anormale avant usage réel
+        if (code !== 1000 && !this.hasMeaningfulUsage) {
+          this.triggerRefundIfAborted(`ws_close_${code}`);
         }
 
-        if (this.state() !== 'COMPLETED' && code !== 1000 && this.state() !== 'ERROR') {
-          this.setError(`Connexion à l’assistant perdue (code ${code}).`);
+        if (this.state() !== 'COMPLETED' && this.state() !== 'USER_STOPPED' && code !== 1000 && this.state() !== 'ERROR') {
+          this.state.set('TEMPORARILY_UNAVAILABLE');
+          this.setError('Le service vocal n\'est pas disponible pour le moment. Votre progression a été conservée.');
         }
       }
     };
+  }
+
+  /**
+   * Déclenche le remboursement automatique du crédit Pro débité si la session a échoué ou s'est
+   * arrêtée de manière anormale avant toute utilisation effective du service vocal.
+   */
+  triggerRefundIfAborted(reason: string = 'interruption'): void {
+    if (this.hasMeaningfulUsage || this.state() === 'COMPLETED') return;
+    const targetCvId = this.currentCvId;
+    if (!targetCvId || targetCvId === 'cv_default' || targetCvId === 'new') return;
+
+    console.warn(`[GeminiLive] Déclenchement de remboursement automatique (${reason}) pour cvId=${targetCvId}`);
+    this.apiService.refundAbortedSession(targetCvId).subscribe({
+      next: (res) => {
+        if (res?.refunded) {
+          console.log('[GeminiLive] 1 crédit Pro remboursé avec succès suite à l\'incident technique.');
+          this.paymentService.fetchProStatus();
+          this.authService.refreshCurrentUser().subscribe();
+        }
+      },
+      error: (e) => console.warn('[GeminiLive] Erreur lors de la notification de remboursement automatique:', e)
+    });
   }
 
   private async attemptSeamlessResume(): Promise<void> {
@@ -482,6 +568,38 @@ export class GeminiLiveService {
   }
 
   private async handleToolCall(name: string, callId: string, args: any): Promise<any> {
+    if (name === 'request_end_interview') {
+      const sessionId = this.currentV2SessionId() || '';
+      try {
+        const res = await firstValueFrom(
+          this.apiService.requestEndInterviewV2(this.currentCvId, {
+            sessionId,
+            reason: args?.reason || 'user_requested_stop',
+            userIntentExcerpt: args?.user_intent_excerpt || '',
+            lastUserTurn: this.lastUserTurnText
+          })
+        );
+        if (res?.approved) {
+          this.state.set('USER_STOPPED');
+          this.stopSession();
+          return {
+            status: 'stopped',
+            approved: true,
+            message: 'Entretien arrêté à la demande de l\'utilisateur. Votre progression a été enregistrée.'
+          };
+        } else {
+          return {
+            status: 'rejected',
+            approved: false,
+            reason: res?.reason,
+            instruction: res?.instruction || 'Continue l\'entretien selon la section active.'
+          };
+        }
+      } catch (e) {
+        return { status: 'rejected', approved: false, instruction: 'Continue l\'entretien selon la section active.' };
+      }
+    }
+
     if (name === 'update_cv_draft') {
       this.hasMeaningfulUsage = true;
       this.mergeDraft(args);
@@ -542,6 +660,12 @@ export class GeminiLiveService {
 
   private commitLine(role: 'user' | 'ai', line: string): void {
     if (!line) return;
+
+    if (role === 'user') {
+      this.lastUserTurnText = (this.lastUserTurnText ? this.lastUserTurnText + ' ' : '') + line;
+    } else if (role === 'ai') {
+      this.lastAiTurnText = (this.lastAiTurnText ? this.lastAiTurnText + ' ' : '') + line;
+    }
 
     this.transcript.update((items) => {
       const last = items[items.length - 1];

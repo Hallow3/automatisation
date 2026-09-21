@@ -181,79 +181,21 @@ export class GeminiLiveWsClientService {
           {
             functionDeclarations: [
               {
-                name: 'update_cv_draft',
-                description: 'Met à jour le brouillon structuré du CV avec les informations validées lors de l\'échange vocal.',
+                name: 'request_end_interview',
+                description: 'Demande la fin anticipée de l\'entretien UNIQUEMENT lorsque l\'utilisateur exprime explicitement qu\'il souhaite arrêter, quitter ou reprendre plus tard.',
                 parameters: {
                   type: 'OBJECT',
                   properties: {
-                    headline: { type: 'STRING' },
-                    summary: { type: 'STRING' },
-                    skills: { type: 'ARRAY', items: { type: 'STRING' } },
-                    experiences: {
-                      type: 'ARRAY',
-                      items: {
-                        type: 'OBJECT',
-                        properties: {
-                          company: { type: 'STRING' },
-                          position: { type: 'STRING' },
-                          startDate: { type: 'STRING' },
-                          endDate: { type: 'STRING' },
-                          context: { type: 'STRING' },
-                          responsibilities: { type: 'ARRAY', items: { type: 'STRING' } },
-                          achievements: { type: 'ARRAY', items: { type: 'STRING' } },
-                          technologies: { type: 'ARRAY', items: { type: 'STRING' } }
-                        },
-                        required: ['company', 'position']
-                      }
-                    },
-                    education: {
-                      type: 'ARRAY',
-                      items: {
-                        type: 'OBJECT',
-                        properties: {
-                          school: { type: 'STRING' },
-                          degree: { type: 'STRING' },
-                          startDate: { type: 'STRING' },
-                          endDate: { type: 'STRING' }
-                        },
-                        required: ['school', 'degree']
-                      }
-                    },
-                    languages: {
-                      type: 'ARRAY',
-                      items: {
-                        type: 'OBJECT',
-                        properties: {
-                          language: { type: 'STRING' },
-                          level: { type: 'STRING' }
-                        },
-                        required: ['language']
-                      }
-                    }
-                  }
-                }
-              },
-              {
-                name: 'audit_cv_integrity',
-                description: 'Analyse l\'ensemble du CV actuel pour détecter les incohérences chronologiques (expériences qui se chevauchent, dates inversées), les doublons, les sections incomplètes et la densité de contenu (densityScore, thinSections). Retourne les anomalies, les sections trop succinctes et des suggestions de relances concrètes.',
-                parameters: {
-                  type: 'OBJECT',
-                  properties: {
-                    focus: {
+                    reason: {
                       type: 'STRING',
-                      description: 'Focus optionnel de l\'audit : "all" (défaut), "dates", "duplicates", "completeness", "density"'
+                      description: 'Raison invoquée par l\'utilisateur pour l\'arrêt (ex: user_requested_stop)'
+                    },
+                    user_intent_excerpt: {
+                      type: 'STRING',
+                      description: 'Extrait textuel exact de la phrase de l\'utilisateur demandant l\'arrêt'
                     }
-                  }
-                }
-              },
-              {
-                name: 'complete_interview',
-                description: 'Indique que le candidat a validé la fin de l\'entretien vocal.',
-                parameters: {
-                  type: 'OBJECT',
-                  properties: {
-                    summary: { type: 'STRING' }
-                  }
+                  },
+                  required: ['reason', 'user_intent_excerpt']
                 }
               }
             ]

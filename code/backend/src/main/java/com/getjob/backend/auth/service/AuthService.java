@@ -1,13 +1,13 @@
 package com.getjob.backend.auth.service;
 
-import com.getjob.backend.auth.dto.AuthResponse;
-import com.getjob.backend.auth.dto.LoginRequest;
-import com.getjob.backend.auth.dto.RegisterRequest;
+import com.getjob.backend.auth.dto.*;
 import com.getjob.backend.candidate.domain.CandidateEntity;
 import com.getjob.backend.candidate.repository.CandidateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -20,8 +20,14 @@ import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.security.SecureRandom;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
+import java.util.Map;
 
 /**
  * Service métier d'authentification.
@@ -46,6 +52,22 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final CandidateUserDetailsService userDetailsService;
     private final AuthEmailService authEmailService;
+    private final RestTemplate restTemplate;
+
+    private GoogleIdTokenVerifier googleIdTokenVerifier;
+
+    private synchronized GoogleIdTokenVerifier getOrCreateVerifier() {
+        if (this.googleIdTokenVerifier == null && googleClientId != null && !googleClientId.isBlank()) {
+            this.googleIdTokenVerifier = new GoogleIdTokenVerifier.Builder(
+                    new NetHttpTransport(),
+                    GsonFactory.getDefaultInstance()
+            )
+            .setAudience(Collections.singletonList(googleClientId.trim()))
+            .setAcceptableTimeSkewSeconds(600) // 10 minutes de tolérance décalage d'horloge
+            .build();
+        }
+        return this.googleIdTokenVerifier;
+    }
 
     /**
      * Crée un nouveau compte candidat avec validation d'email requise.
@@ -57,16 +79,16 @@ public class AuthService {
             throw new IllegalArgumentException("Un compte existe déjà pour cet email.");
         }
 
-        String code = String.format("%06d", new java.security.SecureRandom().nextInt(1_000_000));
+        String code = String.format("%06d", new SecureRandom().nextInt(1_000_000));
 
         CandidateEntity candidate = CandidateEntity.builder()
                 .fullName(request.fullName().trim())
                 .email(email)
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .role("ROLE_USER")
-                .enabled(false) // Validation d'email requise avant connexion
+                .enabled(false)
                 .verificationCode(code)
-                .verificationCodeExpiresAt(java.time.Instant.now().plus(15, java.time.temporal.ChronoUnit.MINUTES))
+                .verificationCodeExpiresAt(Instant.now().plus(15, ChronoUnit.MINUTES))
                 .proCredits(1)
                 .build();
 
@@ -75,7 +97,7 @@ public class AuthService {
 
         authEmailService.sendEmailVerificationCode(saved.getEmail(), code);
 
-        return java.util.Map.of(
+        return Map.of(
                 "message", "Votre compte a été créé. Un code de confirmation à 6 chiffres a été envoyé à votre adresse email.",
                 "email", saved.getEmail(),
                 "requiresVerification", true
@@ -94,15 +116,15 @@ public class AuthService {
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(email, request.password())
             );
-        } catch (org.springframework.security.authentication.DisabledException | org.springframework.security.authentication.LockedException e) {
+        } catch (DisabledException | LockedException e) {
             CandidateEntity unverifiedCandidate = candidateRepository.findByEmail(email).orElse(null);
             if (unverifiedCandidate != null) {
                 if (unverifiedCandidate.getVerificationCode() == null ||
                     unverifiedCandidate.getVerificationCodeExpiresAt() == null ||
-                    java.time.Instant.now().isAfter(unverifiedCandidate.getVerificationCodeExpiresAt())) {
-                    String newCode = String.format("%06d", new java.security.SecureRandom().nextInt(1_000_000));
+                    Instant.now().isAfter(unverifiedCandidate.getVerificationCodeExpiresAt())) {
+                    String newCode = String.format("%06d", new SecureRandom().nextInt(1_000_000));
                     unverifiedCandidate.setVerificationCode(newCode);
-                    unverifiedCandidate.setVerificationCodeExpiresAt(java.time.Instant.now().plus(15, java.time.temporal.ChronoUnit.MINUTES));
+                    unverifiedCandidate.setVerificationCodeExpiresAt(Instant.now().plus(15, ChronoUnit.MINUTES));
                     candidateRepository.save(unverifiedCandidate);
                     authEmailService.sendEmailVerificationCode(unverifiedCandidate.getEmail(), newCode);
                 }
@@ -129,7 +151,7 @@ public class AuthService {
      * Valide l'adresse email d'un candidat à l'aide d'un code à 6 chiffres.
      */
     @Transactional
-    public TokenWithResponse verifyEmail(com.getjob.backend.auth.dto.VerifyEmailRequest request) {
+    public TokenWithResponse verifyEmail(VerifyEmailRequest request) {
         String email = request.email().trim().toLowerCase();
         CandidateEntity candidate = candidateRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("Compte introuvable pour cet email."));
@@ -144,7 +166,7 @@ public class AuthService {
             throw new IllegalArgumentException("Code de validation incorrect. Vérifiez le code reçu par email.");
         }
 
-        if (candidate.getVerificationCodeExpiresAt() != null && java.time.Instant.now().isAfter(candidate.getVerificationCodeExpiresAt())) {
+        if (candidate.getVerificationCodeExpiresAt() != null && Instant.now().isAfter(candidate.getVerificationCodeExpiresAt())) {
             throw new IllegalArgumentException("Le code de validation a expiré (validité 15 min). Veuillez demander un nouveau code.");
         }
 
@@ -165,7 +187,7 @@ public class AuthService {
      * Renvoie un code de validation d'email.
      */
     @Transactional
-    public java.util.Map<String, String> resendVerificationCode(com.getjob.backend.auth.dto.ResendVerificationRequest request) {
+    public java.util.Map<String, String> resendVerificationCode(ResendVerificationRequest request) {
         String email = request.email().trim().toLowerCase();
         CandidateEntity candidate = candidateRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("Compte introuvable pour cet email."));
@@ -174,9 +196,9 @@ public class AuthService {
             return java.util.Map.of("message", "Votre compte est déjà validé. Vous pouvez vous connecter directement.");
         }
 
-        String code = String.format("%06d", new java.security.SecureRandom().nextInt(1_000_000));
+        String code = String.format("%06d", new SecureRandom().nextInt(1_000_000));
         candidate.setVerificationCode(code);
-        candidate.setVerificationCodeExpiresAt(java.time.Instant.now().plus(15, java.time.temporal.ChronoUnit.MINUTES));
+        candidate.setVerificationCodeExpiresAt(Instant.now().plus(15, ChronoUnit.MINUTES));
         candidateRepository.save(candidate);
 
         authEmailService.sendEmailVerificationCode(candidate.getEmail(), code);
@@ -202,7 +224,7 @@ public class AuthService {
                 candidate.getPhone(),
                 candidate.getCity(),
                 candidate.getTargetRole(),
-                candidate.getProCredits() != null ? candidate.getProCredits() : 1
+                candidate.getProCredits() != null ? candidate.getProCredits() : 0
         );
     }
 
@@ -210,18 +232,18 @@ public class AuthService {
      * Traite une demande de réinitialisation de mot de passe.
      */
     @Transactional
-    public java.util.Map<String, String> forgotPassword(com.getjob.backend.auth.dto.ForgotPasswordRequest request) {
+    public Map<String, String> forgotPassword(ForgotPasswordRequest request) {
         String email = request.email().trim().toLowerCase();
         candidateRepository.findByEmail(email).ifPresent(candidate -> {
-            String code = String.format("%06d", new java.security.SecureRandom().nextInt(1_000_000));
+            String code = String.format("%06d", new SecureRandom().nextInt(1_000_000));
             candidate.setResetPasswordCode(code);
-            candidate.setResetPasswordExpiresAt(java.time.Instant.now().plus(15, java.time.temporal.ChronoUnit.MINUTES));
+            candidate.setResetPasswordExpiresAt(Instant.now().plus(15, ChronoUnit.MINUTES));
             candidateRepository.save(candidate);
 
             authEmailService.sendPasswordResetCode(candidate.getEmail(), code);
             log.info("Code de réinitialisation généré pour email={}", email);
         });
-        return java.util.Map.of(
+        return Map.of(
                 "message",
                 "Si un compte est associé à cette adresse, vous recevrez un code de réinitialisation."
         );
@@ -231,7 +253,7 @@ public class AuthService {
      * Réinitialise le mot de passe d'un candidat et valide son compte.
      */
     @Transactional
-    public java.util.Map<String, String> resetPassword(com.getjob.backend.auth.dto.ResetPasswordRequest request) {
+    public Map<String, String> resetPassword(ResetPasswordRequest request) {
         String email = request.email().trim().toLowerCase();
         CandidateEntity candidate = candidateRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("Compte introuvable pour l'adresse fournie."));
@@ -241,7 +263,7 @@ public class AuthService {
             throw new IllegalArgumentException("Code de réinitialisation invalide ou absent.");
         }
 
-        if (candidate.getResetPasswordExpiresAt() == null || java.time.Instant.now().isAfter(candidate.getResetPasswordExpiresAt())) {
+        if (candidate.getResetPasswordExpiresAt() == null || Instant.now().isAfter(candidate.getResetPasswordExpiresAt())) {
             throw new IllegalArgumentException("Le code de réinitialisation a expiré.");
         }
 
@@ -257,6 +279,10 @@ public class AuthService {
 
     /**
      * Vérifie la validité cryptographique du jeton d'identification Google ID Token.
+     * Implémentation haute résilience :
+     *   1. Vérificateur local optimisé avec tolérance de décalage d'horloge (10 min) et cache de certificats.
+     *   2. Diagnostic détaillé pour identifier toute anomalie (expiration, audience, décalage temporel).
+     *   3. Repli défensif automatique sur l'endpoint officiel Google https://oauth2.googleapis.com/tokeninfo.
      */
     private GoogleIdToken.Payload verifyGoogleToken(String idTokenString) {
         if (idTokenString == null || idTokenString.isBlank()) {
@@ -270,39 +296,80 @@ public class AuthService {
             );
         }
 
+        // 1. Tenter la vérification locale cryptographique via GoogleIdTokenVerifier partagé
         try {
-            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
-                    new NetHttpTransport(),
-                    GsonFactory.getDefaultInstance()
-            )
-            .setAudience(Collections.singletonList(googleClientId.trim()))
-            .build();
-            GoogleIdToken idToken = verifier.verify(idTokenString);
+            GoogleIdTokenVerifier verifier = getOrCreateVerifier();
+            GoogleIdToken idToken = (verifier != null) ? verifier.verify(idTokenString) : null;
 
-            if (idToken == null) {
-                log.warn("Jeton Google ID invalide ou expiré.");
-                throw new IllegalArgumentException("Le jeton d'authentification Google est invalide ou a expiré.");
+            if (idToken != null) {
+                GoogleIdToken.Payload payload = idToken.getPayload();
+                if (payload.getEmail() != null && !payload.getEmail().isBlank()) {
+                    return payload;
+                }
             }
-
-            GoogleIdToken.Payload payload = idToken.getPayload();
-            if (payload.getEmail() == null || payload.getEmail().isBlank()) {
-                throw new IllegalArgumentException("Adresse email introuvable dans le jeton d'authentification Google.");
-            }
-
-            return payload;
-        } catch (IllegalArgumentException e) {
-            throw e;
         } catch (Exception e) {
-            log.error("Erreur technique lors de la validation du token Google : {}", e.getMessage());
-            throw new IllegalArgumentException("Échec de validation du jeton Google : " + e.getMessage());
+            log.warn("Vérification locale du token Google échouée ({}), tentative de repli via l'API Google tokeninfo...", e.getMessage());
         }
+
+        // 2. Diagnostic du token (analyse sans validation cryptographique pour identifier la cause exacte)
+        try {
+            GoogleIdToken unverified = GoogleIdToken.parse(GsonFactory.getDefaultInstance(), idTokenString);
+            if (unverified != null && unverified.getPayload() != null) {
+                GoogleIdToken.Payload p = unverified.getPayload();
+                long exp = p.getExpirationTimeSeconds() != null ? p.getExpirationTimeSeconds() : 0L;
+                long iat = p.getIssuedAtTimeSeconds() != null ? p.getIssuedAtTimeSeconds() : 0L;
+                long now = Instant.now().getEpochSecond();
+                log.info("Diagnostic Google Token : email={}, aud={}, expectedAud={}, exp={}, iat={}, serverNow={}, diffExpSeconds={}",
+                        p.getEmail(), p.getAudience(), googleClientId, exp, iat, now, (now - exp));
+            }
+        } catch (Exception diagEx) {
+            log.debug("Impossible d'extraire les diagnostics du token Google : {}", diagEx.getMessage());
+        }
+
+        // 3. Fallback officiel de haute résilience : validation en direct auprès de Google tokeninfo
+        log.info("Appel de validation de secours auprès de https://oauth2.googleapis.com/tokeninfo...");
+        try {
+            String tokenInfoUrl = "https://oauth2.googleapis.com/tokeninfo?id_token=" + idTokenString;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> tokenInfo = restTemplate.getForObject(tokenInfoUrl, Map.class);
+
+            if (tokenInfo != null && tokenInfo.containsKey("email")) {
+                String aud = (String) tokenInfo.get("aud");
+                String iss = (String) tokenInfo.get("iss");
+                String email = (String) tokenInfo.get("email");
+                Object emailVerifiedObj = tokenInfo.get("email_verified");
+                boolean emailVerified = Boolean.TRUE.equals(emailVerifiedObj) || "true".equalsIgnoreCase(String.valueOf(emailVerifiedObj));
+
+                // Contrôle de sécurité de l'audience et de l'émetteur
+                if (aud != null && aud.trim().equals(googleClientId.trim())) {
+                    if (iss != null && iss.contains("accounts.google.com")) {
+                        log.info("Validation Google de secours réussie pour email={}", email);
+                        GoogleIdToken.Payload fallbackPayload = new GoogleIdToken.Payload();
+                        fallbackPayload.setEmail(email);
+                        fallbackPayload.setEmailVerified(emailVerified);
+                        fallbackPayload.set("name", tokenInfo.get("name"));
+                        fallbackPayload.setSubject((String) tokenInfo.get("sub"));
+                        return fallbackPayload;
+                    } else {
+                        log.warn("Tokeninfo Google rejeté : émetteur inattendu iss={}", iss);
+                    }
+                } else {
+                    log.warn("Tokeninfo Google rejeté : audience mismatch aud={} (attendu: {})", aud, googleClientId);
+                }
+            }
+        } catch (Exception netEx) {
+            log.warn("Échec de la validation de secours Google tokeninfo : {}", netEx.getMessage());
+        }
+
+        log.warn("Jeton Google ID invalide ou expiré après vérification locale et de secours.");
+        throw new IllegalArgumentException("Le jeton d'authentification Google est invalide ou a expiré. Veuillez cliquer sur le bouton Google pour vous reconnecter.");
     }
 
     /**
      * Authentification ou inscription automatique sécurisée via Google Sign-In (vérifié cryptographiquement).
      */
     @Transactional
-    public TokenWithResponse loginWithGoogle(com.getjob.backend.auth.dto.GoogleAuthRequest request) {
+    public TokenWithResponse loginWithGoogle(GoogleAuthRequest request) {
         GoogleIdToken.Payload payload = verifyGoogleToken(request.credential());
         String email = payload.getEmail().trim().toLowerCase();
 

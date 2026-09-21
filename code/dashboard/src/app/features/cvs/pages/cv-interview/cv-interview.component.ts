@@ -161,21 +161,41 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
   }
 
 
-  get draftSections(): DraftSectionItem[] {
-    const d = this.draft();
-    const hasIdentity = !!(d?.identity?.fullName || this.authService.currentUser()?.fullName);
-    const hasSummary = !!d?.summary;
-    const hasExp = (d?.experiences || []).length > 0;
-    const hasSkills = (d?.skills || []).length > 0;
-    const hasEdu = (d?.education || []).length > 0;
+  isTemporarilyUnavailable = computed(() => this.state() === 'TEMPORARILY_UNAVAILABLE');
+  isUserStopped = computed(() => this.state() === 'USER_STOPPED');
+  isReview = computed(() => this.state() === 'REVIEW');
+  currentState = this.geminiService.currentState;
+  sectionStatus = this.geminiService.sectionStatus;
 
-    return [
-      { id: 's1', name: 'Identité & Coordonnées', status: hasIdentity ? 'completed' : 'in_progress' },
-      { id: 's2', name: 'Titre & Résumé', status: hasSummary ? 'completed' : hasIdentity ? 'in_progress' : 'pending' },
-      { id: 's3', name: 'Expériences professionnelles', status: hasExp ? 'completed' : hasSummary ? 'in_progress' : 'pending' },
-      { id: 's4', name: 'Compétences clés', status: hasSkills ? 'completed' : hasExp ? 'in_progress' : 'pending' },
-      { id: 's5', name: 'Formation & Diplômes', status: hasEdu ? 'completed' : 'pending' }
+  get draftSections(): DraftSectionItem[] {
+    const stateOrder = ['IDENTITY', 'TARGET', 'EXPERIENCE', 'PROJECTS', 'EDUCATION', 'SKILLS', 'LANGUAGES', 'FINALIZE', 'REVIEW', 'DONE'];
+    const cur = this.currentState();
+    const curIdx = stateOrder.indexOf(cur);
+
+    const sections = [
+      { id: 's1', state: 'IDENTITY', name: 'Identité & Coordonnées' },
+      { id: 's2', state: 'TARGET', name: 'Titre visé & Défi professionnel' },
+      { id: 's3', state: 'EXPERIENCE', name: 'Expériences professionnelles' },
+      { id: 's4', state: 'PROJECTS', name: 'Projets & Réalisations' },
+      { id: 's5', state: 'EDUCATION', name: 'Formation & Diplômes' },
+      { id: 's6', state: 'SKILLS', name: 'Compétences clés' },
+      { id: 's7', state: 'LANGUAGES', name: 'Langues & Niveaux' }
     ];
+
+    return sections.map(s => {
+      const idx = stateOrder.indexOf(s.state);
+      let status: 'completed' | 'in_progress' | 'pending' = 'pending';
+      if (curIdx > idx) {
+        status = 'completed';
+      } else if (curIdx === idx) {
+        status = 'in_progress';
+      }
+      return {
+        id: s.id,
+        name: s.name,
+        status
+      };
+    });
   }
 
   ngOnInit(): void {
@@ -251,6 +271,7 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
   }
 
   confirmQuit(): void {
+    this.geminiService.triggerRefundIfAborted('user_quit');
     this.router.navigate(['/cvs']);
   }
 
@@ -272,7 +293,10 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
   }
 
   retryConnection(): void {
-    this.geminiService.prepareSession(this.cvId);
+    const targetId = (this.geminiService.currentCvId && this.geminiService.currentCvId !== 'cv_default' && this.geminiService.currentCvId !== 'new')
+      ? this.geminiService.currentCvId
+      : this.cvId;
+    this.geminiService.prepareSession(targetId);
   }
 
   goToEditor(): void {

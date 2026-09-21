@@ -1,8 +1,9 @@
-import { Injectable, signal, computed, inject } from '@angular/core';
+import { Injectable, signal, computed, inject, effect } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { catchError, delay } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
+import { AuthService } from './auth.service';
 
 export interface MobileOperator {
   id: 'orange' | 'mtn';
@@ -63,6 +64,7 @@ export interface PaymentInitiateResponse {
 })
 export class PaymentService {
   private http = inject(HttpClient);
+  private authService = inject(AuthService);
   private apiUrl = `${environment.apiUrl}/payments`;
 
   // ── Configuration Cameroun (+237 / FCFA) ──────────────────────────────────
@@ -125,6 +127,17 @@ export class PaymentService {
 
   constructor() {
     this.syncWithBackend();
+
+    // Synchronisation automatique et bidirectionnelle avec le profil utilisateur connecté
+    effect(() => {
+      const user = this.authService.currentUser();
+      if (user && user.proCredits !== undefined && user.proCredits !== null) {
+        if (this.proCredits() !== user.proCredits) {
+          this.proCredits.set(user.proCredits);
+          this.saveProCredits(user.proCredits);
+        }
+      }
+    });
   }
 
   public openPackModal(): void {
@@ -160,6 +173,7 @@ export class PaymentService {
         if (res && res.proCredits !== undefined && res.proCredits !== null) {
           this.proCredits.set(res.proCredits);
           this.saveProCredits(res.proCredits);
+          this.authService.updateProCredits(res.proCredits);
           if (res.isProAgent) {
             this.setProMode(true);
           }
@@ -171,12 +185,14 @@ export class PaymentService {
     const updated = Math.max(0, this.proCredits() - 1);
     this.proCredits.set(updated);
     this.saveProCredits(updated);
+    this.authService.updateProCredits(updated);
   }
 
   public setProCreditsValue(val: number): void {
     const safe = Math.max(0, val);
     this.proCredits.set(safe);
     this.saveProCredits(safe);
+    this.authService.updateProCredits(safe);
   }
 
   // ── Méthodes Publiques ───────────────────────────────────────────────────
@@ -213,6 +229,7 @@ export class PaymentService {
     const updated = this.proCredits() + amount;
     this.proCredits.set(updated);
     this.saveProCredits(updated);
+    this.authService.updateProCredits(updated);
   }
 
   public useProCredit(cvId: string, clientName?: string, clientPhone?: string): boolean {
@@ -226,6 +243,7 @@ export class PaymentService {
     const updated = this.proCredits() - 1;
     this.proCredits.set(updated);
     this.saveProCredits(updated);
+    this.authService.updateProCredits(updated);
 
     this.unlockCv(cvId);
 

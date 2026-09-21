@@ -125,7 +125,6 @@ public class CvController {
             @RequestParam(required = false, defaultValue = "modern") String template
     ) {
         CandidateEntity candidate = resolveCurrentCandidate();
-        // Export PDF 100% gratuit : contrôle d'accès propriétaire (Anti-IDOR) sans contrainte de paiement
         CvEntity verifiedCv = cvPdfExportService.verifyAccess(id, candidate);
         String targetCvId = (verifiedCv != null) ? verifiedCv.getId().toString() : id;
 

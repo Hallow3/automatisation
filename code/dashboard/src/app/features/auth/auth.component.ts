@@ -128,7 +128,6 @@ export class AuthComponent implements OnInit, AfterViewInit {
         this.verifyEmailTarget.set(emailParam);
         this.verifyForm.patchValue({ email: emailParam, code: codeParam || '' });
         if (codeParam && autoVerify) {
-          // Validation automatique 1-clic depuis le lien de l'email
           this.submitVerifyEmail();
         } else {
           this.verificationNotice.set('Vérification de votre adresse email. Cliquez sur Valider pour continuer.');
@@ -451,7 +450,10 @@ export class AuthComponent implements OnInit, AfterViewInit {
   private handleError(err: any): void {
     this.isLoading.set(false);
     const status = err?.status;
-    const backendMsg = err?.error?.message || err?.error?.reason;
+    const backendMsg = err?.error?.detail || err?.error?.message || err?.error?.reason;
+
+    // Réinitialiser le bouton Google pour permettre une nouvelle tentative immédiate
+    this.renderGoogleButton();
 
     if (backendMsg && typeof backendMsg === 'string' && !backendMsg.startsWith('{')) {
       this.errorMessage.set(backendMsg);

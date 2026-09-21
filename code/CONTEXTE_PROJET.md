@@ -1,7 +1,7 @@
 # 🚀 CONTEXTE GLOBAL & RÉFÉRENTIEL TECHNIQUE EXHAUSTIF — FALLAJOBS
 
-> **Date de mise à jour** : 14 septembre 2026  
-> **Version active** : 1.2.0  
+> **Date de mise à jour** : 21 septembre 2026  
+> **Version active** : 1.3.0  
 > **Statut global** : Prêt pour qualification & mise en production (Pilote 50 utilisateurs)  
 > **Auteurs & Maintenance** : Équipe d'ingénierie FallaJobs
 
@@ -13,7 +13,7 @@
 3. [Architecture Backend (Spring Boot 3.3 / Java 17-21)](#3-architecture-backend-spring-boot-33--java-17-21)
 4. [Architecture Frontend (Angular 18 / Tailwind CSS)](#4-architecture-frontend-angular-18--tailwind-css)
 5. [Intelligence Artificielle, Audio Temps Réel & Prompts](#5-intelligence-artificielle-audio-temps-réel--prompts)
-6. [Schéma de Données & Persistance (MySQL / Flyway V1 -> V10)](#6-schéma-de-données--persistance-mysql--flyway-v1---v10)
+6. [Schéma de Données & Persistance (MySQL / Flyway V1 -> V14)](#6-schéma-de-données--persistance-mysql--flyway-v1---v14)
 7. [Référentiel Complet des Endpoints REST & Contrats](#7-référentiel-complet-des-endpoints-rest--contrats)
 8. [Catalogue des Modèles de CV (Microsoft Word & ATS)](#8-catalogue-des-modèles-de-cv-microsoft-word--ats)
 9. [Sécurité, Multi-Tenancy & Conformité OWASP](#9-sécurité-multi-tenancy--conformité-owasp)
@@ -405,20 +405,27 @@ dashboard/src/app/
 - **Sas Acoustique Anti-Larsen** : Coupure micro automatique pendant la parole de l'IA (`state === 'AI_SPEAKING'`) avec cooldown de 400 ms.
 - **Buffer de Transcription Ligne par Ligne** : Regroupement des fragments audio de transcription dans `lineBuffers` avec découpage sur ponctuation (`.`, `?`, `!`, `\n`) pour un affichage textuel stable et fluide.
 
-### 5.2. Outils de Fonction (Function Calling)
+### 5.2. Architecture Découplée Chat Vocal V2 (Spec V2 — Septembre 2026)
+L'architecture cible élimine la surcharge cognitive de Gemini Live en dissociant 4 responsabilités distinctes :
+1. **Gemini Live (Moteur Vocal)** :
+   - Centré à 100% sur la voix naturelle, l'écoute, le ton chaleureux et fraternel (persona *Bray*).
+   - Ne maintient aucun schéma JSON complexe en direct et n'a plus la responsabilité de clore l'entretien de façon autonome.
+   - Unique outil de fonction exposé : `request_end_interview` (appelé uniquement si le candidat demande explicitement à arrêter).
+2. **State Machine Déterministe Backend (`InterviewStateMachineService`)** :
+   - Ordonnancement strict des 10 étapes : `IDENTITY` ➔ `TARGET` ➔ `EXPERIENCE` ➔ `PROJECTS` ➔ `EDUCATION` ➔ `SKILLS` ➔ `LANGUAGES` ➔ `FINALIZE` ➔ `REVIEW` ➔ `DONE`.
+   - Plafonds de tours par section (`max_turns`) et validation d'arrêt : refuse toute conclusion prématurée sur de simples expressions d'enchaînement (« *je n'ai pas de projet* », « *c'est tout pour cette partie* »).
+3. **Observateur / Extracteur Asynchrone (`InterviewObserverService`)** :
+   - Opère en tâche de fond sur les transcriptions textuelles via Gemini Flash REST.
+   - Déduit les informations factuelles sans perturber la latence audio et injecte des consignes de guidage contextuelles `[INTERVIEW_STATE]`.
+4. **Consolidation CV (`CvWriterService`)** :
+   - Fusionne les données validées dans `CvData` pour prévisualisation temps réel et sauvegarde en base.
 
-#### 1. `update_cv_draft(data)`
-Met à jour progressivement le CV en mémoire au fil des réponses de l'utilisateur.
-- Dates obligatoires : `startDate` et `endDate` (ou « Présent »).
-- Fusion atomique : mise à jour ciblée (`company + position` pour expériences, `school + degree` pour formations, union `Set` pour compétences).
+### 5.3. Cycle de Vie, Monétisation & Résilience des Crédits
+- **Débit Atomique au Démarrage** : Débit d'1 crédit Pro lors de l'appel `POST /api/v1/cvs/{id}/interview/session` via `decrementProCreditIfAvailable()`.
+- **Reprise Gratuite Sécurisée (< 15 min)** : Toute reconnexion ou rafraîchissement d'un CV en cours (y compris avec identifiant `'new'` ou `'cv_default'`) réactive la session active sans prélever de crédit supplémentaire.
+- **Garantie de Remboursement Automatique (`refundAbortedInterviewSession`)** :
+   - Si la session vocale est interrompue techniquement (fermeture anormale, erreur micro, abandon avant usage signifiant), le crédit Pro est immédiatement récrédité en base, le quota d'interviews décrémenté, et le statut positionné à `ABORTED`.
 
-#### 2. `audit_cv_integrity()`
-Exécuté instantanément côté client via `CvAuditEngineService` :
-- **Chevauchements chronologiques (`OVERLAP`)** : Détecte les cumuls de postes non explicités (> 2 mois).
-- **Inversions chronologiques (`CHRONOLOGY`)** : Signale `startDate > endDate`.
-- **Doublons (`DUPLICATE`)** : Repère entreprises/postes dupliqués et compétences redondantes (ex: *React* et *React.js*).
-- **Incomplétudes (`INCOMPLETE`)** : Identifie missions sans réalisations concrètes chiffrées ou formations sans année.
-- **Score global de cohérence** : Note sur 100% avec pénalités pondérées, affichée en direct sur l'interface du candidat.
 
 ---
 
@@ -527,6 +534,10 @@ erDiagram
 - **V8** (`V8__create_payment_and_pro_credit_tables.sql`) : Table `payment_transactions`, `cv_unlocks`, colonnes `pro_credits` et `is_pro_agent`.
 - **V9** (`V9__add_cover_letter_text_to_application.sql`) : Colonne `cover_letter_text LONGTEXT` pour les lettres de motivation rédigées par Gemini 2.0 Flash.
 - **V10** (`V10__notchpay_integration_and_webhook_events.sql`) : Élargissement du statut transaction à `VARCHAR(32)` (`FALLBACK_WHATSAPP`), ajout de `gateway` (`NOTCHPAY`), et création de la table d'idempotence `notchpay_webhook_event`.
+- **V11** (`V11__add_city_and_target_role_to_candidate.sql`) : Ajout des colonnes `city` (`VARCHAR(100)`) et `target_role` (`VARCHAR(150)`) sur la table `candidate`.
+- **V12** (`V12__grant_initial_free_credit_to_candidates.sql`) : Passage de la valeur par défaut de `candidate.pro_credits` à `1` et attribution rétroactive d'1 crédit de bienvenue aux candidats à solde nul sans achat préalable.
+- **V13** (`V13__create_cv_interview_session.sql`) : Création de la table `cv_interview_session` dédiée à l'orchestration V2 (état State Machine, section index, tours, transcriptions partielles/totales JSON, snapshot `cv_data_so_far`).
+- **V14** (`V14__restore_aborted_interview_credits.sql`) : Nettoyage des sessions orphelines `IN_PROGRESS` (> 1h) vers `ABORTED` et restitution d'1 crédit de régularisation pour les sessions interrompues.
 
 ---
 
@@ -539,11 +550,11 @@ erDiagram
 | `POST` | `/api/v1/auth/verify-email` | Public | Validation email : `{ email, code }` → pose cookie JWT `jwt_token` |
 | `POST` | `/api/v1/auth/resend-verification` | Public | Renvoi d'un nouveau code : `{ email }` |
 | `POST` | `/api/v1/auth/login` | Public | Connexion : `{ email, password }` → pose cookie JWT `jwt_token` |
-| `POST` | `/api/v1/auth/google` | Public | Google Sign-In cryptographiquement validé : `{ credential }` |
+| `POST` | `/api/v1/auth/google` | Public | Google Sign-In cryptographiquement validé avec fallback `tokeninfo` : `{ credential }` |
 | `POST` | `/api/v1/auth/forgot-password` | Public | Demande reset : `{ email }` → code par email |
 | `POST` | `/api/v1/auth/reset-password` | Public | Réinitialisation : `{ email, token, newPassword }` |
-| `POST` | `/api/v1/auth/logout` | Public | Déconnexion : suppression serveur du cookie `jwt_token` |
-| `GET` | `/api/v1/auth/me` | Authentifié | Profil courant : retourne `AuthResponse` connecté |
+| `POST` | `/api/v1/auth/logout` | Public | Déconnexion : suppression serveur du cookie `jwt_token` et purge cache local |
+| `GET` | `/api/v1/auth/me` | Authentifié | Profil courant : retourne `AuthResponse` connecté (solde crédits synchronisé) |
 
 ### 7.2. Profil Candidat (`/api/v1/candidate/profile`)
 | Méthode | Route | Sécurité | Description |
@@ -559,11 +570,15 @@ erDiagram
 | `POST` | `/api/v1/cvs` | Authentifié | Création d'un CV : `{ title, template, contentJson? }` |
 | `DELETE` | `/api/v1/cvs/{id}` | Authentifié | Suppression d'un CV appartenant au candidat |
 | `GET` | `/api/v1/cv-templates` | Public | Liste des modèles de CV actifs disponibles |
-| `POST` | `/api/v1/cvs/{id}/interview/session` | Authentifié | Démarre la session vocale Gemini 3.1 Live & réserve le token éphémère |
+| `POST` | `/api/v1/cvs/{id}/interview/session` | Authentifié | Démarre la session vocale Gemini 3.1 Live & réserve le token éphémère (débit atomique 1 crédit) |
+| `POST` | `/api/v1/cvs/{id}/interview/refund` | Authentifié | Restitution immédiate d'1 crédit Pro en cas d'interruption technique ou fermeture anormale |
+| `POST` | `/api/v1/cvs/{id}/interview/v2/session` | Authentifié | Initialise ou reprend une session d'orchestration vocale V2 persistante |
+| `POST` | `/api/v1/cvs/{id}/interview/v2/turn` | Authentifié | Synchronise un tour de parole utilisateur/IA et injecte le bloc de guidage `[INTERVIEW_STATE]` |
+| `POST` | `/api/v1/cvs/{id}/interview/v2/request-end` | Authentifié | Validation stricte et déterministe de la demande d'arrêt utilisateur anticipée |
 | `PUT` | `/api/v1/cvs/{id}/draft` | Authentifié | Mise à jour du brouillon JSON (validé par `CvDraftValidator`) |
 | `POST` | `/api/v1/cvs/{id}/interview/complete` | Authentifié | Finalise l'entretien vocal et synchronise le profil |
 | `POST` | `/api/v1/cvs/{id}/synthesize` | Authentifié | Synthèse IA complète à partir d'une transcription textuelle |
-| `POST` | `/api/v1/cvs/{id}/ai-edit` | Authentifié | Amélioration ciblée du CV par prompt IA : `{ prompt, currentData? }` |
+| `POST` | `/api/v1/cvs/{id}/ai-edit` | Authentifié | Amélioration ciblée du CV par prompt IA (1 crédit Pro) : `{ prompt, currentData? }` |
 | `POST` | `/api/v1/cvs/import` | Authentifié | Import multimodal OCR (contrôle `proCredits >= 2`, 0 débit) |
 | `POST` | `/api/v1/cvs/{id}/download-ticket` | Authentifié | Génère un ticket temporaire (TTL 300s) pour téléchargement direct |
 | `GET` | `/api/v1/cvs/{id}/download` | Public (Ticket) | Téléchargement PDF Chromium sans cookie via ticket éphémère |

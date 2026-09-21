@@ -16,6 +16,28 @@ export interface CompleteInterviewResponse {
   updatedAt?: string;
 }
 
+export interface V2TurnResponse {
+  sessionId: string;
+  cvId: string;
+  currentState: string;
+  sectionIndex: number;
+  turnsInSection: number;
+  sectionStatus: string;
+  interviewStatus: string;
+  controlMessage: string;
+  cvDataSoFar: any;
+  completionScore: number;
+  missingFields: string[];
+  sectionTransitionOccurred: boolean;
+}
+
+export interface V2RequestEndResponse {
+  approved: boolean;
+  reason: string;
+  status: string;
+  instruction: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -25,6 +47,18 @@ export class CvInterviewApiService {
 
   createSession(cvId: string): Observable<InterviewSessionResponse> {
     return this.http.post<InterviewSessionResponse>(`${this.base}/${cvId}/interview/session`, {});
+  }
+
+  initOrResumeV2Session(cvId: string): Observable<V2TurnResponse> {
+    return this.http.post<V2TurnResponse>(`${this.base}/${cvId}/interview/v2/session`, {});
+  }
+
+  syncTurnV2(cvId: string, payload: { sessionId: string; userTurn?: string; aiTurn?: string }): Observable<V2TurnResponse> {
+    return this.http.post<V2TurnResponse>(`${this.base}/${cvId}/interview/v2/turn`, payload);
+  }
+
+  requestEndInterviewV2(cvId: string, payload: { sessionId: string; reason: string; userIntentExcerpt: string; lastUserTurn?: string }): Observable<V2RequestEndResponse> {
+    return this.http.post<V2RequestEndResponse>(`${this.base}/${cvId}/interview/v2/request-end`, payload);
   }
 
   saveDraft(cvId: string, draftData: any): Observable<any> {

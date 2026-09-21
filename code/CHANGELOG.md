@@ -1,5 +1,34 @@
 # CHANGELOG — Suivi de Développement & Intégration
 
+## [1.3.0] - 2026-09-21
+
+### 🎙️ Refonte Majeure Chat Vocal CV (Architecture V2), Résilience des Crédits & Sécurisation Google OAuth
+
+#### 1. Architecture Découplée Chat Vocal V2 (Spec V2)
+- **Découplage Voix & State Machine** : Gemini Live est recentré exclusivement sur l'échange vocal naturel en français (persona *Bray*). Retrait de toute responsabilité de structuration de données JSON ou de fin autonome de l'agent vocal pour supprimer les dérives, les coupures et les conclusions hâtives.
+- **Machine à États Finis Déterministe (`InterviewStateMachineService`)** : Séquençage strict en 10 étapes (`IDENTITY` ➔ `TARGET` ➔ `EXPERIENCE` ➔ `PROJECTS` ➔ `EDUCATION` ➔ `SKILLS` ➔ `LANGUAGES` ➔ `FINALIZE` ➔ `REVIEW` ➔ `DONE`) avec plafonds de tours (`max_turns`) et validation rigoureuse des intentions d'arrêt.
+- **Observateur LLM & Writer Asynchrone (`InterviewObserverService`, `CvWriterService`)** : Analyse de la transcription textuelle au tour par tour (`POST /interview/v2/turn`) sans dégrader la latence vocale, avec injection contextuelle des directives `[INTERVIEW_STATE]`.
+- **Persistance des Sessions (Flyway V13 `cv_interview_session`)** : Conservation de l'état, de l'index de section, des transcriptions partielles et complètes JSON, et du brouillon consolidé `cv_data_so_far`.
+- **Validation Déterministe d'Arrêt (`request_end_interview`)** : Outil unique exposé à Gemini Live, soumis au contrôle strict du backend pour distinguer un véritable arrêt (« *je veux arrêter* ») d'un simple passage de section (« *pas d'autre expérience* »).
+
+#### 2. Éradication Définitive du Bug de l'Illusion de Crédit & Fiabilisation des Remboursements
+- **Suppression du Fallback Trompeur** : Remplacement du repli `null -> 1` par `0` dans `AuthService.toAuthResponse()` et `CandidateProfileService.mapToDto()`. Élimination des faux soldes affichés pour les comptes à solde nul.
+- **Synchronisation Réactive Bidirectionnelle Frontend** : `PaymentService` s'aligne automatiquement via un `effect` Angular sur `authService.currentUser()`, et propage immédiatement tout changement de solde. Purge du cache `localStorage` lors de la déconnexion.
+- **Garantie de Remboursement Automatique en Cas d'Interruption** : `GeminiLiveService.triggerRefundIfAborted()` déclenche le remboursement immédiat (`POST /interview/refund`) en cas d'erreur de préparation HTTP, d'erreur WebSocket, de fermeture réseau anormale (`code !== 1000`) sans usage effectif, ou d'abandon volontaire (`confirmQuit()`).
+- **Reprise Gratuite pour Tous Formats d'Identifiant** : Autorisation de reprise gratuite (< 15 min) étendue aux identifiants `'new'` et `'cv_default'` dans `CvService.java`.
+- **Sécurisation Atomique des Entités JPA** : Rechargement explicite et mise à jour unifiée de `candidate` évitant tout écrasement d'état ou désynchronisation post-débit.
+- **Migration de Régularisation Flyway V14** : Nettoyage des sessions orphelines `IN_PROGRESS` (> 1h) en `ABORTED` et restitution équitable d'1 crédit de compensation aux utilisateurs ayant subi une interruption technique.
+
+#### 3. Résilience Google Sign-In & Authentification
+- **Fallback Robuste sur Google `tokeninfo`** : En cas de décalage d'horloge ou d'échec de vérification cryptographique locale, `AuthService.verifyGoogleToken()` bascule automatiquement sur l'API officielle `oauth2.googleapis.com/tokeninfo`.
+- **Réarmement Immédiat du Bouton Google** : `AuthComponent` réinitialise le bouton Google en cas d'erreur pour permettre une nouvelle tentative immédiate sans rechargement de page.
+
+#### 4. Export PDF Chromium Headless & Robustesse Globale
+- **Conteneurisation Chromium** : Intégration de Chromium headless dans Docker pour génération fidèle A4 multipages côté serveur avec sémaphore à concurrence bornée (2 instances).
+- **Format Standard d'Erreur RFC 7807** : `GlobalExceptionHandler` unifié produisant des objets `ProblemDetail` sur toutes les exceptions métiers et techniques.
+
+---
+
 ## [1.2.1] - 2026-09-14
 
 ### 🛡️ Correctifs Majeurs Production : Monétisation du Chat IA, 1 Crédit Gratuit & Éradication des CVs Doublons

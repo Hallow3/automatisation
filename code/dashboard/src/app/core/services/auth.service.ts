@@ -96,6 +96,12 @@ export class AuthService {
   // ── Logout ────────────────────────────────────────────────────────────────
 
   logout(): void {
+    try {
+      localStorage.removeItem('getjob_pro_credits');
+      localStorage.removeItem('getjob_unlocked_cvs');
+      localStorage.removeItem('getjob_client_tags');
+    } catch {}
+
     this.http.post(`${this.base}/logout`, {}, { withCredentials: true })
       .subscribe({
         complete: () => {
