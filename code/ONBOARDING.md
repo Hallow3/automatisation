@@ -98,13 +98,13 @@ npm start
 ## 💡 4. Les 5 Grands Flux Métier
 
 ### 1. Entretien Vocal IA Découplé (Architecture V2)
-- Le candidat démarre une session vocale (`POST /api/v1/cvs/{id}/interview/session`) : 1 crédit Pro est débité avec garantie de remboursement immédiat (`/interview/refund`) en cas d'interruption technique.
-- La reprise d'une session en cours (< 15 min) est gratuite quel que soit le format de route (`new`, `cv_default`, ou id numérique).
-- Le frontend ouvre un WebSocket direct `wss://generativelanguage.googleapis.com/...` en PCM 16kHz entrant et 24kHz sortant, guidé par le persona *Bray*.
-- À chaque fin de tour de parole, le frontend synchronise la transcription avec le backend (`POST /interview/v2/turn`).
-- La State Machine backend (`InterviewStateMachineService`) progresse à travers 10 sections strictes et réinjecte des instructions contextuelles `[INTERVIEW_STATE]`.
-- L'Observateur LLM extrait les informations factuelles en tâche de fond et consolide le CV sans impacter la latence vocale.
-- Clôture : si le candidat exprime son souhait de quitter, Gemini Live appelle `request_end_interview`, validé de façon déterministe par le backend.
+- **Consultation Gratuite & État Initial `IDLE`** : La navigation vers `/cvs/interview` depuis la barre latérale ne consomme aucun crédit. L'écran s'ouvre dans un état d'attente passif.
+- **Débit sur Action Volontaire Uniquement** : Le prélèvement d'1 crédit Pro et l'appel `POST /api/v1/cvs/{id}/interview/session` ne sont déclenchés **que** lorsque le candidat clique délibérément sur « Commencer l'entretien » (`startInterviewFlow()`).
+- **Garantie de Remboursement Automatique** : En cas d'interruption technique (refus micro, déconnexion WebSocket, fermeture inopinée avant usage), le crédit est immédiatement restitué (`/interview/refund`).
+- **Reprise Gratuite Sécurisée** : La reprise d'une session en cours (< 15 min) est 100% gratuite quel que soit le format de route (`new`, `cv_default`, ou id numérique).
+- **Audio & WebSocket Direct** : Le frontend ouvre un canal WebSocket direct `wss://generativelanguage.googleapis.com/...` en PCM 16kHz entrant et 24kHz sortant, guidé par le persona *Bray*.
+- **Orchestration Hybride** : À chaque fin de tour de parole, le frontend synchronise la transcription avec le backend (`POST /interview/v2/turn`). La State Machine backend (`InterviewStateMachineService`) progresse à travers 10 sections strictes et réinjecte des instructions contextuelles `[INTERVIEW_STATE]`.
+- **Extraction & Clôture Déterministe** : L'Observateur LLM extrait les faits en arrière-plan sans latence audio. La fin d'entretien repose sur l'outil unique `request_end_interview`, validé côté serveur.
 
 ### 2. Double Moteur d'Export PDF (100% Gratuit)
 - **Serveur (Headless Chromium)** : Via `POST /api/v1/cvs/{id}/download-ticket`, puis `GET /api/v1/cvs/{id}/download?token=...`. Un sémaphore borne la concurrence à 2 instances Chromium simultanées pour préserver le processeur et la mémoire. L'exportation est 100% gratuite et sans restriction de paiement.
@@ -142,8 +142,9 @@ npm start
 
 ---
 
-## 🛠️ 6. Commandes Utiles & Vérifications
+## 🛠️ 6. Commandes Utiles & Déploiement
 
+### 6.1. Vérifications Locales
 ```bash
 # Vérification de la compilation backend (0 erreur tolérée)
 cd backend
@@ -160,11 +161,35 @@ npm run build
 npx tsc --noEmit
 ```
 
+### 6.2. Procédure de Déploiement en Production
+> ⚠️ **Sécurité** : Les coordonnées SSH et secrets d'accès au serveur VPS de production sont centralisés dans le fichier confidentiel `DEPLOY_ACCESS.md` à la racine du dépôt (strictement exclu de Git via `.gitignore`).
+
+```bash
+# 1. Connexion SSH au serveur VPS (identifiants dans DEPLOY_ACCESS.md)
+ssh root@<IP_SERVEUR>
+
+# 2. Synchronisation du dépôt Git
+cd /root/app/automatisation
+git fetch origin
+git reset --hard origin/master
+
+# 3. Recompilation des conteneurs Docker
+cd /root/app/automatisation/code
+docker compose build --progress=plain
+
+# 4. Redémarrage des conteneurs en tâche de fond
+docker compose up -d
+
+# 5. Vérification de la santé des conteneurs
+docker compose ps
+# fallajobs-backend (port 8081) et fallajobs-frontend (port 8082) doivent être 'healthy'
+```
+
 ---
 
 ## 📚 7. Documents de Référence
 
 - [**`CONTEXTE_PROJET.md`**](file:///D:/automatisation/code/CONTEXTE_PROJET.md) : Spécification technique exhaustive, diagrammes d'architecture complets, catalogue REST et modèles de CV.
-- [**`CHANGELOG.md`**](file:///D:/automatisation/code/CHANGELOG.md) : Historique versionné détaillé des développements (V1.0.0 à V1.2.0).
+- [**`CHANGELOG.md`**](file:///D:/automatisation/code/CHANGELOG.md) : Historique versionné détaillé des développements (V1.0.0 à V1.3.1).
 - [**`MOBILE_FIRST_STANDARDS.md`**](file:///D:/automatisation/code/MOBILE_FIRST_STANDARDS.md) : Charte technique et directives design Mobile-First.
 - [**`SKILL.md`**](file:///D:/automatisation/code/SKILL.md) : Référentiel d'ingénierie senior et règles d'or opérationnelles.

@@ -1,5 +1,32 @@
 # CHANGELOG — Suivi de Développement & Intégration
 
+## [1.3.1] - 2026-09-21
+
+### 🛡️ Stabilisation Critique : Éradication du Débit Intempestif, Refonte Bannière Crédits, Orbe Mobile & Déploiement Production
+
+#### 1. Élimination Définitive du Débit de Crédit au Clic Menu
+- **Découplage Navigation / Consommation** : L'accès à la page `/cvs/interview` depuis le menu latéral ne consomme désormais aucun crédit (état initial `IDLE`).
+- **Suppression du `prepareSession()` Prématuré** : Retrait de l'appel d'initialisation de session dans `ngOnInit` de `CvInterviewComponent`.
+- **Flux d'Action Explicite (`startInterviewFlow()`)** : L'appel backend `POST /api/v1/cvs/interview/session` et le débit de crédit associé ne sont déclenchés **que** sur action volontaire de l'utilisateur lorsqu'il clique sur le bouton « Commencer l'entretien ».
+
+#### 2. Refonte Visuelle & Ergonomique de la Bannière d'Épuisement de Crédits
+- **Éradication du Contraste Blanc-sur-Blanc** : Ajout des palettes complètes `brand-orange` (50 à 900) et `brand-navy` (50 à 900) dans `tailwind.config.js`. Les boutons et badges génèrent désormais des styles de fond effectifs et lisibles.
+- **Design Minimaliste & Mobile-First** : Remplacement de la bannière surdimensionnée et agressive par une carte sobre, aérée, dotée d'un badge d'état discret, d'un texte anthracite explicatif à fort contraste (WCAG AA) et d'un bouton d'action primaire `bg-brand-600`.
+
+#### 3. Correction d'Affichage de l'Orbe IA Vivante sur Navigateurs Mobiles (WebKit)
+- **Support Universel iOS Safari & Android WebViews** : Remplacement de la syntaxe non standard à slash à 8 valeurs (`border-radius: A B C D / E F G H`) dans `@keyframes` par une animation d'interpolation à 4 pourcentages universellement supportée (`46% 54% 58% 42%`).
+- **Élimination de la Forme Carrée / Losange** : Ajout d'un masque matériel `-webkit-mask-image: -webkit-radial-gradient(white, black)` et d'une accélération GPU (`transform: translateZ(0)`) empêchant les calques de dégradés flous de déborder de l'orbe.
+
+#### 4. Résilience Angular & Compilation Backend
+- **Correction Angular `NG0600`** : Élimination de l'erreur console `Writing to signals is not allowed in an effect` dans `PaymentService` via `{ allowSignalWrites: true }` et l'isolation `untracked()`.
+- **Correction Compilation Java `CvService.java`** : Résolution de l'erreur `effectively final` sur variable locale dans la lambda `.orElseGet()` lors de l'édition IA de CV.
+
+#### 5. Déploiement Production & Sécurisation des Accès
+- **Déploiement VPS (`72.62.236.147`)** : Synchronisation du dépôt Git, rebuild des images Docker `fallajobs-backend` (port 8081) et `fallajobs-frontend` (port 8082), et validation de l'état `healthy` sur le domaine public HTTPS `fallajobs.com`.
+- **Fiche Confidentielle de Déploiement (`DEPLOY_ACCESS.md`)** : Centralisation sécurisée des identifiants SSH, chemins d'accès et commandes de maintenance, avec exclusion stricte et vérifiée dans `.gitignore`.
+
+---
+
 ## [1.3.0] - 2026-09-21
 
 ### 🎙️ Refonte Majeure Chat Vocal CV (Architecture V2), Résilience des Crédits & Sécurisation Google OAuth

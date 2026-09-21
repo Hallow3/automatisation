@@ -28,6 +28,9 @@ code/dashboard/.env.*
 *.jks
 client_secret*.json
 credentials.json
+DEPLOY_ACCESS*.md
+*deploy_access*
+*deployment_access*
 /workflows/credentials/
 code/ressources/clé nokash/
 ressources/clé nokash/

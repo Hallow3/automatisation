@@ -1,8 +1,8 @@
 # 🚀 CONTEXTE GLOBAL & RÉFÉRENTIEL TECHNIQUE EXHAUSTIF — FALLAJOBS
 
 > **Date de mise à jour** : 21 septembre 2026  
-> **Version active** : 1.3.0  
-> **Statut global** : Prêt pour qualification & mise en production (Pilote 50 utilisateurs)  
+> **Version active** : 1.3.1  
+> **Statut global** : Déployé en production (VPS fallajobs.com) & qualifié  
 > **Auteurs & Maintenance** : Équipe d'ingénierie FallaJobs
 
 ---
@@ -421,10 +421,12 @@ L'architecture cible élimine la surcharge cognitive de Gemini Live en dissocian
    - Fusionne les données validées dans `CvData` pour prévisualisation temps réel et sauvegarde en base.
 
 ### 5.3. Cycle de Vie, Monétisation & Résilience des Crédits
-- **Débit Atomique au Démarrage** : Débit d'1 crédit Pro lors de l'appel `POST /api/v1/cvs/{id}/interview/session` via `decrementProCreditIfAvailable()`.
+- **Consultation Libre & État Initial `IDLE`** : L'accès à l'interface d'entretien vocal (`/cvs/interview`) n'effectue aucun appel de réservation ni aucun prélèvement de crédit. L'utilisateur découvre l'environnement et configure son audio sans coût.
+- **Débit Atomique sur Action Explicite (`startInterviewFlow()`)** : Le débit d'1 crédit Pro et la création de session backend (`POST /api/v1/cvs/{id}/interview/session`) ne sont déclenchés **que** sur validation délibérée (« Commencer l'entretien ») via `decrementProCreditIfAvailable()`.
 - **Reprise Gratuite Sécurisée (< 15 min)** : Toute reconnexion ou rafraîchissement d'un CV en cours (y compris avec identifiant `'new'` ou `'cv_default'`) réactive la session active sans prélever de crédit supplémentaire.
 - **Garantie de Remboursement Automatique (`refundAbortedInterviewSession`)** :
    - Si la session vocale est interrompue techniquement (fermeture anormale, erreur micro, abandon avant usage signifiant), le crédit Pro est immédiatement récrédité en base, le quota d'interviews décrémenté, et le statut positionné à `ABORTED`.
+- **Bannière d'Épuisement Mobile-First Épurée** : Remplacement de l'alerte surdimensionnée par une carte discrète, aux couleurs de la marque (`brand-navy` / `brand-orange`), sans aucun conflit de contraste, guidant vers l'acquisition de crédits.
 
 
 ---
@@ -736,6 +738,19 @@ CORS_ALLOWED_ORIGINS=http://localhost:4200,https://app.getjob.ai
 ### 11.2. Commandes de Validation
 - **Backend** : `mvn clean test-compile` dans `backend/`
 - **Frontend** : `ng build --configuration production` dans `dashboard/`
+- **TypeScript strict** : `npx tsc --noEmit` dans `dashboard/`
+
+### 11.3. Infrastructure & Déploiement en Production (VPS Docker)
+- **Topologie Serveur** :
+  - **Hôte** : Serveur VPS de production (`72.62.236.147`) sous Ubuntu/Debian.
+  - **Proxy Inverse** : Nginx avec terminaison TLS / SSL Let's Encrypt (`https://fallajobs.com`).
+  - **Conteneurs Applicatifs** :
+    - `fallajobs-backend` : Image Spring Boot 3.3 / Java 21, exposée sur le port `8081` interne (healthcheck `/actuator/health`).
+    - `fallajobs-frontend` : Image Angular 18 Nginx Alpine, exposée sur le port `8082` interne.
+  - **Réseau Docker** : `app-network` (bridge externe mutualisé).
+- **Fichier des Accès Confidentiels (`DEPLOY_ACCESS.md`)** :
+  - Un fichier dédié `DEPLOY_ACCESS.md` situé à la racine du projet contient l'ensemble des accès SSH, chemins de répertoires, mots de passe et procédures pas-à-pas de maintenance.
+  - Ce fichier est strictement exclu du contrôle de version via les règles `.gitignore` (`DEPLOY_ACCESS*.md`, `*deploy_access*`). Ne jamais le commiter.
 
 ---
 
