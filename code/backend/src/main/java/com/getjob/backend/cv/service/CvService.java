@@ -747,7 +747,11 @@ public class CvService {
         }
         candidate = candidateRepository.findById(candidate.getId()).orElse(candidate);
 
-        CvEntity cv = findCvEntityForCurrentUser(cvId).orElseGet(() -> {
+        Optional<CvEntity> existingCvOpt = findCvEntityForCurrentUser(cvId);
+        CvEntity cv;
+        if (existingCvOpt.isPresent()) {
+            cv = existingCvOpt.get();
+        } else {
             CvEntity newCv = CvEntity.builder()
                     .candidateId(candidate.getId())
                     .templateId(parseTemplateCodeToId("moderne"))
@@ -756,8 +760,8 @@ public class CvService {
                     .status("DRAFT")
                     .interviewStatus("COMPLETED")
                     .build();
-            return saveCvEntity(newCv);
-        });
+            cv = saveCvEntity(newCv);
+        }
 
         String currentJson = "";
         try {
