@@ -1069,19 +1069,27 @@
           </div>
 
           <!-- Alerte solde insuffisant (0 crédit) -->
-          <div *ngIf="(authService.currentUser()?.proCredits ?? 0) < 1" class="rounded-xl border border-amber-200 bg-amber-50/80 p-3 space-y-2">
-            <div class="flex items-start gap-2">
-              <span class="text-amber-600 font-bold text-sm">💳</span>
+          <div *ngIf="(authService.currentUser()?.proCredits ?? 0) < 1" class="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2.5">
+            <div class="flex items-center gap-2.5">
+              <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-700">
+                <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <rect x="2" y="5" width="20" height="14" rx="2"/>
+                  <line x1="2" y1="10" x2="22" y2="10"/>
+                </svg>
+              </div>
               <div class="flex-1 min-w-0">
-                <p class="text-xs font-bold text-slate-900">Solde de crédits épuisé (0 crédit)</p>
-                <p class="text-[11px] text-slate-600">L'assistant IA d'optimisation nécessite des crédits Pro pour modifier votre CV.</p>
+                <p class="text-xs font-semibold text-slate-900">Solde de crédits épuisé (0 crédit)</p>
+                <p class="text-[11px] text-slate-500">1 crédit Pro par optimisation avec l'assistant IA.</p>
               </div>
             </div>
             <button
               type="button"
               (click)="paymentService.openPackModal()"
-              class="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-brand-orange-500 to-brand-orange-600 text-white text-xs font-bold shadow-xs hover:from-brand-orange-600 hover:to-brand-orange-700 transition">
-              💳 Recharger mes crédits Pro
+              class="w-full py-2 px-3 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold shadow-xs transition active:scale-[0.98] inline-flex items-center justify-center gap-2">
+              <svg class="h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+              </svg>
+              <span>Recharger mes crédits Pro</span>
             </button>
           </div>
 
@@ -1302,7 +1310,7 @@
           <button
             type="button"
             (click)="openMobilePreview()"
-            class="flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-orange-500 to-brand-orange-600 hover:from-brand-orange-600 hover:to-brand-orange-700 active:scale-95 px-3.5 text-xs font-bold text-white shadow-md shadow-brand-orange-500/20 transition shrink-0">
+            class="flex h-9 items-center justify-center gap-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 active:scale-95 px-3.5 text-xs font-bold text-white shadow-md shadow-brand-500/20 transition shrink-0">
             <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />

@@ -77,23 +77,25 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
 
   startInterview(): void {
     const credits = this.authService.currentUser()?.proCredits ?? 0;
-    if (credits < 1) {
+    const cached = this.geminiService.hasActiveCachedSession(this.cvId);
+    if (credits < 1 && !cached) {
       this.paymentService.openPackModal();
       return;
     }
-    this.geminiService.beginInterview();
+    this.geminiService.startInterviewFlow(this.cvId);
   }
 
   retrySession(): void {
     const credits = this.authService.currentUser()?.proCredits ?? 0;
-    if (credits < 1) {
-      this.paymentService.openPackModal();
-      return;
-    }
     const targetId = (this.geminiService.currentCvId && this.geminiService.currentCvId !== 'cv_default' && this.geminiService.currentCvId !== 'new')
       ? this.geminiService.currentCvId
       : this.cvId;
-    this.geminiService.prepareSession(targetId);
+    const cached = this.geminiService.hasActiveCachedSession(targetId);
+    if (credits < 1 && !cached) {
+      this.paymentService.openPackModal();
+      return;
+    }
+    this.geminiService.startInterviewFlow(targetId);
   }
 
   goToManualBuilder(): void {
@@ -245,16 +247,11 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
       this.router.navigate(['/cv-builder'], { queryParams: { action: 'editor', cvId: realCvId } });
     });
 
-    const credits = this.authService.currentUser()?.proCredits ?? 0;
-    if (credits < 1) {
-      this.geminiService.errorMessage.set(
-        "Solde insuffisant : l'accès à l'entretien vocal IA nécessite au moins 1 crédit Pro. Veuillez recharger votre compte pour démarrer une session."
-      );
-      this.paymentService.openPackModal();
-      return;
+    // Si une session active précédente sur ce CV existe en cache local, restaurer le brouillon passivement
+    const cachedDraft = this.geminiService.getCachedDraft(this.cvId);
+    if (cachedDraft) {
+      this.geminiService.currentDraft.set(cachedDraft);
     }
-
-    this.geminiService.prepareSession(this.cvId);
   }
 
   ngOnDestroy(): void {
@@ -296,7 +293,7 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
     const targetId = (this.geminiService.currentCvId && this.geminiService.currentCvId !== 'cv_default' && this.geminiService.currentCvId !== 'new')
       ? this.geminiService.currentCvId
       : this.cvId;
-    this.geminiService.prepareSession(targetId);
+    this.geminiService.startInterviewFlow(targetId);
   }
 
   goToEditor(): void {

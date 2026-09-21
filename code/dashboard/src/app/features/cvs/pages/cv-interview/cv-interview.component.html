@@ -19,11 +19,13 @@
     </div>
 
     <div class="flex items-center gap-2 shrink-0">
-      <span *ngIf="isQuotaReached()" class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] sm:text-xs font-bold text-amber-800 border border-amber-200">
-        ⚠️ Crédits insuffisants
+      <span *ngIf="isQuotaReached()" class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-2xs sm:text-xs font-medium text-slate-700 border border-slate-200/80">
+        <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+        0 crédit disponible
       </span>
-      <span *ngIf="!isQuotaReached() && errorMessage()" class="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-0.5 text-[10px] sm:text-xs font-bold text-rose-700 border border-rose-200">
-        ⚠️ Déconnecté
+      <span *ngIf="!isQuotaReached() && errorMessage()" class="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-2xs sm:text-xs font-medium text-rose-700 border border-rose-200">
+        <span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
+        Déconnecté
       </span>
       <ng-container *ngIf="!errorMessage() && !isQuotaReached()">
         <span *ngIf="!hasStarted()" class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] sm:text-xs font-semibold text-slate-700 border border-slate-200">
@@ -43,138 +45,141 @@
   </div>
 
   <!-- Quota Reached Full Card Alert -->
-  <div *ngIf="isQuotaReached()" class="rounded-2xl border-2 border-amber-300 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-4 sm:p-5 shadow-sm space-y-3">
+  <div *ngIf="isQuotaReached()" class="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs transition-all space-y-3.5">
     <div class="flex items-start gap-3.5">
-      <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-sm">
-        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <polyline points="12 6 12 12 16 14"/>
+      <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 border border-slate-200/80 text-slate-700">
+        <svg class="h-4.5 w-4.5 text-slate-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+          <rect x="2" y="5" width="20" height="14" rx="2"/>
+          <line x1="2" y1="10" x2="22" y2="10"/>
         </svg>
       </div>
       <div class="flex-1 min-w-0">
-        <h3 class="text-sm font-bold text-slate-900">Crédits pour l'entretien vocal IA</h3>
-        <p class="mt-1 text-xs text-slate-600 leading-relaxed">
-          {{ errorMessage() || "L'accès à l'entretien vocal IA nécessite au moins 1 crédit Pro. Veuillez recharger votre compte pour démarrer une session." }}
-        </p>
-        <p class="mt-1 text-2xs text-amber-700 font-semibold">
-          💡 Vous pouvez également continuer à créer et modifier vos CV gratuitement par saisie assistée ou manuelle !
+        <div class="flex items-center gap-2">
+          <h3 class="text-xs sm:text-sm font-semibold text-slate-900">Solde de crédits insuffisant</h3>
+          <span class="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 border border-slate-200">0 crédit Pro</span>
+        </div>
+        <p class="mt-1 text-xs text-slate-500 leading-relaxed max-w-2xl">
+          L'accès à l'entretien vocal IA requiert au moins 1 crédit Pro pour lancer une session interactive. Vous pouvez recharger votre compte ou continuer la rédaction de votre CV gratuitement par saisie manuelle.
         </p>
       </div>
     </div>
-    <div class="flex flex-wrap items-center gap-2.5 pt-1 sm:pl-[54px]">
+    <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 pt-0.5 sm:pl-[50px]">
       <button
         type="button"
         (click)="paymentService.openPackModal()"
-        class="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-orange-500 to-brand-orange-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:from-brand-orange-600 hover:to-brand-orange-700 active:scale-95 transition">
-        <span>💳 Recharger mes crédits Pro</span>
+        class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 hover:bg-brand-700 active:scale-[0.98] px-4 py-2.5 text-xs font-semibold text-white shadow-xs transition w-full sm:w-auto">
+        <svg class="h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+        </svg>
+        <span>Recharger des crédits Pro</span>
       </button>
       <a
         routerLink="/cv-builder"
         [queryParams]="{ action: 'create' }"
-        class="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-xs font-bold text-white shadow-brand hover:bg-brand-700 transition">
-        <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        class="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:scale-[0.98] px-3.5 py-2.5 text-xs font-medium text-slate-700 transition w-full sm:w-auto">
+        <svg class="h-3.5 w-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
         </svg>
-        <span>Créer un CV manuellement</span>
+        <span>Continuer gratuitement</span>
       </a>
       <a
         routerLink="/cvs"
-        class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
-        <span>← Retour à la liste des CV</span>
+        class="inline-flex items-center justify-center text-xs font-medium text-slate-500 hover:text-slate-800 transition py-2 px-2 text-center">
+        <span>Retour aux CV</span>
       </a>
     </div>
   </div>
 
   <!-- Temporarily Unavailable Alert (Spec V2, Section 2.1) -->
-  <div *ngIf="isTemporarilyUnavailable()" class="rounded-2xl border-2 border-amber-300 bg-amber-50/90 p-4 sm:p-5 shadow-sm space-y-3">
+  <div *ngIf="isTemporarilyUnavailable()" class="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs space-y-3.5">
     <div class="flex items-start gap-3.5">
-      <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-sm">
-        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 border border-slate-200/80 text-slate-700">
+        <svg class="h-4.5 w-4.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
           <circle cx="12" cy="12" r="10"/>
           <line x1="12" y1="8" x2="12" y2="12"/>
           <line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
       </div>
       <div class="flex-1 min-w-0">
-        <h3 class="text-sm font-bold text-slate-900">Entretien vocal temporairement indisponible</h3>
-        <p class="mt-1 text-xs text-slate-600 leading-relaxed">
-          Le service vocal n'est pas disponible pour le moment. Votre progression a été conservée.
+        <h3 class="text-xs sm:text-sm font-semibold text-slate-900">Entretien vocal temporairement indisponible</h3>
+        <p class="mt-1 text-xs text-slate-500 leading-relaxed max-w-2xl">
+          Le service vocal rencontre un ralentissement passager. Votre progression a été conservée en toute sécurité.
         </p>
       </div>
     </div>
-    <div class="flex items-center gap-2.5 pt-1 sm:pl-[54px]">
+    <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 pt-0.5 sm:pl-[50px]">
       <button
         type="button"
         (click)="retrySession()"
-        class="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-xs font-bold text-white hover:bg-brand-700 transition shadow-sm">
+        class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 active:scale-[0.98] px-4 py-2.5 text-xs font-semibold text-white shadow-xs transition w-full sm:w-auto">
         <span>Réessayer</span>
       </button>
       <a
         routerLink="/cvs"
-        class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
+        class="inline-flex items-center justify-center text-xs font-medium text-slate-500 hover:text-slate-800 transition py-2 px-2 text-center">
         <span>Retour à mes CV</span>
       </a>
     </div>
   </div>
 
   <!-- User Stopped / Paused Alert (Spec V2, Section 14 & 15) -->
-  <div *ngIf="isUserStopped()" class="rounded-2xl border-2 border-brand-200 bg-brand-50/80 p-4 sm:p-5 shadow-sm space-y-3">
+  <div *ngIf="isUserStopped()" class="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs space-y-3.5">
     <div class="flex items-start gap-3.5">
-      <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm">
-        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <rect x="6" y="4" width="4" height="16"/>
-          <rect x="14" y="4" width="4" height="16"/>
+      <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 border border-slate-200/80 text-slate-700">
+        <svg class="h-4.5 w-4.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+          <rect x="6" y="4" width="4" height="16" rx="1"/>
+          <rect x="14" y="4" width="4" height="16" rx="1"/>
         </svg>
       </div>
       <div class="flex-1 min-w-0">
-        <h3 class="text-sm font-bold text-slate-900">Entretien mis en pause</h3>
-        <p class="mt-1 text-xs text-slate-600 leading-relaxed">
-          Votre progression a été enregistrée à votre demande. Vous pouvez reprendre l'échange vocal à tout moment ou continuer dans l'éditeur.
+        <h3 class="text-xs sm:text-sm font-semibold text-slate-900">Entretien mis en pause</h3>
+        <p class="mt-1 text-xs text-slate-500 leading-relaxed max-w-2xl">
+          Votre progression a été enregistrée à votre demande. Vous pouvez reprendre l'échange vocal à tout moment ou poursuivre dans l'éditeur.
         </p>
       </div>
     </div>
-    <div class="flex items-center gap-2.5 pt-1 sm:pl-[54px]">
+    <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 pt-0.5 sm:pl-[50px]">
       <button
         type="button"
         (click)="startInterview()"
-        class="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-xs font-bold text-white hover:bg-brand-700 transition shadow-sm">
-        <span>Reprendre l'entretien vocal</span>
+        class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 active:scale-[0.98] px-4 py-2.5 text-xs font-semibold text-white shadow-xs transition w-full sm:w-auto">
+        <span>Reprendre l'entretien</span>
       </button>
       <button
         type="button"
         (click)="goToEditor()"
-        class="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-white px-3.5 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50 transition">
+        class="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:scale-[0.98] px-3.5 py-2.5 text-xs font-medium text-slate-700 transition w-full sm:w-auto">
         <span>Continuer dans l'éditeur</span>
       </button>
     </div>
   </div>
 
   <!-- Generic Error Banner (Non-quota, non-temporarily unavailable) -->
-  <div *ngIf="errorMessage() && !isQuotaReached() && !isTemporarilyUnavailable() && !isUserStopped()" class="rounded-2xl border border-rose-200 bg-rose-50/70 p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
+  <div *ngIf="errorMessage() && !isQuotaReached() && !isTemporarilyUnavailable() && !isUserStopped()" class="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
     <div class="flex items-center gap-3 min-w-0">
-      <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-500 text-white">
-        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-50 border border-rose-100 text-rose-600">
+        <svg class="h-4.5 w-4.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
           <circle cx="12" cy="12" r="10"/>
           <line x1="12" y1="8" x2="12" y2="12"/>
           <line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
       </div>
       <div class="min-w-0">
-        <p class="text-xs font-bold text-slate-900">Interruption de connexion</p>
-        <p class="text-2xs text-rose-700 truncate">{{ errorMessage() }}</p>
+        <p class="text-xs font-semibold text-slate-900">Interruption de connexion</p>
+        <p class="text-xs text-slate-500 truncate max-w-lg">{{ errorMessage() }}</p>
       </div>
     </div>
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-2 shrink-0">
       <button
         type="button"
         (click)="retrySession()"
-        class="inline-flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700 transition">
+        class="inline-flex items-center justify-center gap-1 rounded-xl bg-brand-600 hover:bg-brand-700 active:scale-[0.98] px-3.5 py-2 text-xs font-semibold text-white transition shadow-xs">
         <span>Réessayer</span>
       </button>
       <a
         routerLink="/cvs"
-        class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
+        class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 transition">
         <span>Retour</span>
       </a>
     </div>
@@ -210,7 +215,7 @@
             type="button"
             (click)="hasStarted() ? toggleMute() : startInterview()"
             [attr.aria-label]="!hasStarted() ? 'Commencer l’entretien' : isMuted() ? 'Réactiver le micro' : 'Couper le micro'"
-            [class]="'ai-orb-container group relative flex h-20 w-20 sm:h-24 sm:w-24 cursor-pointer items-center justify-center transition-transform duration-300 active:scale-95 ' + (isMuted() || isQuotaReached() ? 'ai-orb-muted' : isAiSpeaking() ? 'ai-orb-speaking' : isUserSpeaking() ? 'ai-orb-listening' : 'ai-orb-idle')">
+            [class]="'ai-orb-container group relative flex h-20 w-20 sm:h-24 sm:w-24 rounded-full cursor-pointer items-center justify-center transition-transform duration-300 active:scale-95 ' + (isMuted() || isQuotaReached() ? 'ai-orb-muted' : isAiSpeaking() ? 'ai-orb-speaking' : isUserSpeaking() ? 'ai-orb-listening' : 'ai-orb-idle')">
             
             <!-- Fluid morphing gradient body -->
             <div class="ai-orb-morph">
@@ -263,8 +268,12 @@
               *ngIf="isQuotaReached()"
               type="button"
               (click)="paymentService.openPackModal()"
-              class="w-full sm:w-auto min-w-[220px] px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-brand-orange-500 to-brand-orange-600 hover:from-brand-orange-600 hover:to-brand-orange-700 active:scale-[0.98] transition shadow-md">
-              💳 Recharger mes crédits Pro
+              class="w-full sm:w-auto min-w-[220px] px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 active:scale-[0.98] transition shadow-xs inline-flex items-center justify-center gap-2">
+              <svg class="h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="5" width="20" height="14" rx="2"/>
+                <line x1="2" y1="10" x2="22" y2="10"/>
+              </svg>
+              <span>Recharger des crédits Pro</span>
             </button>
             <span class="text-[11px] text-slate-400">
               1 crédit Pro requis · Microphone activé au démarrage
@@ -275,11 +284,11 @@
         <!-- En cours d'entretien : statuts dynamiques et visualiseur audio -->
         <div *ngIf="hasStarted()">
           <!-- Status labels -->
-          <h2 class="mt-2.5 sm:mt-3 text-xs sm:text-sm font-bold text-slate-900">
-            {{ isQuotaReached() ? 'Crédits Pro insuffisants' : errorMessage() ? 'Connexion en pause' : isAiSpeaking() ? 'L’assistant vous répond…' : isUserSpeaking() ? 'Je vous écoute…' : isMuted() ? 'Micro désactivé' : 'Parlez naturellement' }}
+          <h2 class="mt-2.5 sm:mt-3 text-xs sm:text-sm font-semibold text-slate-900">
+            {{ isQuotaReached() ? 'Solde de crédits épuisé' : errorMessage() ? 'Connexion en pause' : isAiSpeaking() ? 'L’assistant vous répond…' : isUserSpeaking() ? 'Je vous écoute…' : isMuted() ? 'Micro désactivé' : 'Parlez naturellement' }}
           </h2>
           <p class="mt-0.5 text-2xs text-slate-500 max-w-sm mx-auto">
-            {{ isQuotaReached() ? 'Rechargez votre compte en crédits Pro pour démarrer une session vocale IA.' : errorMessage() ? errorMessage() : 'L’IA écoute vos réponses et met à jour votre CV en direct sur la droite.' }}
+            {{ isQuotaReached() ? 'Rechargez votre compte pour poursuivre l’entretien vocal avec l’IA.' : errorMessage() ? errorMessage() : 'L’IA écoute vos réponses et met à jour votre CV en direct sur la droite.' }}
           </p>
 
           <!-- Live audio visualizer bars -->

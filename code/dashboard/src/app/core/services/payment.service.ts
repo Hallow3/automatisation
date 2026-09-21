@@ -1,4 +1,4 @@
-import { Injectable, signal, computed, inject, effect } from '@angular/core';
+import { Injectable, signal, computed, inject, effect, untracked } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { catchError, delay } from 'rxjs/operators';
@@ -132,12 +132,13 @@ export class PaymentService {
     effect(() => {
       const user = this.authService.currentUser();
       if (user && user.proCredits !== undefined && user.proCredits !== null) {
-        if (this.proCredits() !== user.proCredits) {
+        const currentVal = untracked(() => this.proCredits());
+        if (currentVal !== user.proCredits) {
           this.proCredits.set(user.proCredits);
           this.saveProCredits(user.proCredits);
         }
       }
-    });
+    }, { allowSignalWrites: true });
   }
 
   public openPackModal(): void {

@@ -98,6 +98,45 @@ export class GeminiLiveService {
     this.audioEngine.setMuted(muted);
   }
 
+  public hasActiveCachedSession(cvId: string): boolean {
+    const cached = this.sessionCache.getSession(cvId);
+    return !!cached && !!(cached.draft || (cached.transcript && cached.transcript.length > 0));
+  }
+
+  public getCachedDraft(cvId: string): any {
+    return this.sessionCache.getSession(cvId)?.draft ?? null;
+  }
+
+  /**
+   * Déclenche activement le cycle complet d'entretien vocal au clic explicite de l'utilisateur :
+   * 1. Débit du crédit & obtention du jeton de session backend
+   * 2. Connexion WebSocket à Gemini Live
+   * 3. Engagement du microphone et accueil interactif
+   */
+  async startInterviewFlow(cvId: string = 'cv_default'): Promise<void> {
+    if (this.hasStarted()) {
+      return;
+    }
+
+    const credits = this.authService.currentUser()?.proCredits ?? 0;
+    const cached = this.sessionCache.getSession(cvId);
+    if (credits < 1 && !cached) {
+      this.setError("Solde insuffisant : l'accès à l'entretien vocal IA nécessite au moins 1 crédit Pro. Veuillez recharger votre compte.");
+      this.paymentService.openPackModal();
+      return;
+    }
+
+    this.userWantsToStart = true;
+    this.isStarting.set(true);
+
+    if (this.isWsReady() && this.currentCvId === cvId) {
+      await this.beginInterview();
+      return;
+    }
+
+    await this.prepareSession(cvId);
+  }
+
   /**
    * Alias de rétrocompatibilité : prépare la session WebSocket sans démarrer la parole.
    */
@@ -106,9 +145,7 @@ export class GeminiLiveService {
   }
 
   /**
-   * Prépare et ouvre la connexion Gemini Live en tâche de fond dès l'arrivée sur l'écran.
-   * L'IA reste silencieuse et le microphone n'est pas engagé tant que l'utilisateur
-   * n'a pas cliqué sur « Commencer l'entretien ».
+   * Prépare et ouvre la connexion Gemini Live lors du démarrage explicite de l'entretien.
    */
   async prepareSession(cvId: string = 'cv_default'): Promise<void> {
     // 0. Protection contre les doubles déclenchements concurrents
