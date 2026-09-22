@@ -62,7 +62,7 @@ public class GeminiLiveTokenService {
     @Value("${gemini.live.model:gemini-3.1-flash-live-preview}")
     private String geminiModel;
 
-    @Value("${gemini.model:gemini-2.0-flash}")
+    @Value("${gemini.model:gemini-3.5-flash-lite}")
     private String geminiTextModel;
 
 
@@ -214,57 +214,26 @@ public class GeminiLiveTokenService {
         );
     }
 
+    private String resolveEffectiveTextModel() {
+        if (geminiTextModel == null || geminiTextModel.isBlank() || "gemini-2.0-flash".equals(geminiTextModel)) {
+            return "gemini-3.5-flash-lite";
+        }
+        return geminiTextModel;
+    }
+
     private String callGeminiGenerateContent(String apiKey, int keyIndex, String systemInstruction, String userPrompt, boolean asJson) {
+        String modelToUse = resolveEffectiveTextModel();
         try {
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/" + geminiTextModel + ":generateContent?key=" + apiKey;
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-
-            Map<String, Object> body = new HashMap<>();
-            if (systemInstruction != null && !systemInstruction.isBlank()) {
-                body.put("systemInstruction", Map.of("parts", List.of(Map.of("text", systemInstruction))));
-            }
-            body.put("contents", List.of(
-                    Map.of("role", "user", "parts", List.of(Map.of("text", userPrompt)))
-            ));
-            if (asJson) {
-                body.put("generationConfig", Map.of(
-                        "responseMimeType", "application/json",
-                        "temperature", 0.2
-                ));
-            } else {
-                body.put("generationConfig", Map.of(
-                        "temperature", 0.3
-                ));
-            }
-
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> response = restTemplate.postForObject(url, request, Map.class);
-
-            if (response != null && response.get("candidates") instanceof List<?> candidates && !candidates.isEmpty()) {
-                Object firstCandidate = candidates.get(0);
-                if (firstCandidate instanceof Map<?, ?> candMap) {
-                    Object content = candMap.get("content");
-                    if (content instanceof Map<?, ?> contentMap) {
-                        Object parts = contentMap.get("parts");
-                        if (parts instanceof List<?> partsList && !partsList.isEmpty()) {
-                            Object firstPart = partsList.get(0);
-                            if (firstPart instanceof Map<?, ?> partMap) {
-                                Object text = partMap.get("text");
-                                if (text instanceof String s && !s.isBlank()) {
-                                    return s;
-                                }
-                            }
-                        }
-                    }
+            return executeGenerateContent(apiKey, keyIndex, systemInstruction, userPrompt, asJson, modelToUse);
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode().value() == 404 && !"gemini-flash-latest".equals(modelToUse)) {
+                log.warn("Gemini : modèle '{}' introuvable (HTTP 404), repli automatique sur 'gemini-flash-latest'...", modelToUse);
+                try {
+                    return executeGenerateContent(apiKey, keyIndex, systemInstruction, userPrompt, asJson, "gemini-flash-latest");
+                } catch (Exception ex) {
+                    log.warn("Gemini repli gemini-flash-latest a échoué: {}", ex.getMessage());
                 }
             }
-
-            throw new KeyFailedException("réponse vide ou invalide");
-        } catch (HttpClientErrorException e) {
             int status = e.getStatusCode().value();
             if (status == 400) {
                 log.error("Gemini : requête invalide (400) : {}", e.getResponseBodyAsString());
@@ -277,6 +246,57 @@ public class GeminiLiveTokenService {
             log.warn("Gemini generateContent : erreur inattendue clé [{}] : {}", keyIndex, e.getMessage());
             throw new KeyFailedException("exception: " + e.getMessage());
         }
+    }
+
+    private String executeGenerateContent(String apiKey, int keyIndex, String systemInstruction, String userPrompt, boolean asJson, String model) {
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        Map<String, Object> body = new HashMap<>();
+        if (systemInstruction != null && !systemInstruction.isBlank()) {
+            body.put("systemInstruction", Map.of("parts", List.of(Map.of("text", systemInstruction))));
+        }
+        body.put("contents", List.of(
+                Map.of("role", "user", "parts", List.of(Map.of("text", userPrompt)))
+        ));
+        if (asJson) {
+            body.put("generationConfig", Map.of(
+                    "responseMimeType", "application/json",
+                    "temperature", 0.2
+            ));
+        } else {
+            body.put("generationConfig", Map.of(
+                    "temperature", 0.3
+            ));
+        }
+
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> response = restTemplate.postForObject(url, request, Map.class);
+
+        if (response != null && response.get("candidates") instanceof List<?> candidates && !candidates.isEmpty()) {
+            Object firstCandidate = candidates.get(0);
+            if (firstCandidate instanceof Map<?, ?> candMap) {
+                Object content = candMap.get("content");
+                if (content instanceof Map<?, ?> contentMap) {
+                    Object parts = contentMap.get("parts");
+                    if (parts instanceof List<?> partsList && !partsList.isEmpty()) {
+                        Object firstPart = partsList.get(0);
+                        if (firstPart instanceof Map<?, ?> partMap) {
+                            Object text = partMap.get("text");
+                            if (text instanceof String s && !s.isBlank()) {
+                                return s;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        throw new KeyFailedException("réponse vide ou invalide");
     }
 
     /**
@@ -308,59 +328,18 @@ public class GeminiLiveTokenService {
     }
 
     private String callGeminiGenerateDocumentContent(String apiKey, int keyIndex, String systemInstruction, String userPrompt, String base64Data, String mimeType) {
+        String modelToUse = resolveEffectiveTextModel();
         try {
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/" + geminiTextModel + ":generateContent?key=" + apiKey;
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-
-            Map<String, Object> body = new HashMap<>();
-            if (systemInstruction != null && !systemInstruction.isBlank()) {
-                body.put("systemInstruction", Map.of("parts", List.of(Map.of("text", systemInstruction))));
-            }
-
-            Map<String, Object> inlineData = Map.of(
-                    "mimeType", mimeType != null ? mimeType : "application/pdf",
-                    "data", base64Data
-            );
-
-            body.put("contents", List.of(
-                    Map.of("role", "user", "parts", List.of(
-                            Map.of("inlineData", inlineData),
-                            Map.of("text", userPrompt != null ? userPrompt : "Extrais l'intégralité du contenu de ce CV.")
-                    ))
-            ));
-            body.put("generationConfig", Map.of(
-                    "responseMimeType", "application/json",
-                    "temperature", 0.1
-            ));
-
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> response = restTemplate.postForObject(url, request, Map.class);
-
-            if (response != null && response.get("candidates") instanceof List<?> candidates && !candidates.isEmpty()) {
-                Object firstCandidate = candidates.get(0);
-                if (firstCandidate instanceof Map<?, ?> candMap) {
-                    Object content = candMap.get("content");
-                    if (content instanceof Map<?, ?> contentMap) {
-                        Object parts = contentMap.get("parts");
-                        if (parts instanceof List<?> partsList && !partsList.isEmpty()) {
-                            Object firstPart = partsList.get(0);
-                            if (firstPart instanceof Map<?, ?> partMap) {
-                                Object text = partMap.get("text");
-                                if (text instanceof String s && !s.isBlank()) {
-                                    return s;
-                                }
-                            }
-                        }
-                    }
+            return executeGenerateDocumentContent(apiKey, keyIndex, systemInstruction, userPrompt, base64Data, mimeType, modelToUse);
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode().value() == 404 && !"gemini-flash-latest".equals(modelToUse)) {
+                log.warn("Gemini Document : modèle '{}' introuvable (HTTP 404), repli automatique sur 'gemini-flash-latest'...", modelToUse);
+                try {
+                    return executeGenerateDocumentContent(apiKey, keyIndex, systemInstruction, userPrompt, base64Data, mimeType, "gemini-flash-latest");
+                } catch (Exception ex) {
+                    log.warn("Gemini Document repli a échoué: {}", ex.getMessage());
                 }
             }
-
-            throw new KeyFailedException("réponse vide du document");
-        } catch (HttpClientErrorException e) {
             int status = e.getStatusCode().value();
             if (status == 400) {
                 log.error("Gemini Document (400) : {}", e.getResponseBodyAsString());
@@ -373,6 +352,60 @@ public class GeminiLiveTokenService {
             log.warn("Gemini Document : exception clé [{}] : {}", keyIndex, e.getMessage());
             throw new KeyFailedException("exception: " + e.getMessage());
         }
+    }
+
+    private String executeGenerateDocumentContent(String apiKey, int keyIndex, String systemInstruction, String userPrompt, String base64Data, String mimeType, String model) {
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        Map<String, Object> body = new HashMap<>();
+        if (systemInstruction != null && !systemInstruction.isBlank()) {
+            body.put("systemInstruction", Map.of("parts", List.of(Map.of("text", systemInstruction))));
+        }
+
+        Map<String, Object> inlineData = Map.of(
+                "mimeType", mimeType != null ? mimeType : "application/pdf",
+                "data", base64Data
+        );
+
+        body.put("contents", List.of(
+                Map.of("role", "user", "parts", List.of(
+                        Map.of("inlineData", inlineData),
+                        Map.of("text", userPrompt != null ? userPrompt : "Extrais l'intégralité du contenu de ce CV.")
+                ))
+        ));
+        body.put("generationConfig", Map.of(
+                "responseMimeType", "application/json",
+                "temperature", 0.1
+        ));
+
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> response = restTemplate.postForObject(url, request, Map.class);
+
+        if (response != null && response.get("candidates") instanceof List<?> candidates && !candidates.isEmpty()) {
+            Object firstCandidate = candidates.get(0);
+            if (firstCandidate instanceof Map<?, ?> candMap) {
+                Object content = candMap.get("content");
+                if (content instanceof Map<?, ?> contentMap) {
+                    Object parts = contentMap.get("parts");
+                    if (parts instanceof List<?> partsList && !partsList.isEmpty()) {
+                        Object firstPart = partsList.get(0);
+                        if (firstPart instanceof Map<?, ?> partMap) {
+                            Object text = partMap.get("text");
+                            if (text instanceof String s && !s.isBlank()) {
+                                return s;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        throw new KeyFailedException("réponse vide du document");
     }
 
     // ── Appel HTTP vers Gemini auth_tokens ───────────────────────────────────

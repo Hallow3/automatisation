@@ -43,7 +43,14 @@ export class GeminiLiveService {
   public transcript = signal<TranscriptEntry[]>([]);
   public errorMessage = signal<string | null>(null);
   public auditReport = signal<CvAuditReport | null>(null);
+  public isRefunding = signal<boolean>(false);
   public isQuotaReached = computed(() => {
+    const currentState = this.state();
+    // Ne jamais écraser un problème technique de connexion ou un remboursement en cours par un faux épuisement de quota
+    if (currentState === 'TEMPORARILY_UNAVAILABLE' || currentState === 'ERROR' || this.isRefunding()) {
+      return false;
+    }
+
     const msg = this.errorMessage();
     const credits = this.authService.currentUser()?.proCredits ?? 0;
     const hasCached = !!this.sessionCache.getSession(this.currentCvId);
@@ -85,6 +92,8 @@ export class GeminiLiveService {
   private isSessionStarting = false;
   private pendingStartTriggerPrompt = '';
   private userWantsToStart = false;
+  private pendingProCredits: number | null = null;
+  private shouldRefreshProStatusOnSetup = false;
 
   private lineBuffers: { user: string; ai: string } = { user: '', ai: '' };
   private flushTimeouts: { user?: any; ai?: any } = {};
@@ -177,18 +186,22 @@ export class GeminiLiveService {
     const abortController = new AbortController();
     this._startAbortController = abortController;
 
+    const wantsToStart = this.userWantsToStart;
+
     try {
       // 1. Fermer rigoureusement toute session ou connexion WebSocket précédente
       this.stopSession();
+
+      // Conserver l'intention de démarrage utilisateur et l'état de lancement
+      this.userWantsToStart = wantsToStart;
+      this.isStarting.set(wantsToStart);
 
       this.currentCvId = cvId;
       this.state.set('CONNECTING');
       this.errorMessage.set(null);
       this.resetDraft();
       this.clearInactivityTimer();
-      this.userWantsToStart = false;
       this.hasStarted.set(false);
-      this.isStarting.set(false);
       this.isWsReady.set(false);
 
       // Vérifier si une session récente (< 10 min) existe en cache
@@ -279,12 +292,12 @@ export class GeminiLiveService {
       if (session?.proCredits !== undefined) {
         const remaining = parseInt(session.proCredits, 10);
         if (!isNaN(remaining)) {
-          this.paymentService.setProCreditsValue(remaining);
-          this.authService.updateProCredits(remaining);
+          this.pendingProCredits = remaining;
+          this.shouldRefreshProStatusOnSetup = false;
         }
       } else {
-        this.paymentService.fetchProStatus();
-        this.authService.refreshCurrentUser().subscribe();
+        this.pendingProCredits = null;
+        this.shouldRefreshProStatusOnSetup = true;
       }
 
       if (!token) {
@@ -303,6 +316,8 @@ export class GeminiLiveService {
       // Connecter le WebSocket avec callbacks réactifs
       this.wsClient.connect(token, model, this.buildWsCallbacks(candidateFirstName), candidateFirstName);
     } catch (err: any) {
+      this.pendingProCredits = null;
+      this.shouldRefreshProStatusOnSetup = false;
       this.initialGreetingPending = false;
       this.isStarting.set(false);
       if (abortController.signal.aborted) return;
@@ -321,6 +336,18 @@ export class GeminiLiveService {
     return {
       onSetupComplete: () => {
         this.isWsReady.set(true);
+
+        // Synchronisation effective des crédits uniquement après confirmation de la connexion WebSocket
+        if (this.pendingProCredits !== null) {
+          this.paymentService.setProCreditsValue(this.pendingProCredits);
+          this.authService.updateProCredits(this.pendingProCredits);
+          this.pendingProCredits = null;
+        } else if (this.shouldRefreshProStatusOnSetup) {
+          this.paymentService.fetchProStatus();
+          this.authService.refreshCurrentUser().subscribe();
+          this.shouldRefreshProStatusOnSetup = false;
+        }
+
         if (this.userWantsToStart) {
           this.beginInterview();
         } else {
@@ -408,6 +435,8 @@ export class GeminiLiveService {
         return await this.handleToolCall(name, callId, args);
       },
       onError: (err: string) => {
+        this.pendingProCredits = null;
+        this.shouldRefreshProStatusOnSetup = false;
         this.initialGreetingPending = false;
         this.isStarting.set(false);
         this.state.set('TEMPORARILY_UNAVAILABLE');
@@ -423,6 +452,8 @@ export class GeminiLiveService {
         this.isResumingConnection = true;
       },
       onClose: (code: number) => {
+        this.pendingProCredits = null;
+        this.shouldRefreshProStatusOnSetup = false;
         this.initialGreetingPending = false;
         this.isStarting.set(false);
 
@@ -457,15 +488,24 @@ export class GeminiLiveService {
     if (!targetCvId || targetCvId === 'cv_default' || targetCvId === 'new') return;
 
     console.warn(`[GeminiLive] Déclenchement de remboursement automatique (${reason}) pour cvId=${targetCvId}`);
+    this.isRefunding.set(true);
     this.apiService.refundAbortedSession(targetCvId).subscribe({
       next: (res) => {
         if (res?.refunded) {
           console.log('[GeminiLive] 1 crédit Pro remboursé avec succès suite à l\'incident technique.');
           this.paymentService.fetchProStatus();
-          this.authService.refreshCurrentUser().subscribe();
+          this.authService.refreshCurrentUser().subscribe({
+            next: () => this.isRefunding.set(false),
+            error: () => this.isRefunding.set(false)
+          });
+        } else {
+          this.isRefunding.set(false);
         }
       },
-      error: (e) => console.warn('[GeminiLive] Erreur lors de la notification de remboursement automatique:', e)
+      error: (e) => {
+        console.warn('[GeminiLive] Erreur lors de la notification de remboursement automatique:', e);
+        this.isRefunding.set(false);
+      }
     });
   }
 
@@ -500,23 +540,10 @@ export class GeminiLiveService {
       return;
     }
 
-    const credits = this.authService.currentUser()?.proCredits ?? 0;
-    const cached = this.sessionCache.getSession(this.currentCvId);
-    if (credits < 1 && !cached) {
-      this.setError("Solde insuffisant : l'accès à l'entretien vocal IA nécessite au moins 1 crédit Pro. Veuillez recharger votre compte.");
-      this.paymentService.openPackModal();
-      return;
-    }
-
-    if (this.isQuotaReached() || this.errorMessage()) {
-      return;
-    }
-
-    this.userWantsToStart = true;
-    this.isStarting.set(true);
-
     // Si la connexion WebSocket n'a pas encore finalisé le setup, attendre onSetupComplete
     if (!this.isWsReady()) {
+      this.userWantsToStart = true;
+      this.isStarting.set(true);
       return;
     }
 
@@ -541,8 +568,11 @@ export class GeminiLiveService {
       // 5. Basculer l'état
       this.hasStarted.set(true);
       this.isStarting.set(false);
+      this.userWantsToStart = false;
     } catch (err: any) {
       this.isStarting.set(false);
+      this.userWantsToStart = false;
+      this.triggerRefundIfAborted('mic_permission_error');
       this.setError(err?.message || 'Impossible d’accéder au microphone. Vérifiez vos autorisations.');
     }
   }
@@ -564,6 +594,8 @@ export class GeminiLiveService {
   }
 
   stopSession(): void {
+    this.pendingProCredits = null;
+    this.shouldRefreshProStatusOnSetup = false;
     this.initialGreetingPending = false;
     this.isSessionStarting = false;
     this.isResumingConnection = false;
