@@ -59,6 +59,13 @@ public class InterviewStateMachineService {
         return MAX_TURNS.getOrDefault(state, 4);
     }
 
+    public int getMinTurnsForState(String state) {
+        return switch (state) {
+            case "EXPERIENCE", "EDUCATION" -> 2;
+            default -> 1;
+        };
+    }
+
     public String getNextSection(String currentState) {
         int idx = SECTION_ORDER.indexOf(currentState);
         if (idx >= 0 && idx < SECTION_ORDER.size() - 1) {
@@ -110,6 +117,31 @@ public class InterviewStateMachineService {
         int maxTurns = getMaxTurnsForState(currentState);
         int remaining = Math.max(0, maxTurns - turnsInSection);
 
+        // Copie des champs manquants pour enrichissement déterministe
+        List<String> effectiveMissing = new ArrayList<>(missingFields != null ? missingFields : Collections.emptyList());
+
+        // Injection déterministe des dates si absentes du partial data
+        if ("EXPERIENCE".equals(currentState) && partialData != null) {
+            boolean hasStartDate = partialData.containsKey("startDate") && !partialData.get("startDate").toString().isBlank();
+            boolean hasPeriod = (partialData.containsKey("period") && !partialData.get("period").toString().isBlank()) ||
+                                (partialData.containsKey("periode") && !partialData.get("periode").toString().isBlank());
+            if (!hasStartDate && !hasPeriod) {
+                boolean alreadyListed = effectiveMissing.stream().anyMatch(m -> m.toLowerCase().contains("date") || m.toLowerCase().contains("période"));
+                if (!alreadyListed) {
+                    effectiveMissing.add(0, "Dates ou période d'exercice (année de début et année de fin, ou poste actuel)");
+                }
+            }
+        } else if ("EDUCATION".equals(currentState) && partialData != null) {
+            boolean hasYear = (partialData.containsKey("year") && !partialData.get("year").toString().isBlank()) ||
+                              (partialData.containsKey("annee") && !partialData.get("annee").toString().isBlank());
+            if (!hasYear) {
+                boolean alreadyListed = effectiveMissing.stream().anyMatch(m -> m.toLowerCase().contains("année") || m.toLowerCase().contains("date"));
+                if (!alreadyListed) {
+                    effectiveMissing.add(0, "Année d'obtention ou période de la formation");
+                }
+            }
+        }
+
         StringBuilder sb = new StringBuilder();
         sb.append("[INTERVIEW_STATE]\n\n");
 
@@ -135,14 +167,14 @@ public class InterviewStateMachineService {
         sb.append("\n");
 
         sb.append("Informations importantes encore manquantes :\n");
-        if (missingFields == null || missingFields.isEmpty()) {
+        if (effectiveMissing.isEmpty()) {
             if ("EXPERIENCE".equals(currentState)) {
                 sb.append("- Expérience bien documentée. Demande au candidat s'il a une autre expérience professionnelle à valoriser.\n");
             } else {
                 sb.append("- Section bien renseignée. Prépare la transition en douceur.\n");
             }
         } else {
-            for (String mf : missingFields) {
+            for (String mf : effectiveMissing) {
                 sb.append("- ").append(mf).append("\n");
             }
         }
@@ -167,9 +199,9 @@ public class InterviewStateMachineService {
         return switch (state) {
             case "IDENTITY" -> "Confirmer le nom complet, la ville de résidence et les coordonnées de base du candidat.";
             case "TARGET" -> "Identifier précisément le titre du poste visé, le domaine ou le défi professionnel souhaité.";
-            case "EXPERIENCE" -> "Comprendre cette expérience professionnelle : entreprise, rôle exact, dates/période, responsabilités clés, technologies et réalisations concrètes (avec chiffres si possible).";
+            case "EXPERIENCE" -> "Comprendre cette expérience professionnelle : entreprise, rôle exact, dates indispensables (début et fin), responsabilités clés, technologies et réalisations concrètes (avec chiffres si possible).";
             case "PROJECTS" -> "Identifier 1 ou 2 projets personnels, universitaires ou réalisations marquantes illustrant le savoir-faire.";
-            case "EDUCATION" -> "Connaître le dernier diplôme ou la formation clé obtenue (établissement, spécialité, année).";
+            case "EDUCATION" -> "Connaître le dernier diplôme ou la formation clé obtenue (établissement, spécialité, année d'obtention).";
             case "SKILLS" -> "Faire ressortir 4 à 8 compétences techniques et relationnelles phares confirmées par le parcours.";
             case "LANGUAGES" -> "Noter les langues maîtrisées et le niveau pratique estimé (courant, intermédiaire, etc.).";
             case "FINALIZE" -> "Toutes les sections ont été parcourues. Annoncer au candidat la finalisation et la préparation de son CV structuré.";

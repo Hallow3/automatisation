@@ -66,6 +66,7 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
   hasStarted = this.geminiService.hasStarted;
   isStarting = this.geminiService.isStarting;
   isWsReady = this.geminiService.isWsReady;
+  isSynthesizing = this.geminiService.isSynthesizing;
 
   readonly cvPreviewData = computed<CvData>(() => this.getCvPreviewData());
 
@@ -297,8 +298,15 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
   }
 
   goToEditor(): void {
-    const realCvId = this.geminiService.currentCvId;
-    this.router.navigate(['/cv-builder'], { queryParams: { action: 'editor', cvId: realCvId } });
+    if (this.isSynthesizing()) {
+      return;
+    }
+    if (this.hasStarted() && this.transcript().length > 0) {
+      this.geminiService.handleCompleteInterview();
+    } else {
+      const realCvId = this.geminiService.currentCvId;
+      this.router.navigate(['/cv-builder'], { queryParams: { action: 'editor', cvId: realCvId } });
+    }
   }
 
   getCvPreviewData(): CvData {

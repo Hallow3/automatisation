@@ -44,6 +44,7 @@ export class GeminiLiveService {
   public errorMessage = signal<string | null>(null);
   public auditReport = signal<CvAuditReport | null>(null);
   public isRefunding = signal<boolean>(false);
+  public isSynthesizing = signal<boolean>(false);
   public isQuotaReached = computed(() => {
     const currentState = this.state();
     // Ne jamais écraser un problème technique de connexion ou un remboursement en cours par un faux épuisement de quota
@@ -383,53 +384,17 @@ export class GeminiLiveService {
             this.hasMeaningfulUsage = true;
           }
         }
-
-        // Orchestrateur V2 : synchronisation du tour et injection du contrôle (Spec V2, Section 6, 8, 10)
-        const sessionId = this.currentV2SessionId();
-        if (sessionId && this.hasStarted() && this.lastUserTurnText.trim().length > 0) {
-          const userTurnToSend = this.lastUserTurnText.trim();
-          const aiTurnToSend = this.lastAiTurnText.trim();
-          this.lastUserTurnText = '';
-          this.lastAiTurnText = '';
-
-          try {
-            const v2Res = await firstValueFrom(
-              this.apiService.syncTurnV2(this.currentCvId, {
-                sessionId,
-                userTurn: userTurnToSend,
-                aiTurn: aiTurnToSend
-              })
-            );
-
-            if (v2Res) {
-              this.currentState.set(v2Res.currentState);
-              this.sectionStatus.set(v2Res.sectionStatus);
-              this.turnsInSection.set(v2Res.turnsInSection);
-              if (v2Res.cvDataSoFar) {
-                this.currentDraft.set(v2Res.cvDataSoFar);
-              }
-
-              // Injection du contexte [INTERVIEW_STATE] dans Gemini Live
-              if (v2Res.controlMessage && v2Res.controlMessage !== this.latestControlMessage()) {
-                this.latestControlMessage.set(v2Res.controlMessage);
-                this.wsClient.sendClientContent(v2Res.controlMessage, false);
-              }
-
-              if (v2Res.interviewStatus === 'REVIEW' || v2Res.interviewStatus === 'COMPLETED') {
-                this.handleCompleteInterview();
-              }
-            }
-          } catch (err) {
-            console.warn('[GeminiLive] Erreur synchronisation tour V2:', err);
-          }
-        }
+        await this.syncCurrentTurnToBackend();
       },
-      onInterrupted: () => {
+      onInterrupted: async () => {
         this.audioEngine.interruptPlayback();
         this.initialGreetingPending = false;
         this.isAiSpeakingCooldown = false;
         this.state.set('LISTENING');
         this.finalizeCurrentTurn();
+        if (this.lastUserTurnText.trim().length > 0) {
+          await this.syncCurrentTurnToBackend();
+        }
       },
       onToolCall: async (name: string, callId: string, args: any) => {
         return await this.handleToolCall(name, callId, args);
@@ -617,22 +582,102 @@ export class GeminiLiveService {
     }
   }
 
-  handleCompleteInterview(): void {
+  private async syncCurrentTurnToBackend(): Promise<void> {
+    const sessionId = this.currentV2SessionId();
+    if (!sessionId || !this.hasStarted() || this.lastUserTurnText.trim().length === 0) {
+      return;
+    }
+
+    const userTurnToSend = this.lastUserTurnText.trim();
+    const aiTurnToSend = this.lastAiTurnText.trim();
+    this.lastUserTurnText = '';
+    this.lastAiTurnText = '';
+
+    try {
+      const v2Res = await firstValueFrom(
+        this.apiService.syncTurnV2(this.currentCvId, {
+          sessionId,
+          userTurn: userTurnToSend,
+          aiTurn: aiTurnToSend
+        })
+      );
+
+      if (v2Res) {
+        this.currentState.set(v2Res.currentState);
+        this.sectionStatus.set(v2Res.sectionStatus);
+        this.turnsInSection.set(v2Res.turnsInSection);
+        if (v2Res.cvDataSoFar) {
+          this.currentDraft.set(v2Res.cvDataSoFar);
+        }
+
+        // Injection du contexte [INTERVIEW_STATE] dans Gemini Live
+        if (v2Res.controlMessage && v2Res.controlMessage !== this.latestControlMessage()) {
+          this.latestControlMessage.set(v2Res.controlMessage);
+          this.wsClient.sendClientContent(v2Res.controlMessage, false);
+        }
+
+        if (v2Res.interviewStatus === 'REVIEW' || v2Res.interviewStatus === 'COMPLETED') {
+          this.handleCompleteInterview();
+        }
+      }
+    } catch (err) {
+      console.warn('[GeminiLive] Erreur synchronisation tour V2:', err);
+    }
+  }
+
+  async handleCompleteInterview(): Promise<void> {
+    this.finalizeCurrentTurn();
+    if (this.lastUserTurnText.trim().length > 0) {
+      await this.syncCurrentTurnToBackend();
+    }
     this.state.set('COMPLETED');
     const targetCvId = this.currentCvId;
     this.sessionCache.clearSession(targetCvId);
     this.wsClient.setResumptionHandle(null);
     this.stopSession();
+
     if (targetCvId && targetCvId !== 'cv_default' && targetCvId !== 'new') {
-      this.apiService.completeInterview(targetCvId).subscribe({
-        next: (res) => {
-          console.log('[GeminiLive] Entretien finalisé avec succès:', res);
+      const transcriptEntries = this.transcript();
+      const transcriptText = transcriptEntries
+        .map(t => `${t.role === 'user' ? 'Candidat' : 'Recruteur'}: ${t.text}`)
+        .join('\n')
+        .trim();
+
+      if (transcriptText.length >= 30) {
+        this.isSynthesizing.set(true);
+        try {
+          console.log('[GeminiLive] Déclenchement de la synthèse IA complète du CV à partir de la conversation...');
+          const synthesized = await firstValueFrom(this.apiService.synthesize(targetCvId, transcriptText));
+          if (synthesized?.contentJson) {
+            try {
+              const parsed = typeof synthesized.contentJson === 'string'
+                ? JSON.parse(synthesized.contentJson)
+                : synthesized.contentJson;
+              this.currentDraft.set(parsed);
+              console.log('[GeminiLive] CV synthétisé avec succès :', parsed);
+            } catch (e) {
+              console.warn('[GeminiLive] Erreur parsing contentJson synthétisé:', e);
+            }
+          }
+        } catch (err) {
+          console.warn('[GeminiLive] Synthèse échouée, fallback sur completeInterview standard:', err);
+          try {
+            await firstValueFrom(this.apiService.completeInterview(targetCvId));
+          } catch (e) {}
+        } finally {
+          this.isSynthesizing.set(false);
           this.paymentService.fetchProStatus();
           this.authService.refreshCurrentUser().subscribe();
-        },
-        error: (e) => console.warn('[GeminiLive] Erreur finalisation entretien:', e)
-      });
+        }
+      } else {
+        try {
+          await firstValueFrom(this.apiService.completeInterview(targetCvId));
+          this.paymentService.fetchProStatus();
+          this.authService.refreshCurrentUser().subscribe();
+        } catch (e) {}
+      }
     }
+
     this.interviewCompleted$.next();
   }
 

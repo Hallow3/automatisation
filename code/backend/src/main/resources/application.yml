@@ -55,8 +55,8 @@ gemini:
   api-keys: ${GEMINI_API_KEYS:}
   api-key: ${GEMINI_API_KEY:}
   live:
-    model: ${GEMINI_LIVE_MODEL:gemini-3.1-flash-live-preview}
-  model: ${GEMINI_MODEL:gemini-3.5-flash-lite}
+    model: ${GEMINI_LIVE_MODEL:gemini-2.0-flash-exp}
+  model: ${GEMINI_MODEL:gemini-2.0-flash}
 
 payment:
   gateway: ${PAYMENT_GATEWAY:notchpay}
@@ -77,7 +77,7 @@ payment:
 
 # jwt.cookie.secure : true en production (HTTPS obligatoire), false en dev (HTTP).
 jwt:
-  secret: ${JWT_SECRET:}
+  secret: ${JWT_SECRET:fallajobs-default-jwt-secret-key-must-be-at-least-256-bits-long!}
   expiration-ms: ${JWT_EXPIRATION_MS:86400000}
   cookie:
     secure: ${JWT_COOKIE_SECURE:false}

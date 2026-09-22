@@ -140,10 +140,18 @@ public class OpportunityService {
         return Optional.empty();
     }
 
+    private Integer parseTargetId(String id) {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("Identifiant manquant");
+        }
+        String clean = id.replace("offer_", "").replace("job_", "").replace("app_", "").trim();
+        return Integer.parseInt(clean);
+    }
+
     @Transactional
     public ActionResponseDto dismissOpportunity(String id) {
         try {
-            Integer targetId = Integer.parseInt(id.replace("job_", "").replace("app_", ""));
+            Integer targetId = parseTargetId(id);
             Integer candidateId = resolveCurrentCandidateId();
 
             ApplicationEntity app = getOrCreateApplication(candidateId, targetId);
@@ -158,7 +166,7 @@ public class OpportunityService {
 
     public ActionResponseDto prepareApplication(String id) {
         try {
-            Integer targetId = Integer.parseInt(id.replace("job_", "").replace("app_", ""));
+            Integer targetId = parseTargetId(id);
             Integer candidateId = resolveCurrentCandidateId();
 
             ApplicationEntity app = getOrCreateApplication(candidateId, targetId);
@@ -190,7 +198,7 @@ public class OpportunityService {
     @Transactional
     public ActionResponseDto submitApplication(String id) {
         try {
-            Integer targetId = Integer.parseInt(id.replace("job_", "").replace("app_", ""));
+            Integer targetId = parseTargetId(id);
             Integer candidateId = resolveCurrentCandidateId();
 
             ApplicationEntity app = getOrCreateApplication(candidateId, targetId);
@@ -213,7 +221,7 @@ public class OpportunityService {
     @Transactional(readOnly = true)
     public String getCoverLetterText(String id) {
         try {
-            Integer targetId = Integer.parseInt(id.replace("job_", "").replace("app_", ""));
+            Integer targetId = parseTargetId(id);
             Integer candidateId = resolveCurrentCandidateId();
 
             Optional<ApplicationEntity> app = applicationRepository.findById(targetId)

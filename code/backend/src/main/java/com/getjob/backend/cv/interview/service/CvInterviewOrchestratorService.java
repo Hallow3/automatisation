@@ -176,11 +176,29 @@ public class CvInterviewOrchestratorService {
         mergeSectionIntoCvData(currentState, sectionIndex, currentPartial, cvDataSoFar);
         session.setCvDataSoFar(writeJson(cvDataSoFar));
 
-        // 4. Évaluation des critères de transition
+        // 4. Évaluation stricte des critères de transition (Spec V2, §11)
         int maxTurns = stateMachine.getMaxTurnsForState(currentState);
+        int minTurns = stateMachine.getMinTurnsForState(currentState);
         boolean maxTurnsReached = turnsInSection >= maxTurns;
-        boolean readyForTransition = Boolean.TRUE.equals(patchDto.getReady_for_transition());
         boolean userWantsSkip = Boolean.TRUE.equals(patchDto.getUser_wants_skip());
+
+        // Spec §11 : Le LLM peut suggérer une transition, mais la décision finale de complétude appartient au code !
+        boolean isCompleteByCode = isSectionStrictlyComplete(currentState, currentPartial);
+        boolean readyForTransition = Boolean.TRUE.equals(patchDto.getReady_for_transition()) && isCompleteByCode && (turnsInSection >= minTurns);
+
+        // Si le LLM a suggéré une transition anticipée mais que les critères stricts (ex: dates) manquent :
+        if (Boolean.TRUE.equals(patchDto.getReady_for_transition()) && !isCompleteByCode) {
+            log.info("[Orchestrator] Refus de transition prématurée pour {} (tour {}/{}) : critères stricts non atteints dans {}",
+                    currentState, turnsInSection, maxTurns, currentPartial.keySet());
+            readyForTransition = false;
+        }
+
+        // Garde-fou sur maxTurnsReached : si une date ou info critique manque en EXPERIENCE, autoriser 1 tour de grâce ciblé
+        if (maxTurnsReached && !isCompleteByCode && turnsInSection == maxTurns && !userWantsSkip && "EXPERIENCE".equals(currentState)) {
+            log.info("[Orchestrator] Tour de grâce accordé pour EXPERIENCE #{} afin de collecter les dates manquantes", sectionIndex + 1);
+            maxTurnsReached = false;
+        }
+
         boolean transitionOccurred = false;
 
         if (readyForTransition || userWantsSkip || maxTurnsReached) {
@@ -189,21 +207,23 @@ public class CvInterviewOrchestratorService {
             // Déterminer le statut de la section terminée
             if (userWantsSkip) {
                 session.setSectionStatus("SKIPPED");
-            } else if (readyForTransition) {
+            } else if (readyForTransition || isCompleteByCode) {
                 session.setSectionStatus("COMPLETE");
             } else {
                 session.setSectionStatus("COMPLETE_WITH_GAPS");
             }
 
-            // Gestion de la boucle EXPERIENCE
-            if ("EXPERIENCE".equals(currentState) && Boolean.TRUE.equals(patchDto.getUser_has_more())) {
-                // Le candidat a une autre expérience : on reste en EXPERIENCE, index + 1
+            // Gestion des boucles multi-éléments (EXPERIENCE, EDUCATION, PROJECTS)
+            boolean hasMore = Boolean.TRUE.equals(patchDto.getUser_has_more());
+            boolean isMultiState = "EXPERIENCE".equals(currentState) || "EDUCATION".equals(currentState) || "PROJECTS".equals(currentState);
+            if (isMultiState && hasMore && sectionIndex < 4) {
+                // Le candidat a un autre élément sur cette section : index + 1
                 session.setSectionIndex(sectionIndex + 1);
                 session.setTurnsInSection(0);
                 session.setSectionStatus("IN_PROGRESS");
                 session.setSectionTranscript("[]");
                 session.setSectionPartialData("{}");
-                log.info("[Orchestrator] Nouvelle expérience #{} pour session id={}", session.getSectionIndex() + 1, session.getId());
+                log.info("[Orchestrator] Nouvel élément #{} pour {} (session id={})", session.getSectionIndex() + 1, currentState, session.getId());
             } else {
                 // Passage à la section suivante
                 String nextState = stateMachine.getNextSection(currentState);
@@ -217,6 +237,13 @@ public class CvInterviewOrchestratorService {
 
                     // Peaufiner le CV via CvWriterService
                     Map<String, Object> finalizedCvData = cvWriterService.finalizeCv(cvDataSoFar);
+
+                    // Avertissements de complétude via CvDraftValidator
+                    List<String> warnings = cvDraftValidator.checkCompletenessWarnings(finalizedCvData);
+                    if (!warnings.isEmpty()) {
+                        log.info("[Orchestrator] Avertissements de complétude pour session id={} : {}", session.getId(), warnings);
+                    }
+
                     session.setCvDataSoFar(writeJson(finalizedCvData));
                     session.setCurrentState("REVIEW");
                     session.setInterviewStatus("REVIEW");
@@ -316,53 +343,130 @@ public class CvInterviewOrchestratorService {
 
     // ── Helpers & Fusion en code ───────────────────────────────────────────────
 
+    private boolean isSectionStrictlyComplete(String state, Map<String, Object> partial) {
+        if (partial == null || partial.isEmpty()) {
+            return false;
+        }
+        Map<String, Object> norm = normalizePartialKeys(state, partial);
+
+        return switch (state) {
+            case "IDENTITY" -> {
+                Object name = norm.get("fullName");
+                yield name != null && !name.toString().isBlank();
+            }
+            case "TARGET" -> {
+                Object headline = norm.get("headline");
+                yield headline != null && !headline.toString().isBlank();
+            }
+            case "EXPERIENCE" -> {
+                boolean hasCompany = norm.get("company") != null && !norm.get("company").toString().isBlank();
+                boolean hasPosition = norm.get("position") != null && !norm.get("position").toString().isBlank();
+                boolean hasStartDate = norm.get("startDate") != null && !norm.get("startDate").toString().isBlank();
+                boolean hasEndDate = norm.get("endDate") != null && !norm.get("endDate").toString().isBlank();
+                boolean hasPeriod = norm.get("period") != null && !norm.get("period").toString().isBlank();
+                boolean hasDates = hasStartDate || hasEndDate || hasPeriod;
+
+                boolean hasContent = (norm.get("responsibilities") instanceof List<?> l && !l.isEmpty()) ||
+                                     (norm.get("achievements") instanceof List<?> a && !a.isEmpty()) ||
+                                     (norm.get("context") != null && !norm.get("context").toString().isBlank()) ||
+                                     (norm.get("description") != null && !norm.get("description").toString().isBlank());
+
+                yield hasCompany && hasPosition && hasDates && hasContent;
+            }
+            case "EDUCATION" -> {
+                boolean hasSchool = norm.get("school") != null && !norm.get("school").toString().isBlank();
+                boolean hasDegree = norm.get("degree") != null && !norm.get("degree").toString().isBlank();
+                yield hasSchool && hasDegree;
+            }
+            case "PROJECTS" -> {
+                yield (norm.get("name") != null && !norm.get("name").toString().isBlank()) ||
+                      (norm.get("description") != null && !norm.get("description").toString().isBlank());
+            }
+            case "SKILLS" -> {
+                if (norm.get("skills") instanceof List<?> list) {
+                    yield list.size() >= 2;
+                }
+                yield false;
+            }
+            case "LANGUAGES" -> {
+                if (norm.get("languages") instanceof List<?> list) {
+                    yield !list.isEmpty();
+                }
+                yield false;
+            }
+            default -> true;
+        };
+    }
+
     private void mergeSectionIntoCvData(String section, int sectionIndex, Map<String, Object> partial, Map<String, Object> cvData) {
-        if (partial == null || partial.isEmpty()) return;
+        Map<String, Object> norm = normalizePartialKeys(section, partial);
 
         switch (section) {
             case "IDENTITY" -> {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> idMap = (Map<String, Object>) cvData.computeIfAbsent("identity", k -> new HashMap<String, Object>());
-                if (partial.containsKey("fullName")) idMap.put("fullName", partial.get("fullName"));
-                if (partial.containsKey("email")) idMap.put("email", partial.get("email"));
-                if (partial.containsKey("phone")) idMap.put("phone", partial.get("phone"));
-                if (partial.containsKey("city")) idMap.put("city", partial.get("city"));
+                if (norm.containsKey("fullName")) idMap.put("fullName", norm.get("fullName"));
+                if (norm.containsKey("email")) idMap.put("email", norm.get("email"));
+                if (norm.containsKey("phone")) idMap.put("phone", norm.get("phone"));
+                if (norm.containsKey("city")) idMap.put("city", norm.get("city"));
             }
             case "TARGET" -> {
-                if (partial.containsKey("headline")) {
-                    cvData.put("headline", partial.get("headline"));
+                if (norm.containsKey("headline")) {
+                    cvData.put("headline", norm.get("headline"));
                 }
             }
             case "EXPERIENCE" -> {
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> exps = (List<Map<String, Object>>) cvData.computeIfAbsent("experiences", k -> new ArrayList<Map<String, Object>>());
-                // S'assurer que la liste a la taille voulue
                 while (exps.size() <= sectionIndex) {
                     exps.add(new HashMap<>());
                 }
                 Map<String, Object> targetExp = exps.get(sectionIndex);
-                targetExp.putAll(partial);
+                targetExp.putAll(norm);
             }
             case "PROJECTS" -> {
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> projects = (List<Map<String, Object>>) cvData.computeIfAbsent("projects", k -> new ArrayList<Map<String, Object>>());
-                if (projects.isEmpty()) {
-                    projects.add(new HashMap<>(partial));
+                if (norm.get("projects") instanceof List<?> list && !list.isEmpty()) {
+                    for (Object p : list) {
+                        if (p instanceof Map<?, ?> pMap) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> casted = (Map<String, Object>) pMap;
+                            if (!projects.contains(casted)) {
+                                projects.add(new HashMap<>(casted));
+                            }
+                        }
+                    }
                 } else {
-                    projects.get(0).putAll(partial);
+                    while (projects.size() <= sectionIndex) {
+                        projects.add(new HashMap<>());
+                    }
+                    projects.get(sectionIndex).putAll(norm);
                 }
             }
             case "EDUCATION" -> {
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> edus = (List<Map<String, Object>>) cvData.computeIfAbsent("education", k -> new ArrayList<Map<String, Object>>());
-                if (edus.isEmpty()) {
-                    edus.add(new HashMap<>(partial));
+                Object eduListObj = norm.containsKey("education") ? norm.get("education") : norm.get("formations");
+                if (eduListObj instanceof List<?> list && !list.isEmpty()) {
+                    for (Object e : list) {
+                        if (e instanceof Map<?, ?> eMap) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> casted = (Map<String, Object>) eMap;
+                            if (!edus.contains(casted)) {
+                                edus.add(new HashMap<>(casted));
+                            }
+                        }
+                    }
                 } else {
-                    edus.get(0).putAll(partial);
+                    while (edus.size() <= sectionIndex) {
+                        edus.add(new HashMap<>());
+                    }
+                    edus.get(sectionIndex).putAll(norm);
                 }
             }
             case "SKILLS" -> {
-                Object skillsObj = partial.get("skills");
+                Object skillsObj = norm.get("skills");
                 if (skillsObj instanceof List<?> list) {
                     @SuppressWarnings("unchecked")
                     Set<String> set = new LinkedHashSet<>((List<String>) cvData.computeIfAbsent("skills", k -> new ArrayList<String>()));
@@ -375,12 +479,77 @@ public class CvInterviewOrchestratorService {
                 }
             }
             case "LANGUAGES" -> {
-                Object langsObj = partial.get("languages");
+                Object langsObj = norm.get("languages");
                 if (langsObj instanceof List<?> list) {
                     cvData.put("languages", list);
                 }
             }
         }
+    }
+
+    private Map<String, Object> normalizePartialKeys(String section, Map<String, Object> partial) {
+        Map<String, Object> norm = new HashMap<>(partial);
+        if ("EXPERIENCE".equals(section)) {
+            if (!norm.containsKey("company")) {
+                Object c = firstNonNull(partial, "entreprise", "employeur", "societe");
+                if (c != null) norm.put("company", c);
+            }
+            if (!norm.containsKey("position")) {
+                Object p = firstNonNull(partial, "poste", "role", "title", "titre", "metier");
+                if (p != null) norm.put("position", p);
+            }
+            if (!norm.containsKey("startDate")) {
+                Object s = firstNonNull(partial, "debut", "dateDebut", "anneeDebut", "start");
+                if (s != null) norm.put("startDate", s);
+            }
+            if (!norm.containsKey("endDate")) {
+                Object e = firstNonNull(partial, "fin", "dateFin", "anneeFin", "end");
+                if (e != null) norm.put("endDate", e);
+            }
+            // Découpage automatique si seule une chaîne de période est fournie (ex: "2021 - 2023" ou "2021 à présent")
+            if (!norm.containsKey("startDate")) {
+                Object p = firstNonNull(partial, "period", "periode", "dates", "annee", "duree");
+                if (p instanceof String pStr && !pStr.isBlank()) {
+                    String[] parts = pStr.split("(?i)\\s*(-|à|au|to)\\s*");
+                    if (parts.length >= 1 && !parts[0].isBlank()) {
+                        norm.put("startDate", parts[0].trim());
+                    }
+                    if (parts.length >= 2 && !parts[1].isBlank()) {
+                        norm.put("endDate", parts[1].trim());
+                    }
+                }
+            }
+            if (!norm.containsKey("responsibilities")) {
+                Object r = firstNonNull(partial, "missions", "taches", "responsabilites");
+                if (r != null) norm.put("responsibilities", r);
+            }
+            if (!norm.containsKey("technologies")) {
+                Object t = firstNonNull(partial, "outils", "competences", "stack");
+                if (t != null) norm.put("technologies", t);
+            }
+        } else if ("EDUCATION".equals(section)) {
+            if (!norm.containsKey("school")) {
+                Object s = firstNonNull(partial, "ecole", "universite", "etablissement", "institution");
+                if (s != null) norm.put("school", s);
+            }
+            if (!norm.containsKey("degree")) {
+                Object d = firstNonNull(partial, "diplome", "formation", "filiere");
+                if (d != null) norm.put("degree", d);
+            }
+            if (!norm.containsKey("year")) {
+                Object y = firstNonNull(partial, "annee", "date", "periode", "promotion");
+                if (y != null) norm.put("year", y);
+            }
+        }
+        return norm;
+    }
+
+    private Object firstNonNull(Map<String, Object> map, String... keys) {
+        for (String k : keys) {
+            Object v = map.get(k);
+            if (v != null && !v.toString().isBlank()) return v;
+        }
+        return null;
     }
 
     private void persistCvContent(Long cvId, Map<String, Object> cvData, String interviewStatus) {

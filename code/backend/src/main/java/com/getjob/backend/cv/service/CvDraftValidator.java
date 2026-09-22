@@ -137,4 +137,69 @@ public class CvDraftValidator {
             return false;
         }
     }
+
+    /**
+     * Analyse un draft finalisé et retourne les avertissements de complétude (sans lever d'exception).
+     * Permet d'alerter le candidat en REVIEW sur les éventuels manques (dates, diplômes, compétences).
+     */
+    public List<String> checkCompletenessWarnings(Object draftData) {
+        List<String> warnings = new ArrayList<>();
+        if (draftData == null) {
+            warnings.add("Aucune donnée de CV renseignée.");
+            return warnings;
+        }
+
+        try {
+            JsonNode root = objectMapper.valueToTree(draftData);
+            if (root == null || root.isEmpty()) {
+                warnings.add("Le contenu du CV est vide.");
+                return warnings;
+            }
+
+            // 1. Identité
+            JsonNode identityNode = root.get("identity");
+            if (identityNode == null || !identityNode.hasNonNull("fullName") || identityNode.get("fullName").asText().isBlank()) {
+                warnings.add("Le nom complet est manquant.");
+            }
+
+            // 2. Expériences & dates
+            JsonNode expNode = root.get("experiences");
+            if (expNode == null || !expNode.isArray() || expNode.isEmpty()) {
+                warnings.add("Aucune expérience professionnelle n'a été ajoutée.");
+            } else {
+                int idx = 1;
+                for (JsonNode exp : expNode) {
+                    String title = exp.hasNonNull("position") ? exp.get("position").asText() : "Poste #" + idx;
+                    boolean hasStart = exp.hasNonNull("startDate") && !exp.get("startDate").asText().isBlank();
+                    boolean hasPeriod = exp.hasNonNull("period") && !exp.get("period").asText().isBlank();
+                    if (!hasStart && !hasPeriod) {
+                        warnings.add("Date ou période manquante pour l'expérience : " + title);
+                    }
+                    boolean hasBullets = (exp.has("responsibilities") && exp.get("responsibilities").isArray() && exp.get("responsibilities").size() > 0) ||
+                                         (exp.hasNonNull("description") && !exp.get("description").asText().isBlank());
+                    if (!hasBullets) {
+                        warnings.add("Aucune responsabilité ou réalisation détaillée pour : " + title);
+                    }
+                    idx++;
+                }
+            }
+
+            // 3. Formation
+            JsonNode eduNode = root.get("education");
+            if (eduNode == null || !eduNode.isArray() || eduNode.isEmpty()) {
+                warnings.add("Aucune formation ou diplôme renseigné.");
+            }
+
+            // 4. Compétences
+            JsonNode skillsNode = root.get("skills");
+            if (skillsNode == null || !skillsNode.isArray() || skillsNode.size() < 2) {
+                warnings.add("Moins de 2 compétences renseignées.");
+            }
+
+        } catch (Exception e) {
+            log.warn("Erreur lors de l'analyse de complétude : {}", e.getMessage());
+        }
+
+        return warnings;
+    }
 }

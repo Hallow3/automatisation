@@ -447,10 +447,16 @@
           <button
             type="button"
             (click)="goToEditor()"
-            class="inline-flex h-8 items-center gap-1 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 px-3 text-xs font-bold text-white shadow-brand transition">
-            <span>Terminer</span>
-            <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            [disabled]="isSynthesizing()"
+            class="inline-flex h-8 items-center gap-1 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 px-3 text-xs font-bold text-white shadow-brand transition disabled:opacity-50 disabled:cursor-not-allowed">
+            <span *ngIf="!isSynthesizing()">Terminer</span>
+            <span *ngIf="isSynthesizing()">Génération...</span>
+            <svg *ngIf="!isSynthesizing()" class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
               <polyline points="9 18 15 12 9 6"/>
+            </svg>
+            <svg *ngIf="isSynthesizing()" class="h-3 w-3 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
             </svg>
           </button>
         </div>
@@ -492,10 +498,15 @@
       <button
         type="button"
         (click)="goToEditor()"
-        class="inline-flex h-10 items-center justify-center gap-1 rounded-xl bg-slate-100 hover:bg-slate-200 px-3 text-xs font-bold text-slate-800 active:scale-95 transition shrink-0">
-        <span>Terminer</span>
-        <svg class="h-3.5 w-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+        [disabled]="isSynthesizing()"
+        class="inline-flex h-10 items-center justify-center gap-1 rounded-xl bg-slate-100 hover:bg-slate-200 px-3 text-xs font-bold text-slate-800 active:scale-95 transition shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">
+        <span>{{ isSynthesizing() ? 'Génération...' : 'Terminer' }}</span>
+        <svg *ngIf="!isSynthesizing()" class="h-3.5 w-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
           <polyline points="9 18 15 12 9 6"/>
+        </svg>
+        <svg *ngIf="isSynthesizing()" class="h-3.5 w-3.5 animate-spin text-brand-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
         </svg>
       </button>
     </div>
@@ -612,6 +623,28 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- Synthesis Loading Overlay -->
+  <div *ngIf="isSynthesizing()" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+    <div class="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl text-center space-y-4">
+      <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+        <svg class="h-8 w-8 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+        </svg>
+      </div>
+      <div>
+        <h3 class="text-base font-bold text-slate-900">Finalisation de votre CV complet</h3>
+        <p class="mt-1.5 text-xs text-slate-500 leading-relaxed">
+          Notre IA analyse l'ensemble de votre entretien pour extraire chaque expérience avec ses dates, chiffrer vos réalisations et générer votre CV complet au format 1 page…
+        </p>
+      </div>
+      <div class="inline-flex items-center justify-center gap-2 text-2xs font-semibold text-brand-700 bg-brand-50 border border-brand-100 rounded-xl py-2 px-3 w-full">
+        <span class="h-2 w-2 rounded-full bg-brand-600 animate-ping"></span>
+        Génération professionnelle en cours…
+      </div>
     </div>
   </div>
 

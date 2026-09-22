@@ -215,8 +215,8 @@ public class GeminiLiveTokenService {
     }
 
     private String resolveEffectiveTextModel() {
-        if (geminiTextModel == null || geminiTextModel.isBlank() || "gemini-2.0-flash".equals(geminiTextModel)) {
-            return "gemini-3.5-flash-lite";
+        if (geminiTextModel == null || geminiTextModel.isBlank() || geminiTextModel.contains("3.5")) {
+            return "gemini-2.0-flash";
         }
         return geminiTextModel;
     }
@@ -226,12 +226,12 @@ public class GeminiLiveTokenService {
         try {
             return executeGenerateContent(apiKey, keyIndex, systemInstruction, userPrompt, asJson, modelToUse);
         } catch (HttpClientErrorException e) {
-            if (e.getStatusCode().value() == 404 && !"gemini-flash-latest".equals(modelToUse)) {
-                log.warn("Gemini : modèle '{}' introuvable (HTTP 404), repli automatique sur 'gemini-flash-latest'...", modelToUse);
+            if (e.getStatusCode().value() == 404 && !"gemini-2.0-flash".equals(modelToUse)) {
+                log.warn("Gemini : modèle '{}' introuvable (HTTP 404), repli automatique sur 'gemini-2.0-flash'...", modelToUse);
                 try {
-                    return executeGenerateContent(apiKey, keyIndex, systemInstruction, userPrompt, asJson, "gemini-flash-latest");
+                    return executeGenerateContent(apiKey, keyIndex, systemInstruction, userPrompt, asJson, "gemini-2.0-flash");
                 } catch (Exception ex) {
-                    log.warn("Gemini repli gemini-flash-latest a échoué: {}", ex.getMessage());
+                    log.warn("Gemini repli gemini-2.0-flash a échoué: {}", ex.getMessage());
                 }
             }
             int status = e.getStatusCode().value();
@@ -332,10 +332,10 @@ public class GeminiLiveTokenService {
         try {
             return executeGenerateDocumentContent(apiKey, keyIndex, systemInstruction, userPrompt, base64Data, mimeType, modelToUse);
         } catch (HttpClientErrorException e) {
-            if (e.getStatusCode().value() == 404 && !"gemini-flash-latest".equals(modelToUse)) {
-                log.warn("Gemini Document : modèle '{}' introuvable (HTTP 404), repli automatique sur 'gemini-flash-latest'...", modelToUse);
+            if (e.getStatusCode().value() == 404 && !"gemini-2.0-flash".equals(modelToUse)) {
+                log.warn("Gemini Document : modèle '{}' introuvable (HTTP 404), repli automatique sur 'gemini-2.0-flash'...", modelToUse);
                 try {
-                    return executeGenerateDocumentContent(apiKey, keyIndex, systemInstruction, userPrompt, base64Data, mimeType, "gemini-flash-latest");
+                    return executeGenerateDocumentContent(apiKey, keyIndex, systemInstruction, userPrompt, base64Data, mimeType, "gemini-2.0-flash");
                 } catch (Exception ex) {
                     log.warn("Gemini Document repli a échoué: {}", ex.getMessage());
                 }

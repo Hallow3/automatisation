@@ -370,7 +370,11 @@ public class CvService {
             return mapToDto(cv);
         }
 
-        if (!("IN_PROGRESS".equalsIgnoreCase(cv.getInterviewStatus()) || "DRAFT_UPDATED".equalsIgnoreCase(cv.getInterviewStatus()))) {
+        boolean alreadyPaidInInterview = "IN_PROGRESS".equalsIgnoreCase(cv.getInterviewStatus())
+                || "DRAFT_UPDATED".equalsIgnoreCase(cv.getInterviewStatus())
+                || "COMPLETED".equalsIgnoreCase(cv.getInterviewStatus());
+
+        if (!alreadyPaidInInterview) {
             if (candidate.getProCredits() == null || candidate.getProCredits() < 1) {
                 throw new ResponseStatusException(
                         HttpStatus.PAYMENT_REQUIRED,
@@ -389,14 +393,17 @@ public class CvService {
         }
 
         String systemInstruction = """
-            Tu es un expert senior en recrutement et rédaction de CV professionnels.
+            Tu es un expert senior en recrutement international et rédaction de CV professionnels de premier plan.
             À partir de la transcription d'un entretien vocal entre un recruteur IA et un candidat,
-            extrais et structure TOUTES les informations professionnelles réelles fournies par le candidat.
+            extrais, structure et développe TOUTES les informations professionnelles pour produire un CV complet d'une page pleine, dense, soigné et prêt à l'emploi.
             
-            Règles strictes :
-            - Ne pas inventer de faits non mentionnés.
-            - Reformuler de façon professionnelle et percutante avec des verbes d'action.
-            - Produire obligatoirement un JSON valide respectant strictement ce schéma :
+            Règles impératives :
+            1. EXTRACTION EXHAUSTIVE : Ne perds aucune information mentionnée (postes actuels ou passés, projets, diplômes, compétences, outils, langues, ville).
+            2. DATES PRÉCISES : Déduis et renseigne rigoureusement "startDate" et "endDate" pour chaque expérience et "year" pour chaque formation. Utilise des années à 4 chiffres (ex: "2021", "2023") ou "Présent" pour le poste actuel. Ne laisse JAMAIS les dates vides si une indication temporelle a été donnée (ex: "depuis 2 ans" à partir de l'année actuelle, "il y a 3 ans", etc.).
+            3. RÉSUMÉ PROFESSIONNEL ("summary") : Rédige un profil percutant de 3 à 4 phrases résumant le profil, la valeur ajoutée et les atouts clés du candidat.
+            4. IMPACT ET RÉALISATIONS : Développe pour chaque expérience au moins 3 à 5 puces concrètes dans "responsibilities" en commençant par des verbes d'action forts (Concevoir, Développer, Piloter, Optimiser, Gérer, Mettre en œuvre) et des réalisations mesurables dans "achievements".
+            5. N'INVENTE PAS de diplômes ou d'entreprises non existants, mais valorise au maximum ce qui a été exprimé.
+            6. Produis obligatoirement un JSON valide respectant strictement ce schéma :
             {
               "identity": {
                 "fullName": string,
