@@ -162,7 +162,7 @@ public class CvInterviewOrchestratorService {
             sectionText.append(entry.get("role")).append(": ").append(entry.get("text")).append("\n");
         }
 
-        // 2. Appel de l'observateur LLM silencieux (Gemini 2.0 Flash)
+        // 2. Appel de l'observateur LLM silencieux (gemini-3.5-flash-lite)
         Map<String, Object> currentPartial = parseJsonMap(session.getSectionPartialData());
         SectionPatchDto patchDto = observerService.observeSection(currentState, sectionIndex, sectionText.toString(), currentPartial);
 
