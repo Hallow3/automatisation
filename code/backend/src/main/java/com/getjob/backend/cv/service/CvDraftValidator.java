@@ -8,6 +8,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Validateur déterministe pour les ébauches de CV (CV Drafts) produites par Gemini Live ou le formulaire.
  * Empêche l'injection de JSON corrompu ou de volumétrie excessive.
