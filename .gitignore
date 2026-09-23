@@ -31,7 +31,10 @@ credentials.json
 DEPLOY_ACCESS*.md
 *deploy_access*
 *deployment_access*
-/workflows/credentials/
+workflows/
+**/workflows/
+code/workflows/
+/workflows/
 code/ressources/clé nokash/
 ressources/clé nokash/
 code/ressources/**/clés.txt
