@@ -1,4 +1,4 @@
-﻿import { Injectable } from '@angular/core';
+import { Injectable } from '@angular/core';
 
 export interface CachedInterviewSession {
   cvId: string;
@@ -84,6 +84,25 @@ export class InterviewSessionCacheService {
       localStorage.removeItem(this.getStorageKey(cvId));
     } catch (err) {
       console.warn('[InterviewSessionCache] Erreur suppression session:', err);
+    }
+  }
+
+  /**
+   * Purge toutes les sessions d'entretien sauvegardées en localStorage.
+   */
+  clearAllSessions(): void {
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(this.STORAGE_PREFIX)) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+      console.info('[InterviewSessionCache] Toutes les sessions d\'entretien ont été purgées.');
+    } catch (err) {
+      console.warn('[InterviewSessionCache] Erreur purge complète:', err);
     }
   }
 

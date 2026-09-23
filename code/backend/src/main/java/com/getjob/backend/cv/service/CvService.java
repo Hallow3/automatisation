@@ -164,8 +164,22 @@ public class CvService {
 
     @Transactional
     public Map<String, String> createInterviewSession(String cvId) {
+        return createInterviewSession(cvId, null);
+    }
+
+    @Transactional
+    public Map<String, String> createInterviewSession(String cvId, String resumptionHandle) {
         CandidateEntity candidate = resolveCurrentCandidate();
         log.info("Création de session d'entretien vocal pour candidate_id={} (email: {})", candidate.getId(), candidate.getEmail());
+
+        // Reprise transparente Gemini Live (go_away) : pas de débit de crédit, pas de quota
+        if (resumptionHandle != null && !resumptionHandle.isBlank()) {
+            log.info("[CvService] Reprise transparente Gemini Live (handle présent) pour candidate_id={} cv_id={}", candidate.getId(), cvId);
+            Map<String, String> tokenInfo = tokenService.createEphemeralToken();
+            tokenInfo.put("cvId", cvId.matches("^\\d+$") ? cvId : "");
+            tokenInfo.put("proCredits", String.valueOf(candidate.getProCredits() != null ? candidate.getProCredits() : 0));
+            return tokenInfo;
+        }
 
         // Contrôle de la reprise : CV spécifié ou session récente (< 15 min) en cours
         Optional<CvEntity> existingCv = Optional.empty();
@@ -173,8 +187,11 @@ public class CvService {
 
         if (cvId != null && cvId.matches("^\\d+$")) {
             existingCv = findCvEntityForCurrentUser(cvId);
+        } else if (cvId != null && "new".equalsIgnoreCase(cvId.trim())) {
+            // Création explicite d'un nouveau CV : ne pas réutiliser de session ou CV existant
+            existingCv = Optional.empty();
         } else {
-            // Si cvId n'est pas numérique (ex: "cv_default", "new"), chercher une session active récente (< 15 min)
+            // Si cvId n'est pas numérique (ex: "cv_default"), chercher une session active récente (< 15 min)
             existingCv = cvRepository.findByCandidateId(candidate.getId()).stream()
                     .filter(c -> c.getUpdatedAt() != null &&
                             c.getUpdatedAt().isAfter(Instant.now().minus(Duration.ofMinutes(15))))
@@ -395,15 +412,16 @@ public class CvService {
         String systemInstruction = """
             Tu es un expert senior en recrutement international et rédaction de CV professionnels de premier plan.
             À partir de la transcription d'un entretien vocal entre un recruteur IA et un candidat,
-            extrais, structure et développe TOUTES les informations professionnelles pour produire un CV complet d'une page pleine, dense, soigné et prêt à l'emploi.
+            extrais, structure et développe TOUTES les informations professionnelles pour produire un CV COMPLET et DENSE sur 2 pages A4.
             
             Règles impératives :
             1. EXTRACTION EXHAUSTIVE : Ne perds aucune information mentionnée (postes actuels ou passés, projets, diplômes, compétences, outils, langues, ville).
-            2. DATES PRÉCISES : Déduis et renseigne rigoureusement "startDate" et "endDate" pour chaque expérience et "year" pour chaque formation. Utilise des années à 4 chiffres (ex: "2021", "2023") ou "Présent" pour le poste actuel. Ne laisse JAMAIS les dates vides si une indication temporelle a été donnée (ex: "depuis 2 ans" à partir de l'année actuelle, "il y a 3 ans", etc.).
-            3. RÉSUMÉ PROFESSIONNEL ("summary") : Rédige un profil percutant de 3 à 4 phrases résumant le profil, la valeur ajoutée et les atouts clés du candidat.
-            4. IMPACT ET RÉALISATIONS : Développe pour chaque expérience au moins 3 à 5 puces concrètes dans "responsibilities" en commençant par des verbes d'action forts (Concevoir, Développer, Piloter, Optimiser, Gérer, Mettre en œuvre) et des réalisations mesurables dans "achievements".
-            5. N'INVENTE PAS de diplômes ou d'entreprises non existants, mais valorise au maximum ce qui a été exprimé.
-            6. Produis obligatoirement un JSON valide respectant strictement ce schéma :
+            2. DATES PRÉCISES : Déduis et renseigne rigoureusement "startDate" et "endDate" pour chaque expérience et "year" pour chaque formation. Utilise des années à 4 chiffres (ex: "2021", "2023") ou "Présent" pour le poste actuel.
+            3. CONTEXTE OBLIGATOIRE ("context") : Pour CHAQUE expérience, rédige 2 à 3 phrases décrivant le contexte de l'entreprise, le périmètre du poste et les enjeux. C'est obligatoire et ne doit jamais être vide.
+            4. RÉSUMÉ PROFESSIONNEL ("summary") : Rédige un profil percutant de 4 à 6 phrases résumant le profil, la valeur ajoutée, les domaines de compétence et les ambitions du candidat.
+            5. IMPACT ET RÉALISATIONS : Développe pour chaque expérience AU MINIMUM 5 puces dans "responsibilities" commençant par des verbes d'action forts (Concevoir, Développer, Piloter, Optimiser, Gérer, Mettre en œuvre, Coordonner, Assurer, Superviser, Implanter) et des réalisations mesurables dans "achievements".
+            6. N'INVENTE PAS de diplômes ou d'entreprises non existants, mais valorise au maximum ce qui a été exprimé.
+            7. Produis obligatoirement un JSON valide respectant strictement ce schéma :
             {
               "identity": {
                 "fullName": string,

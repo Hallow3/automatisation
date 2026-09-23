@@ -45,8 +45,9 @@ export class CvInterviewApiService {
   private http = inject(HttpClient);
   private base = `${environment.apiUrl}/cvs`;
 
-  createSession(cvId: string): Observable<InterviewSessionResponse> {
-    return this.http.post<InterviewSessionResponse>(`${this.base}/${cvId}/interview/session`, {});
+  createSession(cvId: string, resumptionHandle?: string | null): Observable<InterviewSessionResponse> {
+    const body = resumptionHandle ? { resumptionHandle } : {};
+    return this.http.post<InterviewSessionResponse>(`${this.base}/${cvId}/interview/session`, body);
   }
 
   initOrResumeV2Session(cvId: string): Observable<V2TurnResponse> {

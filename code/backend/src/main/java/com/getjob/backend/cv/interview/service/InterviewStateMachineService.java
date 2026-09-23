@@ -185,6 +185,13 @@ public class InterviewStateMachineService {
             sb.append("Demande uniquement l'information manquante ayant le plus de valeur pour le CV.\n\n");
         }
 
+        if ("IDENTITY".equals(currentState)) {
+            sb.append("RÈGLE STRICTE IDENTITY :\n");
+            sb.append("- Le Nom complet et l'Email du candidat sont DÉJÀ renseignés et confirmés sur son compte.\n");
+            sb.append("- NE LUI DEMANDE PAS son nom ni son email !\n");
+            sb.append("- Demande-lui UNIQUEMENT sa ville de résidence ou son téléphone s'ils ne sont pas encore précisés, ou enchaîne.\n\n");
+        }
+
         sb.append("Instruction :\n");
         sb.append("- Continue naturellement l'entretien avec ta voix posée et professionnelle.\n");
         sb.append("- Pose UNE SEULE question à la fois.\n");
@@ -197,7 +204,7 @@ public class InterviewStateMachineService {
 
     private String getSectionObjective(String state) {
         return switch (state) {
-            case "IDENTITY" -> "Confirmer le nom complet, la ville de résidence et les coordonnées de base du candidat.";
+            case "IDENTITY" -> "Vérifier uniquement la ville de résidence et le téléphone du candidat. Le nom complet et l'email sont DÉJÀ renseignés par défaut : ne JAMAIS les redemander ni les altérer.";
             case "TARGET" -> "Identifier précisément le titre du poste visé, le domaine ou le défi professionnel souhaité.";
             case "EXPERIENCE" -> "Comprendre cette expérience professionnelle : entreprise, rôle exact, dates indispensables (début et fin), responsabilités clés, technologies et réalisations concrètes (avec chiffres si possible).";
             case "PROJECTS" -> "Identifier 1 ou 2 projets personnels, universitaires ou réalisations marquantes illustrant le savoir-faire.";

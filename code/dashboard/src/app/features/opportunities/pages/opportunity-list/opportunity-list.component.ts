@@ -100,8 +100,8 @@ export class OpportunityListComponent implements OnInit {
       }
 
       // Score filter
-      if (this.scoreFilter === '85' && item.score < 85) return false;
-      if (this.scoreFilter === '75' && item.score < 75) return false;
+      if (this.scoreFilter === '85' && (!item.score || item.score < 85)) return false;
+      if (this.scoreFilter === '75' && (!item.score || item.score < 75)) return false;
 
       // Source filter
       if (this.sourceFilter !== 'toutes' && item.source !== this.sourceFilter) return false;

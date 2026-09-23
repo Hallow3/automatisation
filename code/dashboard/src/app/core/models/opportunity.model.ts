@@ -21,7 +21,7 @@ export interface Opportunity {
   company: string | null;
   city: string | null;
   source: string;
-  score: number;
+  score: number | null;
   status: OpportunityStatus;
   publishedAt?: string | null;
   deadline?: string | null;

@@ -140,6 +140,19 @@ public class GeminiLiveTokenService {
         return geminiModel;
     }
 
+    public String getTextModel() {
+        return resolveEffectiveTextModel();
+    }
+
+    /**
+     * Retourne la première clé disponible du pool (pour les appels streaming directs).
+     * Ne fait pas de rotation — l'appelant gère le failover si nécessaire.
+     */
+    public String getFirstAvailableKey() {
+        if (apiKeys.isEmpty()) return null;
+        return apiKeys.get(currentKeyIndex.get() % apiKeys.size());
+    }
+
     public int getKeyCount() {
         return apiKeys.size();
     }

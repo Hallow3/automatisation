@@ -45,50 +45,169 @@ public class OpportunityService {
     private final GeminiLiveTokenService geminiLiveTokenService;
     private final ObjectMapper objectMapper;
 
-    private Integer resolveCurrentCandidateId() {
+    private Optional<Integer> resolveOptionalCandidateId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
-            throw new AccessDeniedException("Accès non autorisé : aucun candidat authentifié.");
+            return Optional.empty();
         }
         String email = auth.getName();
-        return candidateRepository.findByEmail(email)
-                .map(CandidateEntity::getId)
-                .orElseThrow(() -> new AccessDeniedException(
-                        "Candidat introuvable pour l'adresse email authentifiée : " + email));
+        return candidateRepository.findByEmail(email).map(CandidateEntity::getId);
+    }
+
+    private Integer resolveCurrentCandidateId() {
+        return resolveOptionalCandidateId()
+                .orElseThrow(() -> new AccessDeniedException("Accès non autorisé : aucun candidat authentifié."));
     }
 
     @Transactional(readOnly = true)
     public List<OpportunityDto> getAllOpportunities() {
-        Integer candidateId = resolveCurrentCandidateId();
-        CandidateProfileDto profile = getCandidateProfile(candidateId);
-
-        List<JobOfferEntity> allOffers = jobOfferRepository.findAll();
-        Map<Integer, ApplicationEntity> appMap = getCandidateApplicationsMap(candidateId);
-
-        return allOffers.stream()
-                .map(offer -> buildOpportunityDto(offer, appMap.get(offer.getId()), profile))
-                .toList();
+        Optional<Integer> candidateIdOpt = resolveOptionalCandidateId();
+        if (candidateIdOpt.isEmpty()) {
+            return getPublicOpportunities();
+        }
+        return getCandidateOpportunities(candidateIdOpt.get());
     }
 
     @Transactional(readOnly = true)
     public Page<OpportunityDto> getAllOpportunities(Pageable pageable) {
-        Integer candidateId = resolveCurrentCandidateId();
-        CandidateProfileDto profile = getCandidateProfile(candidateId);
+        Optional<Integer> candidateIdOpt = resolveOptionalCandidateId();
+        if (candidateIdOpt.isEmpty()) {
+            return getPublicOpportunities(pageable);
+        }
+        return getCandidateOpportunities(candidateIdOpt.get(), pageable);
+    }
 
-        Page<JobOfferEntity> offerPage = jobOfferRepository.findAll(pageable);
-        Map<Integer, ApplicationEntity> appMap = getCandidateApplicationsMap(candidateId);
-
-        List<OpportunityDto> dtoList = offerPage.getContent().stream()
-                .map(offer -> buildOpportunityDto(offer, appMap.get(offer.getId()), profile))
+    private List<OpportunityDto> getPublicOpportunities() {
+        List<JobOfferEntity> publicOffers = jobOfferRepository.findAll(
+                org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "id")
+        );
+        return publicOffers.stream()
+                .limit(30)
+                .map(this::buildPublicOpportunityDto)
                 .toList();
+    }
 
+    private Page<OpportunityDto> getPublicOpportunities(Pageable pageable) {
+        Page<JobOfferEntity> offerPage = jobOfferRepository.findAll(pageable);
+        List<OpportunityDto> dtoList = offerPage.getContent().stream()
+                .map(this::buildPublicOpportunityDto)
+                .toList();
         return new PageImpl<>(dtoList, pageable, offerPage.getTotalElements());
+    }
+
+    private List<OpportunityDto> getCandidateOpportunities(Integer candidateId) {
+        CandidateProfileDto profile = getCandidateProfile(candidateId);
+        List<ApplicationEntity> candidateApps = applicationRepository.findByCandidateId(candidateId);
+
+        Set<Integer> dismissedOfferIds = new HashSet<>();
+        Set<Integer> rejectedOfferIds = new HashSet<>();
+        Map<Integer, ApplicationEntity> appMap = new HashMap<>();
+
+        for (ApplicationEntity app : candidateApps) {
+            if (app.getJobOfferId() == null) continue;
+            String status = app.getStatus() != null ? app.getStatus().toLowerCase() : "";
+            if ("dismissed".equals(status)) {
+                dismissedOfferIds.add(app.getJobOfferId());
+            } else if ("rejected".equals(status)) {
+                rejectedOfferIds.add(app.getJobOfferId());
+            } else {
+                appMap.put(app.getJobOfferId(), app);
+            }
+        }
+
+        List<OpportunityDto> results = new ArrayList<>();
+        Set<Integer> processedOfferIds = new HashSet<>();
+
+        // 1. Offres associées à des candidatures actives du candidat
+        if (!appMap.isEmpty()) {
+            List<JobOfferEntity> activeOffers = jobOfferRepository.findAllById(appMap.keySet());
+            for (JobOfferEntity offer : activeOffers) {
+                processedOfferIds.add(offer.getId());
+                results.add(buildOpportunityDto(offer, appMap.get(offer.getId()), profile));
+            }
+        }
+
+        // 2. Offres disponibles du catalogue global non ignorées/rejetées et pertinentes pour le profil
+        List<JobOfferEntity> allOffers = jobOfferRepository.findAll();
+        for (JobOfferEntity offer : allOffers) {
+            if (processedOfferIds.contains(offer.getId())
+                    || dismissedOfferIds.contains(offer.getId())
+                    || rejectedOfferIds.contains(offer.getId())) {
+                continue;
+            }
+
+            OpportunityDto candidateDto = buildOpportunityDto(offer, null, profile);
+            if (candidateDto.getScore() != null && candidateDto.getScore() >= 50) {
+                results.add(candidateDto);
+            }
+        }
+
+        results.sort((a, b) -> {
+            int scoreA = a.getScore() != null ? a.getScore() : 0;
+            int scoreB = b.getScore() != null ? b.getScore() : 0;
+            return Integer.compare(scoreB, scoreA);
+        });
+
+        return results;
+    }
+
+    private Page<OpportunityDto> getCandidateOpportunities(Integer candidateId, Pageable pageable) {
+        List<OpportunityDto> all = getCandidateOpportunities(candidateId);
+        int start = (int) pageable.getOffset();
+        if (start >= all.size()) {
+            return new PageImpl<>(Collections.emptyList(), pageable, all.size());
+        }
+        int end = Math.min(start + pageable.getPageSize(), all.size());
+        List<OpportunityDto> paged = all.subList(start, end);
+        return new PageImpl<>(paged, pageable, all.size());
+    }
+
+    private OpportunityDto buildPublicOpportunityDto(JobOfferEntity offer) {
+        return OpportunityDto.builder()
+                .id("offer_" + offer.getId())
+                .jobOfferId(offer.getId().toString())
+                .title(offer.getTitle() != null ? offer.getTitle() : "Offre d'emploi")
+                .company(offer.getCompany() != null ? offer.getCompany() : "Entreprise")
+                .city(offer.getCity() != null ? offer.getCity() : "Cameroun")
+                .source(offer.getSource() != null ? offer.getSource() : "GetJob Scanner")
+                .score(null)
+                .status(OpportunityStatus.QUALIFIED)
+                .publishedAt(offer.getScrapedAt() != null ? offer.getScrapedAt().toString() : Instant.now().toString())
+                .deadline(null)
+                .applicationChannel(determineChannel(offer, null))
+                .coverLetterAvailable(false)
+                .coverLetterText(null)
+                .matchedSkills(List.of())
+                .matchExplanation("Offre publique disponible. Connectez-vous pour calculer votre affinité personnalisée et postuler en 1 clic.")
+                .description(extractDescription(offer))
+                .build();
     }
 
     @Transactional
     public Optional<OpportunityDto> getOpportunityById(String id) {
         if (id == null || id.isBlank()) return Optional.empty();
-        Integer candidateId = resolveCurrentCandidateId();
+        Optional<Integer> candidateIdOpt = resolveOptionalCandidateId();
+
+        // ── Visiteur public non authentifié ───────────────────────────────────
+        if (candidateIdOpt.isEmpty()) {
+            Integer offerId = null;
+            if (id.startsWith("offer_") || id.startsWith("job_")) {
+                try {
+                    offerId = Integer.parseInt(id.replace("offer_", "").replace("job_", ""));
+                } catch (NumberFormatException ignored) {}
+            } else if (!id.startsWith("app_")) {
+                try {
+                    offerId = Integer.parseInt(id);
+                } catch (NumberFormatException ignored) {}
+            }
+            if (offerId != null) {
+                return jobOfferRepository.findById(offerId).map(this::buildPublicOpportunityDto);
+            }
+            return Optional.empty();
+        }
+
+        // ── Candidat authentifié ──────────────────────────────────────────────
+        Integer candidateId = candidateIdOpt.get();
         CandidateProfileDto profile = getCandidateProfile(candidateId);
 
         // 1. Si préfixé explicitement comme offre (ex: offer_123 ou job_123)

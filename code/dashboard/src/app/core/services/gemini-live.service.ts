@@ -1,5 +1,5 @@
 import { Injectable, signal, computed, inject } from '@angular/core';
-import { Subject, firstValueFrom } from 'rxjs';
+import { Subject, Subscription, firstValueFrom } from 'rxjs';
 import { CvInterviewApiService } from './cv-interview-api.service';
 import { AuthService } from './auth.service';
 import { PaymentService } from './payment.service';
@@ -8,6 +8,7 @@ import { GeminiLiveWsClientService } from './gemini-live-ws-client.service';
 import { InterviewSessionCacheService } from './interview-session-cache.service';
 import { CV_INTERVIEW_START_TRIGGER, buildStartTrigger } from './cv-interview-system.prompt';
 import { CvAuditEngineService, CvAuditReport } from './cv-audit-engine.service';
+import { CvStreamService } from './cv-stream.service';
 
 export type LiveInterviewState =
   | 'READY'
@@ -38,6 +39,7 @@ export class GeminiLiveService {
   private wsClient = inject(GeminiLiveWsClientService);
   private sessionCache = inject(InterviewSessionCacheService);
   private auditEngine = inject(CvAuditEngineService);
+  private cvStream = inject(CvStreamService);
 
   public state = signal<LiveInterviewState>('READY');
   public transcript = signal<TranscriptEntry[]>([]);
@@ -102,6 +104,7 @@ export class GeminiLiveService {
   private hasMeaningfulUsage = false;
   private isResumingConnection = false;
   private currentCandidateFirstName = '';
+  private cvStreamSubscription: Subscription | null = null;
 
   setMuted(muted: boolean): void {
     this.isMutedSignal.set(muted);
@@ -205,8 +208,13 @@ export class GeminiLiveService {
       this.hasStarted.set(false);
       this.isWsReady.set(false);
 
+      // Si cvId est 'new', purger les sessions précédentes du cache
+      if (cvId === 'new') {
+        this.sessionCache.clearAllSessions();
+      }
+
       // Vérifier si une session récente (< 10 min) existe en cache
-      const cached = this.sessionCache.getSession(cvId);
+      const cached = cvId === 'new' ? null : this.sessionCache.getSession(cvId);
       let isResume = false;
       let cachedContext = '';
       if (cached) {
@@ -285,6 +293,15 @@ export class GeminiLiveService {
           if (v2Session.cvDataSoFar && Object.keys(v2Session.cvDataSoFar).length > 0) {
             this.currentDraft.set(v2Session.cvDataSoFar);
           }
+          // Ouvrir le canal SSE pour les patches CV en temps réel
+          this.cvStreamSubscription?.unsubscribe();
+          this.cvStream.connect(this.currentCvId, v2Session.sessionId);
+          this.cvStreamSubscription = this.cvStream.cvPatch$.subscribe(event => {
+            if (event?.patch && Object.keys(event.patch).length > 0) {
+              this.currentDraft.set({ ...event.patch });
+              this.sessionCache.saveSession(this.currentCvId, this.currentDraft(), this.transcript());
+            }
+          });
         }
       } catch (e) {
         console.warn('[GeminiLive] Échec initialisation V2 non bloquante:', e);
@@ -476,8 +493,9 @@ export class GeminiLiveService {
 
   private async attemptSeamlessResume(): Promise<void> {
     try {
+      const handle = this.wsClient.getResumptionHandle();
       console.log('[GeminiLive] Obtention d\'un jeton de session pour reprise transparente (sans débit de crédit)...');
-      const session = await firstValueFrom(this.apiService.createSession(this.currentCvId));
+      const session = await firstValueFrom(this.apiService.createSession(this.currentCvId, handle));
       if (session?.token) {
         const token = session.token;
         const model = session.model || 'gemini-3.1-flash-live-preview';
@@ -577,6 +595,9 @@ export class GeminiLiveService {
     this.finalizeCurrentTurn();
     this.audioEngine.destroy();
     this.wsClient.disconnect();
+    this.cvStream.disconnect();
+    this.cvStreamSubscription?.unsubscribe();
+    this.cvStreamSubscription = null;
     if (this.state() !== 'COMPLETED' && this.state() !== 'ERROR') {
       this.state.set('READY');
     }
@@ -633,6 +654,7 @@ export class GeminiLiveService {
     this.state.set('COMPLETED');
     const targetCvId = this.currentCvId;
     this.sessionCache.clearSession(targetCvId);
+    this.sessionCache.clearAllSessions();
     this.wsClient.setResumptionHandle(null);
     this.stopSession();
 
@@ -777,6 +799,12 @@ export class GeminiLiveService {
 
     if (role === 'user') {
       this.lastUserTurnText = (this.lastUserTurnText ? this.lastUserTurnText + ' ' : '') + line;
+      // Push anticipé : envoyer le segment utilisateur dès qu'il est stabilisé,
+      // sans attendre la fin de réplique de Bray (Phase 1 de l'architecture streaming)
+      const sessionId = this.currentV2SessionId();
+      if (sessionId && this.currentCvId && this.currentCvId !== 'cv_default' && this.currentCvId !== 'new') {
+        this.cvStream.pushTranscriptSegment(this.currentCvId, sessionId, line, this.currentDraft());
+      }
     } else if (role === 'ai') {
       this.lastAiTurnText = (this.lastAiTurnText ? this.lastAiTurnText + ' ' : '') + line;
     }
@@ -832,6 +860,16 @@ export class GeminiLiveService {
     if (!patch) return;
     const current = this.currentDraft();
     const updated = { ...current };
+
+    if (patch.identity) {
+      const curId = updated.identity || {};
+      updated.identity = {
+        ...curId,
+        ...patch.identity,
+        fullName: (curId.fullName && curId.fullName.trim()) ? curId.fullName : (patch.identity.fullName || ''),
+        email: (curId.email && curId.email.trim()) ? curId.email : (patch.identity.email || '')
+      };
+    }
 
     if (patch.headline) updated.headline = patch.headline;
     if (patch.summary) updated.summary = patch.summary;

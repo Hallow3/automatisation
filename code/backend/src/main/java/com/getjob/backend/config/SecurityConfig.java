@@ -83,6 +83,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/cvs/*/print-data").permitAll()
                         // Téléchargement sécurisé par ticket temporaire à usage unique (pour ouverture dans un nouvel onglet)
                         .requestMatchers(HttpMethod.GET, "/api/v1/cvs/*/download").permitAll()
+                        // Opportunités : consultation publique ouverte aux visiteurs, lettre de motivation et actions réservées aux authentifiés
+                        .requestMatchers(HttpMethod.GET, "/api/v1/opportunities/*/cover-letter").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/opportunities", "/api/v1/opportunities/*").permitAll()
                         // Tout le reste requiert une authentification (y compris /api/v1/cvs/*/pdf et /api/v1/cvs/*/download-ticket)
                         .anyRequest().authenticated()
                 )

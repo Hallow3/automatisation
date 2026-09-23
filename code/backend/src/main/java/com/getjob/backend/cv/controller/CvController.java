@@ -76,8 +76,12 @@ public class CvController {
     }
 
     @PostMapping("/cvs/{id}/interview/session")
-    public ResponseEntity<Map<String, String>> createInterviewSession(@PathVariable String id) {
-        return ResponseEntity.ok(cvService.createInterviewSession(id));
+    public ResponseEntity<Map<String, String>> createInterviewSession(
+            @PathVariable String id,
+            @RequestBody(required = false) Map<String, String> body
+    ) {
+        String resumptionHandle = (body != null) ? body.get("resumptionHandle") : null;
+        return ResponseEntity.ok(cvService.createInterviewSession(id, resumptionHandle));
     }
 
     @PutMapping("/cvs/{id}/draft")

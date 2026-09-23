@@ -59,7 +59,7 @@ public class InterviewObserverService {
                 5. Définis "ready_for_transition" à true UNIQUEMENT si les critères minimaux sont satisfaits :
                    - Pour EXPERIENCE : company + position + (startDate ou endDate ou période) + au moins 1 responsabilité ou réalisation concrète. Si les dates manquent, ready_for_transition DOIT rester false !
                    - Pour EDUCATION : school + (degree ou spécialité).
-                   - Pour IDENTITY : fullName confirmé.
+                   - Pour IDENTITY : Le nom complet et l'email sont déjà pré-remplis par défaut. ready_for_transition est toujours true dès que le téléphone/ville ont été abordés ou s'il n'y a rien d'autre à ajouter.
                    - Pour TARGET : headline ou métier visé clair.
                 6. Définis "user_wants_skip" à true si le candidat indique explicitement n'avoir rien à fournir (ex: "je n'ai pas de projet", "aucun diplôme", "on passe").
                 7. Définis "user_has_more" à true si le candidat mentionne ou confirme avoir une autre expérience passée (ou autre formation) à détailler.

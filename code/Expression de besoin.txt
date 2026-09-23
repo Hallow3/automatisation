@@ -1,0 +1,37 @@
+Expression de besoin - Plateforme intelligente de recherche d'emploi
+Contexte
+Créer une plateforme automatisée basée sur n8n et l'IA pour accompagner un candidat du CV jusqu'à l'obtention d'un entretien.
+
+Objectifs
+•	Créer/améliorer le CV
+Si le candidat ne possède pas de cv il faut en crée un de base à partir d’un chat vocal. on trouvera un moyen de le faire a travers une appli web par exemple
+•	Rechercher automatiquement les offres
+Le systeme fouille les site pro d’offre d’emplois (linkedin, doopinet, camer job, etc…) ici on peut laisser l’utilisateur decider des plateformes
+•	Filtrer et scorer les offres
+Les offres par villes, par job, exclure les offres qui ne montrent pas comment postuler (qui n’ont pas de mail ou numero de telephone)
+•	Postuler automatiquement/semi automatique
+Regiger le necessaire(ajouter la lettre de motivation si necessaire, refaire le cv si necessaire) et utiliser le mail du candidat pour postuler (rediger le mail, mettre la pj):
+Je ne connais pas encore le moyen d’utiliser le mail du candidat pour le faire mais il faut son autorisation. 
+•	Suivre les réponses
+La base de données doit garder le necessaire pour retrouver le contexte plutard si reponse du recruteur afin de pouvoir faire la discution. Tant que la discution reste par mail le flow assure. 
+•	Notifier via WhatsApp
+Si tout semble bon l’utilisateur recoit un message de la part du bot avec les infos necessaire (heure de l’entretien, coordonées, astuce pour bien passer l’entretien, compétences qui ont été mise en avant pour decrocher
+Fonctionnalités
+•	Gestion du profil
+•	Analyse du profil
+•	Recherche d'offres
+•	Qualification
+•	Génération/modification de CV/lettre
+•	Envoi des candidatures
+•	Suivi des réponses
+•	Notifications
+Workflow
+Profil → CV → Analyse → Recherche → Qualification → Personnalisation → Envoi → Base de données → Surveillance des réponses → Notification WhatsApp
+Contraintes
+•	Limiter les appels IA
+•	Utiliser des règles métier
+•	Base de données centralisée
+•	Journalisation complète
+•	Approbation utilisateur
+Vision
+Un assistant carrière autonome qui automatise la recherche d'emploi et n'intervient auprès du candidat que lorsqu'une action humaine est nécessaire.

@@ -59,7 +59,10 @@ public class CvInterviewOrchestratorService {
         Optional<CvInterviewSessionEntity> existingOpt = sessionRepository.findFirstByCvIdOrderByCreatedAtDesc(cvId);
         CvInterviewSessionEntity session;
 
-        if (existingOpt.isPresent()) {
+        if (existingOpt.isPresent() &&
+            !"COMPLETED".equalsIgnoreCase(existingOpt.get().getInterviewStatus()) &&
+            !"DONE".equalsIgnoreCase(existingOpt.get().getInterviewStatus()) &&
+            !"FINISHED".equalsIgnoreCase(existingOpt.get().getInterviewStatus())) {
             session = existingOpt.get();
             // Si la session était en USER_STOPPED ou TEMPORARILY_UNAVAILABLE, on la réactive
             if ("USER_STOPPED".equalsIgnoreCase(session.getInterviewStatus()) ||
@@ -566,11 +569,9 @@ public class CvInterviewOrchestratorService {
     }
 
     private Map<String, Object> loadInitialCvData(CvEntity cv, CandidateEntity candidate) {
-        if (cv.getContentJson() != null && !cv.getContentJson().isBlank()) {
-            try {
-                return parseJsonMap(cv.getContentJson());
-            } catch (Exception ignored) {}
-        }
+        // Toujours partir d'un brouillon vierge avec uniquement les coordonnées du candidat.
+        // Ne jamais pré-remplir depuis un contentJson existant pour éviter la contamination
+        // par les données d'un entretien ou import précédent.
         Map<String, Object> initial = new HashMap<>();
         Map<String, String> identity = new HashMap<>();
         identity.put("fullName", candidate.getFullName() != null ? candidate.getFullName() : "");
