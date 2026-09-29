@@ -169,8 +169,9 @@ export class GeminiLiveWsClientService {
         realtimeInputConfig: {
           automaticActivityDetection: {
             disabled: false,
-            prefixPaddingMs: 40,
-            silenceDurationMs: 650
+            prefixPaddingMs: 100,
+            silenceDurationMs: 1500,
+            endOfSpeechSensitivity: 'END_SENSITIVITY_LOW'
           },
           activityHandling: 'START_OF_ACTIVITY_INTERRUPTS'
         },

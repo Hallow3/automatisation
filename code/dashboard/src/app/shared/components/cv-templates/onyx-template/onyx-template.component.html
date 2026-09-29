@@ -1,0 +1,140 @@
+<article class="onyx-paper" [style.--accent]="currentAccent">
+
+  <!-- Filet d'accent supérieur -->
+  <div class="onyx-accent-bar"></div>
+
+  <!-- En-tête : monogramme + identité -->
+  <header class="onyx-header">
+    <div class="onyx-monogram">{{ initials }}</div>
+    <div class="onyx-identity">
+      <h1 class="onyx-name">{{ data.name || 'Prénom Nom' }}</h1>
+      <p class="onyx-title">{{ data.title || 'Titre professionnel' }}</p>
+    </div>
+  </header>
+
+  <!-- Bandeau de coordonnées -->
+  <div class="onyx-contact-strip">
+    <span *ngIf="data.city" class="onyx-contact-item">{{ data.city }}</span>
+    <span *ngIf="data.email" class="onyx-contact-item">{{ data.email }}</span>
+    <span *ngIf="data.phone" class="onyx-contact-item">{{ data.phone }}</span>
+    <span *ngIf="data.linkedin" class="onyx-contact-item">{{ data.linkedin }}</span>
+    <ng-container *ngFor="let l of data.links">
+      <span *ngIf="l.url" class="onyx-contact-item">
+        {{ l.label ? l.label + ' : ' + l.url : l.url }}
+      </span>
+    </ng-container>
+  </div>
+
+  <!-- Corps : colonne principale + colonne latérale -->
+  <main class="onyx-body" [class.onyx-body--solo]="!hasAside">
+
+    <!-- ================= COLONNE PRINCIPALE ================= -->
+    <div class="onyx-main">
+
+      <!-- Profil -->
+      <section *ngIf="data.summary" class="onyx-section">
+        <h2 class="onyx-section-title">
+          <span class="onyx-section-mark"></span>
+          <span>Profil</span>
+        </h2>
+        <p class="onyx-summary">{{ data.summary }}</p>
+      </section>
+
+      <!-- Expériences -->
+      <section *ngIf="data.experiences && data.experiences.length > 0" class="onyx-section">
+        <h2 class="onyx-section-title">
+          <span class="onyx-section-mark"></span>
+          <span>Expériences professionnelles</span>
+        </h2>
+
+        <div class="onyx-timeline">
+          <article *ngFor="let exp of data.experiences" class="onyx-exp-item">
+            <div class="onyx-exp-head">
+              <div class="onyx-exp-heading">
+                <h3 class="onyx-role">{{ exp.role }}</h3>
+                <p class="onyx-company">
+                  <span>{{ exp.company }}</span>
+                  <span *ngIf="exp.city" class="onyx-exp-city"> · {{ exp.city }}</span>
+                </p>
+              </div>
+              <span class="onyx-period">{{ exp.period }}</span>
+            </div>
+
+            <p *ngIf="exp.description" class="onyx-exp-desc">{{ exp.description }}</p>
+
+            <ul *ngIf="exp.bullets && exp.bullets.length > 0" class="onyx-bullets">
+              <li *ngFor="let b of exp.bullets" class="onyx-bullet">
+                <span class="onyx-bullet-mark"></span>
+                <span class="onyx-bullet-text">{{ b }}</span>
+              </li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <!-- Projets -->
+      <section *ngIf="data.projects && data.projects.length > 0" class="onyx-section">
+        <h2 class="onyx-section-title">
+          <span class="onyx-section-mark"></span>
+          <span>Projets &amp; réalisations</span>
+        </h2>
+
+        <div class="onyx-proj-list">
+          <div *ngFor="let proj of data.projects" class="onyx-proj-item">
+            <span class="onyx-proj-name">{{ proj.name }}</span>
+            <span *ngIf="proj.detail" class="onyx-proj-detail">{{ proj.detail }}</span>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ================= COLONNE LATÉRALE ================= -->
+    <aside *ngIf="hasAside" class="onyx-aside">
+
+      <!-- Compétences -->
+      <section *ngIf="data.skills && data.skills.length > 0" class="onyx-section onyx-section--aside">
+        <h2 class="onyx-section-title">
+          <span class="onyx-section-mark"></span>
+          <span>Compétences</span>
+        </h2>
+        <div class="onyx-chips">
+          <span *ngFor="let skill of data.skills" class="onyx-chip">{{ skill }}</span>
+        </div>
+      </section>
+
+      <!-- Formation -->
+      <section *ngIf="data.education && data.education.length > 0" class="onyx-section onyx-section--aside">
+        <h2 class="onyx-section-title">
+          <span class="onyx-section-mark"></span>
+          <span>Formation</span>
+        </h2>
+        <div class="onyx-edu-list">
+          <div *ngFor="let edu of data.education" class="onyx-edu-item">
+            <h3 class="onyx-edu-degree">{{ edu.degree }}</h3>
+            <p class="onyx-edu-school">{{ edu.school }}</p>
+            <span *ngIf="edu.year || edu.period" class="onyx-edu-period">
+              {{ edu.year || edu.period }}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Langues -->
+      <section *ngIf="data.languages && data.languages.length > 0" class="onyx-section onyx-section--aside">
+        <h2 class="onyx-section-title">
+          <span class="onyx-section-mark"></span>
+          <span>Langues</span>
+        </h2>
+        <div class="onyx-lang-list">
+          <div *ngFor="let lang of data.languages" class="onyx-lang-item">
+            <span class="onyx-lang-name">{{ lang.name || lang.lang }}</span>
+            <span class="onyx-lang-level">{{ lang.level }}</span>
+          </div>
+        </div>
+      </section>
+
+    </aside>
+
+  </main>
+</article>

@@ -21,6 +21,7 @@ import { BadgeComponent } from '../../../../shared/components/badge/badge.compon
 import { CardComponent } from '../../../../shared/components/card/card.component';
 import { CardHeaderComponent } from '../../../../shared/components/card/card-header.component';
 import { TabsComponent, TabItem } from '../../../../shared/components/tabs/tabs.component';
+import { OnyxTemplateComponent } from '../../../../shared/components/cv-templates/onyx-template/onyx-template.component';
 
 type Phase = 'templates' | 'editor' | 'voice' | 'wizard';
 type RightTab = 'sections' | 'ai' | 'template';
@@ -28,7 +29,7 @@ type RightTab = 'sections' | 'ai' | 'template';
 export interface TemplateCard {
   id: CvTemplateId;
   name: string;
-  category: 'senior' | 'modern' | 'tech' | 'classic' | 'creative' | 'minimal';
+  category: 'senior' | 'modern' | 'tech' | 'classic' | 'creative' | 'minimal' | 'onyx';
   badge: string;
   tag: string;
   description: string;
@@ -327,6 +328,18 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
       accent: '#0f172a',
       pages: '1–2 pages',
       features: ['100% compatible robots ATS', 'Structure monocolonne aérée', 'Idéal profils confirmés & seniors']
+    },
+    {
+      id: 'onyx',
+      name: 'CV Onyx & Timeline',
+      category: 'onyx',
+      badge: 'Créatif',
+      tag: 'Design, Marketing, Direction & Profils hybrides',
+      description: 'Monogramme d’initiales, filet d’accent graphique et timeline verticale : une identité forte tout en restant lisible et imprimable.',
+      layout: 'onyx',
+      accent: '#7c3aed',
+      pages: '1–2 pages',
+      features: ['Monogramme & filet d’accent', 'Timeline verticale des expériences', 'Colonne latérale compétences / formation / langues']
     }
   ];
 
@@ -581,7 +594,7 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
               : updatedCv.contentJson;
             this.editor.patchFromData(parsed);
             this.refreshPreview();
-          } catch (e) {}
+          } catch (e) { }
         }
         this.aiMessages.push({
           id: 'msg_' + Date.now(),

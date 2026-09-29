@@ -47,12 +47,36 @@ public class CvInterviewOrchestratorService {
      */
     @Transactional
     public InterviewTurnResponse initOrResumeSession(String cvIdStr, CandidateEntity candidate) {
-        Long cvId = parseCvId(cvIdStr);
-        CvEntity cv = cvRepository.findById(cvId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "CV introuvable : " + cvId));
+        CvEntity cv;
+        Long cvId;
 
-        if (!cv.getCandidateId().equals(candidate.getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Accès non autorisé à ce CV.");
+        boolean isSpecialOrMissing = cvIdStr == null || "cv_default".equalsIgnoreCase(cvIdStr) || "new".equalsIgnoreCase(cvIdStr) || !cvIdStr.matches("^\\d+$");
+        if (isSpecialOrMissing) {
+            // Chercher une session ou CV récent en cours, ou créer un nouveau CV brouillon
+            cv = cvRepository.findByCandidateId(candidate.getId()).stream()
+                    .filter(c -> "IN_PROGRESS".equalsIgnoreCase(c.getInterviewStatus()) || "ACTIVE".equalsIgnoreCase(c.getInterviewStatus()) || "DRAFT".equalsIgnoreCase(c.getInterviewStatus()))
+                    .max(Comparator.comparing(CvEntity::getId))
+                    .orElseGet(() -> {
+                        CvEntity newCv = CvEntity.builder()
+                                .candidateId(candidate.getId())
+                                .templateId(1L)
+                                .title("Mon CV Professionnel")
+                                .contentJson(writeJson(loadInitialCvData(null, candidate)))
+                                .status("DRAFT")
+                                .interviewStatus("IN_PROGRESS")
+                                .build();
+                        return cvRepository.save(newCv);
+                    });
+            cvId = cv.getId();
+            log.info("[Orchestrator] CV résolu pour cvIdStr='{}' -> cvId={} pour candidat={}", cvIdStr, cvId, candidate.getId());
+        } else {
+            cvId = Long.parseLong(cvIdStr);
+            cv = cvRepository.findById(cvId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "CV introuvable : " + cvId));
+
+            if (!cv.getCandidateId().equals(candidate.getId())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Accès non autorisé à ce CV.");
+            }
         }
 
         // Vérifier si une session existe déjà pour ce CV

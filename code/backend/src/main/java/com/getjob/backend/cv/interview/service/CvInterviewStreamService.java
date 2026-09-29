@@ -28,6 +28,7 @@ public class CvInterviewStreamService {
     private final InterviewObserverService observerService;
     private final CvInterviewSessionRepository sessionRepository;
     private final ObjectMapper objectMapper;
+    private final CvInterviewBillingService billingService;
 
     // sessionId -> SseEmitter actif
     private final ConcurrentHashMap<String, SseEmitter> emitters = new ConcurrentHashMap<>();
@@ -41,12 +42,26 @@ public class CvInterviewStreamService {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
         emitters.put(sessionId, emitter);
 
-        emitter.onCompletion(() -> emitters.remove(sessionId));
+        emitter.onCompletion(() -> {
+            emitters.remove(sessionId);
+            log.debug("[CvStream] SSE complété pour session={}", sessionId);
+        });
         emitter.onTimeout(() -> {
             emitters.remove(sessionId);
             emitter.complete();
+            log.debug("[CvStream] SSE timeout pour session={}", sessionId);
         });
-        emitter.onError(e -> emitters.remove(sessionId));
+        emitter.onError(e -> {
+            emitters.remove(sessionId);
+            log.debug("[CvStream] SSE erreur de transport pour session={}: {}", sessionId, e.getMessage());
+        });
+
+        // Envoi d'un événement d'initialisation immédiat pour confirmer la connexion
+        try {
+            emitter.send(SseEmitter.event().name("init").data(Map.of("status", "connected", "sessionId", sessionId)));
+        } catch (Exception e) {
+            log.warn("[CvStream] Impossible d'envoyer l'init SSE: {}", e.getMessage());
+        }
 
         log.info("[CvStream] Emitter SSE créé pour session={}", sessionId);
         return emitter;

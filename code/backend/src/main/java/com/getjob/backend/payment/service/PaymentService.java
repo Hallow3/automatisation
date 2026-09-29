@@ -84,12 +84,12 @@ public class PaymentService {
 
         if ("pack_3".equalsIgnoreCase(packId) || request.getType() == PaymentType.PRO_PACK) {
             amount = PRICE_PACK_3_FCFA;
-            credits = (cv != null) ? 2 : 3;
-            packLabel = "Pack 3 CVs HD";
+            credits = 25;
+            packLabel = "Pack 25 Crédits Pro (25 min Live)";
         } else {
             amount = PRICE_PACK_1_FCFA;
-            credits = 0;
-            packLabel = "1 CV HD";
+            credits = 10;
+            packLabel = "Pack 10 Crédits Pro (10 min Live)";
         }
 
         String reference = "PAY-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase() + "-" + System.currentTimeMillis() % 10000;
@@ -329,12 +329,13 @@ public class PaymentService {
 
         CandidateEntity candidate = transaction.getCandidate();
 
-        // Crédits pro accordés
+        // Crédits pro accordés de manière atomique (thread-safe, anti-concurrence)
         if (transaction.getCreditsGranted() > 0) {
-            candidate.setProCredits(candidate.getProCredits() + transaction.getCreditsGranted());
-            candidateRepository.save(candidate);
-            log.info("Compte crédité : candidatId={}, +{} crédits (nouveau solde={})",
-                    candidate.getId(), transaction.getCreditsGranted(), candidate.getProCredits());
+            candidateRepository.incrementProCredits(candidate.getId(), transaction.getCreditsGranted());
+            int newBalance = candidateRepository.findById(candidate.getId())
+                    .map(c -> c.getProCredits() != null ? c.getProCredits() : 0).orElse(0);
+            log.info("Compte crédité (atomique) : candidatId={}, +{} crédits (nouveau solde={})",
+                    candidate.getId(), transaction.getCreditsGranted(), newBalance);
         }
 
         // Déverrouillage CV

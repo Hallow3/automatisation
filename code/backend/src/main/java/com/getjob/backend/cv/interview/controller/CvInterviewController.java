@@ -28,6 +28,7 @@ public class CvInterviewController {
 
     private final CvInterviewOrchestratorService orchestratorService;
     private final CandidateRepository candidateRepository;
+    private final com.getjob.backend.cv.interview.service.CvInterviewBillingService billingService;
 
     private CandidateEntity resolveCurrentCandidate() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -41,12 +42,36 @@ public class CvInterviewController {
 
     /**
      * Initialise ou reprend une session d'orchestration V2 pour un CV donné.
+     * Enregistre également le démarrage du compteur de facturation au temps réel.
      */
     @PostMapping("/{id}/interview/v2/session")
     public ResponseEntity<InterviewTurnResponse> initOrResumeSession(@PathVariable String id) {
         CandidateEntity candidate = resolveCurrentCandidate();
         log.info("POST /api/v1/cvs/{}/interview/v2/session candidate_id={}", id, candidate.getId());
-        return ResponseEntity.ok(orchestratorService.initOrResumeSession(id, candidate));
+        InterviewTurnResponse response = orchestratorService.initOrResumeSession(id, candidate);
+
+        // Démarrage de l'autorité de facturation backend
+        if (response != null && response.getSessionId() != null) {
+            Long parsedCvId = null;
+            try {
+                parsedCvId = Long.parseLong(id);
+            } catch (Exception ignored) {}
+            billingService.startSession(response.getSessionId(), parsedCvId, candidate);
+        }
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Reçoit le heartbeat périodique du client (toutes les 15s) pour renouveler le bail de session.
+     */
+    @PostMapping("/{id}/interview/v2/heartbeat")
+    public ResponseEntity<com.getjob.backend.cv.interview.dto.HeartbeatDto.Response> heartbeat(
+            @PathVariable String id,
+            @RequestBody com.getjob.backend.cv.interview.dto.HeartbeatDto.Request request
+    ) {
+        CandidateEntity candidate = resolveCurrentCandidate();
+        return ResponseEntity.ok(billingService.recordHeartbeat(request.getSessionId(), candidate));
     }
 
     /**
@@ -65,6 +90,7 @@ public class CvInterviewController {
 
     /**
      * Validation stricte de la demande d'arrêt utilisateur (request_end_interview).
+     * Clôture et facture le temps consommé.
      */
     @PostMapping("/{id}/interview/v2/request-end")
     public ResponseEntity<RequestEndInterviewDto.Response> requestEndInterview(
@@ -73,6 +99,9 @@ public class CvInterviewController {
     ) {
         CandidateEntity candidate = resolveCurrentCandidate();
         request.setCvId(id);
+        if (request.getSessionId() != null) {
+            billingService.terminateAndBill(request.getSessionId(), "USER_HANGUP");
+        }
         return ResponseEntity.ok(orchestratorService.handleRequestEndInterview(request, candidate));
     }
 }

@@ -17,7 +17,9 @@ export type CvTemplateId =
   | 'compact-ats'
   | 'editorial-slate'
   | 'corporate-gold'
-  | 'startup-innovative';
+  | 'startup-innovative'
+  | 'onyx'
+  ;
 
 export type CvSectionKey = 'summary' | 'experiences' | 'education' | 'skills' | 'languages' | 'projects';
 

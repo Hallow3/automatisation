@@ -2,8 +2,9 @@ import { Type } from '@angular/core';
 import { CvTemplateComponent } from './cv-template.contract';
 import { ModernTemplateComponent } from './modern-template/modern-template.component';
 import { ClassicTemplateComponent } from './classic-template/classic-template.component';
+import { OnyxTemplateComponent } from './onyx-template/onyx-template.component';
 
-export type TemplateKey = 'modern' | 'classic';
+export type TemplateKey = 'modern' | 'classic' | 'onyx';
 
 export interface TemplateDefinition {
   id: TemplateKey;
@@ -18,9 +19,9 @@ export interface TemplateDefinition {
 
 /**
  * Registre officiel des templates de CV.
- * Limité strictement à 2 templates d'exception :
- * 1. modern  : Modèle 2 colonnes avec en-tête immersif et badges modernes
+ * 1. modern : Modèle 2 colonnes avec en-tête immersif et badges modernes
  * 2. classic : Modèle 1 colonne sobre et élégant, 100% optimisé ATS
+ * 3. onyx : Modèle 2 colonnes asymétrique, monogramme + timeline
  */
 export const TEMPLATE_REGISTRY: Record<TemplateKey, TemplateDefinition> = {
   modern: {
@@ -42,12 +43,23 @@ export const TEMPLATE_REGISTRY: Record<TemplateKey, TemplateDefinition> = {
     accent: '#0f172a',
     component: ClassicTemplateComponent,
     features: ['100% compatible robots ATS', 'Structure monocolonne aérée', 'Idéal profils confirmés & seniors']
+  },
+  onyx: {
+    id: 'onyx',
+    name: 'CV Onyx & Timeline',
+    badge: 'Créatif',
+    tag: 'Design, Marketing, Direction & Profils hybrides',
+    description: 'Monogramme d’initiales, filet d’accent graphique et timeline verticale : une identité forte tout en restant lisible et imprimable.',
+    accent: '#7c3aed',
+    component: OnyxTemplateComponent,
+    features: ['Monogramme & filet d’accent', 'Timeline verticale des expériences', 'Colonne latérale compétences / formation / langues']
   }
 };
 
 export const AVAILABLE_TEMPLATES: TemplateDefinition[] = [
   TEMPLATE_REGISTRY.modern,
-  TEMPLATE_REGISTRY.classic
+  TEMPLATE_REGISTRY.classic,
+  TEMPLATE_REGISTRY.onyx
 ];
 
 /**
@@ -56,6 +68,15 @@ export const AVAILABLE_TEMPLATES: TemplateDefinition[] = [
  */
 export function resolveTemplateComponent(templateId?: string | null): Type<CvTemplateComponent> {
   const normalized = (templateId || '').toLowerCase().trim();
+
+  // Famille Onyx
+  if (
+    normalized === 'onyx' ||
+    normalized === 'onyx-timeline' ||
+    normalized === 'timeline'
+  ) {
+    return OnyxTemplateComponent;
+  }
 
   // Famille Classique / ATS
   if (
@@ -73,10 +94,19 @@ export function resolveTemplateComponent(templateId?: string | null): Type<CvTem
 }
 
 /**
- * Résout la clé de template normalisée ('modern' | 'classic')
+ * Résout la clé de template normalisée ('modern' | 'classic' | 'onyx')
  */
 export function normalizeTemplateKey(templateId?: string | null): TemplateKey {
   const normalized = (templateId || '').toLowerCase().trim();
+
+  if (
+    normalized === 'onyx' ||
+    normalized === 'onyx-timeline' ||
+    normalized === 'timeline'
+  ) {
+    return 'onyx';
+  }
+
   if (
     normalized === 'classic' ||
     normalized === 'classique' ||
@@ -86,5 +116,6 @@ export function normalizeTemplateKey(templateId?: string | null): TemplateKey {
   ) {
     return 'classic';
   }
+
   return 'modern';
 }

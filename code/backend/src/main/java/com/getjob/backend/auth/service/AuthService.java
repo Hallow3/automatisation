@@ -69,12 +69,28 @@ public class AuthService {
         return this.googleIdTokenVerifier;
     }
 
+    private static final java.util.Set<String> DISPOSABLE_EMAIL_DOMAINS = java.util.Set.of(
+            "mailinator.com", "yopmail.com", "tempmail.com", "guerrillamail.com",
+            "10minutemail.com", "throwawaymail.com", "sharklasers.com", "dispostable.com",
+            "trashmail.com", "getairmail.com", "mohmal.com", "mytemp.email"
+    );
+
     /**
      * Crée un nouveau compte candidat avec validation d'email requise.
      */
     @Transactional
     public java.util.Map<String, Object> register(RegisterRequest request) {
         String email = request.email().trim().toLowerCase();
+
+        // Blocage des adresses emails jetables pour éviter le pillage des 10 crédits offerts
+        int atIndex = email.indexOf("@");
+        if (atIndex > 0) {
+            String domain = email.substring(atIndex + 1);
+            if (DISPOSABLE_EMAIL_DOMAINS.contains(domain)) {
+                throw new IllegalArgumentException("Les adresses email temporaires ou jetables ne sont pas autorisées pour créer un compte.");
+            }
+        }
+
         if (candidateRepository.existsByEmail(email)) {
             throw new IllegalArgumentException("Un compte existe déjà pour cet email.");
         }
@@ -89,7 +105,7 @@ public class AuthService {
                 .enabled(false)
                 .verificationCode(code)
                 .verificationCodeExpiresAt(Instant.now().plus(15, ChronoUnit.MINUTES))
-                .proCredits(1)
+                .proCredits(10)
                 .build();
 
         CandidateEntity saved = candidateRepository.save(candidate);
@@ -385,7 +401,7 @@ public class AuthService {
                     .passwordHash(passwordEncoder.encode(java.util.UUID.randomUUID().toString()))
                     .role("ROLE_USER")
                     .enabled(true)
-                    .proCredits(1)
+                    .proCredits(10)
                     .build();
 
             CandidateEntity saved = candidateRepository.save(newCandidate);

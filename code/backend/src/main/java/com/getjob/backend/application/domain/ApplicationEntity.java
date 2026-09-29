@@ -32,7 +32,7 @@ public class ApplicationEntity {
     @Column(name = "ai_score", columnDefinition = "TINYINT")
     private Byte aiScore;
 
-    @Column(name = "status", nullable = false, columnDefinition = "ENUM")
+    @Column(name = "status", nullable = false, columnDefinition = "ENUM('pending_ai','review','qualified','rejected','applied','answered','interview','closed','dismissed')")
     private String status;
 
     @Column(name = "decision_reason", columnDefinition = "TEXT")
@@ -57,7 +57,7 @@ public class ApplicationEntity {
     @Column(name = "applied_at")
     private Instant appliedAt;
 
-    @Column(name = "application_channel", columnDefinition = "ENUM")
+    @Column(name = "application_channel", columnDefinition = "ENUM('EMAIL','ATS_URL','MANUAL')")
     private String applicationChannel;
 
     @Column(name = "last_activity_at")

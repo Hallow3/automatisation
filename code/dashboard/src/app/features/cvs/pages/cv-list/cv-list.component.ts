@@ -272,9 +272,15 @@ export class CvListComponent implements OnInit {
     return Math.min(a, b);
   }
 
-  toggleMenu(id: string, event: Event): void {
-    event.stopPropagation();
-    this.menuOpenId = this.menuOpenId === id ? null : id;
+  toggleMenu(id: string | null, event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+    }
+    if (!id || this.menuOpenId === id) {
+      this.menuOpenId = null;
+    } else {
+      this.menuOpenId = id;
+    }
   }
 
   closeMenu(): void {

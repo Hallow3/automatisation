@@ -24,6 +24,18 @@ html,
 body {
   height: 100%;
   overflow-x: hidden;
+  touch-action: manipulation;
+}
+
+/* Eliminate 300ms mobile tap delay and webkit tap gray highlight across all clickable elements */
+button,
+a,
+input,
+select,
+textarea,
+[role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {

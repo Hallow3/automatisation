@@ -15,4 +15,6 @@ public interface CvInterviewSessionRepository extends JpaRepository<CvInterviewS
     Optional<CvInterviewSessionEntity> findFirstByCvIdAndInterviewStatusInOrderByCreatedAtDesc(Long cvId, List<String> statuses);
 
     List<CvInterviewSessionEntity> findByCandidateIdOrderByCreatedAtDesc(Integer candidateId);
+
+    List<CvInterviewSessionEntity> findByInterviewStatusAndLastHeartbeatAtBefore(String interviewStatus, java.time.Instant threshold);
 }

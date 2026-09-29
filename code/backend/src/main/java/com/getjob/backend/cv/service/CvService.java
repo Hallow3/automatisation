@@ -172,12 +172,33 @@ public class CvService {
         CandidateEntity candidate = resolveCurrentCandidate();
         log.info("Création de session d'entretien vocal pour candidate_id={} (email: {})", candidate.getId(), candidate.getEmail());
 
-        // Reprise transparente Gemini Live (go_away) : pas de débit de crédit, pas de quota
+        // ── Monétisation de l'entretien vocal IA : vérification d'éligibilité stricte (min 1 crédit requis) ─────
+        if (candidate.getProCredits() == null || candidate.getProCredits() < 1) {
+            log.warn("Tentative d'entretien vocal sans crédit Pro pour candidate_id={} (crédits: {})",
+                    candidate.getId(), candidate.getProCredits());
+            throw new ResponseStatusException(
+                    HttpStatus.PAYMENT_REQUIRED,
+                    "INSUFFICIENT_CREDITS:L'accès à l'entretien vocal IA requiert au moins 1 crédit (1 minute). Veuillez recharger votre compte."
+            );
+        }
+
+        // Reprise transparente Gemini Live (go_away) : vérification de session active et appartenance
         if (resumptionHandle != null && !resumptionHandle.isBlank()) {
-            log.info("[CvService] Reprise transparente Gemini Live (handle présent) pour candidate_id={} cv_id={}", candidate.getId(), cvId);
+            boolean validResume = false;
+            if (cvId != null && cvId.matches("^\\d+$")) {
+                validResume = findCvEntityForCurrentUser(cvId)
+                        .filter(c -> c.getUpdatedAt() != null && c.getUpdatedAt().isAfter(Instant.now().minus(Duration.ofMinutes(15))))
+                        .isPresent();
+            }
+            if (!validResume) {
+                log.warn("[CvService] Reprise rejetée : CV {} inexistant, non autorisé ou session expirée (>15min) pour candidate_id={}",
+                        cvId, candidate.getId());
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Session de reprise invalide ou expirée.");
+            }
+            log.info("[CvService] Reprise transparente Gemini Live validée pour candidate_id={} cv_id={}", candidate.getId(), cvId);
             Map<String, String> tokenInfo = tokenService.createEphemeralToken();
             tokenInfo.put("cvId", cvId.matches("^\\d+$") ? cvId : "");
-            tokenInfo.put("proCredits", String.valueOf(candidate.getProCredits() != null ? candidate.getProCredits() : 0));
+            tokenInfo.put("proCredits", String.valueOf(candidate.getProCredits()));
             return tokenInfo;
         }
 
@@ -211,31 +232,6 @@ public class CvService {
                 log.info("Reprise autorisée d'une session active récente (< 15 min) pour candidate_id={} cv_id={}",
                         candidate.getId(), cv.getId());
             }
-        }
-
-        // ── Monétisation stricte de l'entretien vocal IA (1 crédit Pro débité au démarrage) ─────
-        if (!isResumingActiveSession) {
-            if (candidate.getProCredits() == null || candidate.getProCredits() < 1) {
-                log.warn("Tentative d'entretien vocal sans crédit Pro pour candidate_id={} (crédits: {})",
-                        candidate.getId(), candidate.getProCredits());
-                throw new ResponseStatusException(
-                        HttpStatus.PAYMENT_REQUIRED,
-                        "INSUFFICIENT_CREDITS:L'accès à l'entretien vocal IA nécessite au moins 1 crédit Pro. Veuillez recharger votre compte."
-                );
-            }
-            boolean consumed = consumeAiCredit(candidate.getId());
-            if (!consumed) {
-                throw new ResponseStatusException(
-                        HttpStatus.PAYMENT_REQUIRED,
-                        "INSUFFICIENT_CREDITS:Solde de crédits Pro insuffisant pour démarrer l'entretien vocal IA."
-                );
-            }
-            // Recharger le candidat après décrémentation atomique en base pour synchroniser l'état
-            candidate = candidateRepository.findById(candidate.getId()).orElse(candidate);
-            candidate.setAiInterviewsUsed((candidate.getAiInterviewsUsed() != null ? candidate.getAiInterviewsUsed() : 0) + 1);
-            candidateRepository.save(candidate);
-            log.info("1 crédit Pro débité avec succès pour la session d'entretien vocal de candidate_id={} (solde restant: {})",
-                    candidate.getId(), candidate.getProCredits());
         }
 
         CvEntity cvEntity;
@@ -405,8 +401,6 @@ public class CvService {
                         "INSUFFICIENT_CREDITS:Solde de crédits Pro insuffisant pour la synthèse IA."
                 );
             }
-            candidate.setProCredits(Math.max(0, (candidate.getProCredits() != null ? candidate.getProCredits() : 1) - 1));
-            candidateRepository.save(candidate);
         }
 
         String systemInstruction = """
@@ -716,37 +710,13 @@ public class CvService {
 
     @Transactional
     public void refundProCredit(Integer candidateId) {
-        candidateRepository.findById(candidateId).ifPresent(c -> {
-            c.setProCredits((c.getProCredits() != null ? c.getProCredits() : 0) + 1);
-            candidateRepository.save(c);
-            log.info("Remboursement de 1 crédit Pro pour candidate_id={} suite à un échec IA", candidateId);
-        });
+        candidateRepository.incrementProCredits(candidateId, 1);
+        log.info("[CvService] 1 crédit Pro remboursé avec succès pour candidate_id={}", candidateId);
     }
 
     @Transactional
     public boolean refundAbortedInterviewSession(String cvId) {
-        CandidateEntity candidate = resolveCurrentCandidate();
-        Optional<CvEntity> cvOpt = findCvEntityForCurrentUser(cvId);
-        if (cvOpt.isEmpty()) {
-            cvOpt = cvRepository.findByCandidateId(candidate.getId()).stream()
-                    .filter(c -> ("IN_PROGRESS".equalsIgnoreCase(c.getInterviewStatus()) || "DRAFT_UPDATED".equalsIgnoreCase(c.getInterviewStatus())))
-                    .max(Comparator.comparing(CvEntity::getUpdatedAt, Comparator.nullsLast(Comparator.naturalOrder())));
-        }
-        if (cvOpt.isPresent()) {
-            CvEntity cv = cvOpt.get();
-            if ("IN_PROGRESS".equalsIgnoreCase(cv.getInterviewStatus()) || "DRAFT_UPDATED".equalsIgnoreCase(cv.getInterviewStatus())) {
-                candidate.setProCredits((candidate.getProCredits() != null ? candidate.getProCredits() : 0) + 1);
-                if (candidate.getAiInterviewsUsed() != null && candidate.getAiInterviewsUsed() > 0) {
-                    candidate.setAiInterviewsUsed(candidate.getAiInterviewsUsed() - 1);
-                }
-                candidateRepository.save(candidate);
-                cv.setInterviewStatus("ABORTED");
-                cvRepository.save(cv);
-                log.info("[CvService] Remboursement automatique effectué pour session interrompue : candidate_id={}, cv_id={}, nouveau_solde={}",
-                        candidate.getId(), cv.getId(), candidate.getProCredits());
-                return true;
-            }
-        }
+        log.info("[CvService] Annulation pour cvId={} : facturation temps réel active, aucun crédit à rembourser.", cvId);
         return false;
     }
 
@@ -892,6 +862,15 @@ public class CvService {
             );
         }
 
+        // Débit atomique de 2 crédits Pro
+        int updatedRows = candidateRepository.decrementProCreditsIfAvailable(candidate.getId(), 2);
+        if (updatedRows == 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.PAYMENT_REQUIRED,
+                    "INSUFFICIENT_CREDITS:Solde de crédits insuffisant pour l'import OCR (2 crédits requis)."
+            );
+        }
+
         String filename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "cv_import.pdf";
         String contentType = file.getContentType();
         if (contentType == null || contentType.isBlank()) {
@@ -902,6 +881,8 @@ public class CvService {
         }
 
         if (!java.util.List.of("application/pdf", "image/png", "image/jpeg", "image/jpg").contains(contentType.toLowerCase())) {
+            // Rembourser les 2 crédits si format invalide
+            candidateRepository.incrementProCredits(candidate.getId(), 2);
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Format de fichier non supporté. Formats acceptés : PDF, PNG, JPG.");
         }
 
@@ -964,10 +945,12 @@ public class CvService {
             CvEntity saved = persistImportedCv(candidate, filename, structuredJson);
             return mapToDto(saved);
         } catch (ResponseStatusException e) {
+            candidateRepository.incrementProCredits(candidate.getId(), 2);
             throw e;
         } catch (Exception e) {
-            log.error("Erreur lors de l'import du CV : {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Échec du traitement du fichier CV.");
+            candidateRepository.incrementProCredits(candidate.getId(), 2);
+            log.error("Erreur lors de l'import du CV pour candidate_id={}: {}", candidate.getId(), e.getMessage());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Échec du traitement du fichier CV. Vos 2 crédits ont été remboursés.");
         }
     }
 

@@ -59,6 +59,24 @@ public class CvInterviewSessionEntity {
     @Builder.Default
     private String interviewStatus = "ACTIVE";
 
+    @Column(name = "started_at")
+    private Instant startedAt;
+
+    @Column(name = "last_heartbeat_at")
+    private Instant lastHeartbeatAt;
+
+    @Column(name = "ended_at")
+    private Instant endedAt;
+
+    @Column(name = "duration_seconds")
+    private Long durationSeconds;
+
+    @Column(name = "billed_credits")
+    private Integer billedCredits;
+
+    @Column(name = "termination_reason", length = 64)
+    private String terminationReason;
+
     @Column(name = "last_activity_at", insertable = false, updatable = false)
     private Instant lastActivityAt;
 

@@ -155,6 +155,9 @@
     </button>
   </div>
 
+  <!-- Transparent Backdrop when a context menu is open -->
+  <div *ngIf="menuOpenId" (click)="closeMenu()" class="fixed inset-0 z-30 bg-transparent"></div>
+
   <!-- ══════════════════════════════════════════════════════════════════════
        1. VUE GRILLE COMPACTE (Avec aperçu réel à l'intérieur)
   ═══════════════════════════════════════════════════════════════════════ -->
@@ -162,7 +165,8 @@
     
     <article
       *ngFor="let item of paginatedCvs()"
-      class="group flex flex-col rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs hover:border-brand-300 hover:shadow-md transition-all duration-150">
+      class="group relative flex flex-col rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs hover:border-brand-300 hover:shadow-md transition-all duration-150"
+      [class.z-40]="menuOpenId === item.id">
       
       <!-- Real CV Miniature Preview (Click to open visualizer) -->
       <div
@@ -205,7 +209,7 @@
           <!-- Dropdown popup -->
           <div
             *ngIf="menuOpenId === item.id"
-            class="absolute right-0 top-8 z-30 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg animate-fade-in">
+            class="absolute right-0 top-8 z-50 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl ring-1 ring-black/5 animate-fade-in">
             <button
               type="button"
               (click)="downloadCvPdf(item, $event)"
@@ -270,11 +274,12 @@
   <!-- ══════════════════════════════════════════════════════════════════════
        2. VUE LISTE COMPACTE (Tableau moderne ultra-lisible)
   ═══════════════════════════════════════════════════════════════════════ -->
-  <div *ngIf="!loading() && viewMode() === 'list' && filteredCvs().length > 0" class="rounded-2xl border border-slate-200 bg-white shadow-xs divide-y divide-slate-100 overflow-hidden">
+  <div *ngIf="!loading() && viewMode() === 'list' && filteredCvs().length > 0" class="rounded-2xl border border-slate-200 bg-white shadow-xs divide-y divide-slate-100">
     
     <div
       *ngFor="let item of paginatedCvs()"
-      class="group flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 hover:bg-slate-50/80 transition">
+      class="group relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 hover:bg-slate-50/80 transition"
+      [class.z-40]="menuOpenId === item.id">
       
       <!-- Left: Mini preview + Info -->
       <div class="flex items-center gap-3.5 min-w-0 flex-1">
@@ -341,7 +346,7 @@
           <!-- Dropdown popup (Clean text without icons, Traduire instead of Télécharger) -->
           <div
             *ngIf="menuOpenId === item.id"
-            class="absolute right-0 top-9 z-30 w-40 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg animate-fade-in">
+            class="absolute right-0 top-9 z-50 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl ring-1 ring-black/5 animate-fade-in">
             <button
               type="button"
               (click)="openTranslateModal(item, $event)"

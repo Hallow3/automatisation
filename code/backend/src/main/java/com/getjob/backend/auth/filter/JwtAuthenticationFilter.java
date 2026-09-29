@@ -54,10 +54,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
 
-        // 1. Extraire le token depuis les cookies
-        String token = extractTokenFromCookie(request).orElse(null);
+        // 1. Extraire le token depuis les cookies, header ou paramètre d'URL
+        String token = extractToken(request).orElse(null);
 
-        // 2. Pas de cookie ou token vide → on passe sans authentifier
+        // 2. Pas de token → on passe sans authentifier
         if (token == null || token.isBlank()) {
             filterChain.doFilter(request, response);
             return;
@@ -106,14 +106,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Lit le cookie "jwt_token" dans la requête.
-     * Retourne Optional.empty() si absent.
+     * Lit le token JWT depuis les cookies, le header Authorization: Bearer,
+     * ou le paramètre d'URL "?token=..." (pour EventSource / SSE).
      */
-    private Optional<String> extractTokenFromCookie(HttpServletRequest request) {
-        if (request.getCookies() == null) return Optional.empty();
-        return Arrays.stream(request.getCookies())
-                .filter(c -> AuthController.JWT_COOKIE_NAME.equals(c.getName()))
-                .map(Cookie::getValue)
-                .findFirst();
+    private Optional<String> extractToken(HttpServletRequest request) {
+        // 1. Cookies
+        if (request.getCookies() != null) {
+            Optional<String> fromCookie = Arrays.stream(request.getCookies())
+                    .filter(c -> AuthController.JWT_COOKIE_NAME.equals(c.getName()))
+                    .map(Cookie::getValue)
+                    .filter(v -> v != null && !v.isBlank())
+                    .findFirst();
+            if (fromCookie.isPresent()) return fromCookie;
+        }
+
+        // 2. Header Authorization Bearer
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String bearer = authHeader.substring(7).trim();
+            if (!bearer.isBlank()) return Optional.of(bearer);
+        }
+
+        // 3. Paramètre d'URL (indispensable pour EventSource natif du navigateur)
+        String paramToken = request.getParameter("token");
+        if (paramToken != null && !paramToken.isBlank()) {
+            return Optional.of(paramToken.trim());
+        }
+
+        return Optional.empty();
     }
 }

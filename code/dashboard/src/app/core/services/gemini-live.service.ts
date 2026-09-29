@@ -70,6 +70,24 @@ export class GeminiLiveService {
   public isStarting = signal<boolean>(false);
   public isWsReady = signal<boolean>(false);
 
+  // ── Signaux de facturation au temps réel (1 crédit = 1 minute) ──
+  public liveElapsedSeconds = signal<number>(0);
+  public liveRemainingSeconds = signal<number>(0);
+  public liveRemainingCredits = signal<number>(0);
+
+  public liveDurationFormatted = computed(() => {
+    const s = this.liveElapsedSeconds();
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  });
+
+  public liveRemainingMinutesFormatted = computed(() => {
+    const rem = this.liveRemainingSeconds();
+    const mins = Math.max(0, Math.ceil(rem / 60));
+    return `${mins} min`;
+  });
+
   // ── Signaux State Machine & Orchestrateur V2 (Spec V2) ──
   public currentV2SessionId = signal<string | null>(null);
   public currentState = signal<string>('IDENTITY');
@@ -83,7 +101,7 @@ export class GeminiLiveService {
   private isAiSpeakingCooldown = false;
   private echoCooldownTimer: any = null;
   private inactivityTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly inactivityTimeoutMs = 90_000;
+  private readonly inactivityTimeoutMs = 240_000;
   private _startAbortController: AbortController | null = null;
 
   // Verrou d'exclusion mutuelle et sas acoustique initial :
@@ -105,6 +123,55 @@ export class GeminiLiveService {
   private isResumingConnection = false;
   private currentCandidateFirstName = '';
   private cvStreamSubscription: Subscription | null = null;
+  private heartbeatTimer: any = null;
+  private elapsedTimer: any = null;
+
+  private startLiveTimers(): void {
+    this.stopLiveTimers();
+    this.liveElapsedSeconds.set(0);
+    const credits = this.authService.currentUser()?.proCredits ?? 10;
+    this.liveRemainingSeconds.set(credits * 60);
+    this.liveRemainingCredits.set(credits);
+
+    // Timer local chaque seconde pour la réactivité visuelle
+    this.elapsedTimer = setInterval(() => {
+      this.liveElapsedSeconds.update(v => v + 1);
+      this.liveRemainingSeconds.update(v => Math.max(0, v - 1));
+    }, 1000);
+
+    // Heartbeat backend toutes les 15 secondes pour synchroniser l'autorité de facturation
+    this.heartbeatTimer = setInterval(() => {
+      const sessionId = this.currentV2SessionId();
+      if (!sessionId || !this.hasStarted()) return;
+
+      this.apiService.sendHeartbeat(this.currentCvId, sessionId).subscribe({
+        next: async (res) => {
+          if (res?.status === 'EXPIRED') {
+            console.warn('[GeminiLive] Bail expiré par le serveur : crédits épuisés. Finalisation et sauvegarde du CV...');
+            await this.handleExpiredSession();
+          } else if (res) {
+            this.liveElapsedSeconds.set(res.elapsedSeconds);
+            this.liveRemainingSeconds.set(res.remainingSeconds);
+            this.liveRemainingCredits.set(res.remainingCredits);
+          }
+        },
+        error: (err) => {
+          console.warn('[GeminiLive] Échec heartbeat non bloquant :', err);
+        }
+      });
+    }, 15000);
+  }
+
+  private stopLiveTimers(): void {
+    if (this.elapsedTimer) {
+      clearInterval(this.elapsedTimer);
+      this.elapsedTimer = null;
+    }
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+  }
 
   setMuted(muted: boolean): void {
     this.isMutedSignal.set(muted);
@@ -285,6 +352,9 @@ export class GeminiLiveService {
       try {
         const v2Session = await firstValueFrom(this.apiService.initOrResumeV2Session(this.currentCvId));
         if (v2Session) {
+          if (v2Session.cvId) {
+            this.currentCvId = v2Session.cvId;
+          }
           this.currentV2SessionId.set(v2Session.sessionId);
           this.currentState.set(v2Session.currentState);
           this.sectionStatus.set(v2Session.sectionStatus);
@@ -465,30 +535,8 @@ export class GeminiLiveService {
    * arrêtée de manière anormale avant toute utilisation effective du service vocal.
    */
   triggerRefundIfAborted(reason: string = 'interruption'): void {
-    if (this.hasMeaningfulUsage || this.state() === 'COMPLETED') return;
-    const targetCvId = this.currentCvId;
-    if (!targetCvId || targetCvId === 'cv_default' || targetCvId === 'new') return;
-
-    console.warn(`[GeminiLive] Déclenchement de remboursement automatique (${reason}) pour cvId=${targetCvId}`);
-    this.isRefunding.set(true);
-    this.apiService.refundAbortedSession(targetCvId).subscribe({
-      next: (res) => {
-        if (res?.refunded) {
-          console.log('[GeminiLive] 1 crédit Pro remboursé avec succès suite à l\'incident technique.');
-          this.paymentService.fetchProStatus();
-          this.authService.refreshCurrentUser().subscribe({
-            next: () => this.isRefunding.set(false),
-            error: () => this.isRefunding.set(false)
-          });
-        } else {
-          this.isRefunding.set(false);
-        }
-      },
-      error: (e) => {
-        console.warn('[GeminiLive] Erreur lors de la notification de remboursement automatique:', e);
-        this.isRefunding.set(false);
-      }
-    });
+    // La facturation s'effectue désormais au temps réel consommé en backend (aucun remboursement nécessaire)
+    this.isRefunding.set(false);
   }
 
   private async attemptSeamlessResume(): Promise<void> {
@@ -531,11 +579,12 @@ export class GeminiLiveService {
     }
 
     try {
-      // 1. Démarrer le microphone avec la barrière anti-écho
+      // 1. Démarrer le microphone avec transmission continue et réarmement d'activité
       await this.audioEngine.startMicrophone((base64Pcm) => {
-        if (this.initialGreetingPending || this.state() === 'AI_SPEAKING' || this.isAiSpeakingCooldown || this.isMutedSignal()) {
+        if (this.initialGreetingPending || this.isMutedSignal()) {
           return;
         }
+        this.clearInactivityTimer();
         this.wsClient.sendAudioChunk(base64Pcm);
       });
 
@@ -552,6 +601,7 @@ export class GeminiLiveService {
       this.hasStarted.set(true);
       this.isStarting.set(false);
       this.userWantsToStart = false;
+      this.startLiveTimers();
     } catch (err: any) {
       this.isStarting.set(false);
       this.userWantsToStart = false;
@@ -577,6 +627,10 @@ export class GeminiLiveService {
   }
 
   stopSession(): void {
+    this.stopLiveTimers();
+    try {
+      this.authService.refreshCurrentUser().subscribe();
+    } catch (ignored) {}
     this.pendingProCredits = null;
     this.shouldRefreshProStatusOnSetup = false;
     this.initialGreetingPending = false;
@@ -769,6 +823,7 @@ export class GeminiLiveService {
    */
   private appendTranscriptChunk(role: 'user' | 'ai', chunk: string): void {
     if (!chunk) return;
+    this.clearInactivityTimer();
     this.lineBuffers[role] += chunk;
 
     // Détection des phrases ou lignes complètes (terminées par . ? ! : ou saut de ligne)
@@ -967,11 +1022,33 @@ export class GeminiLiveService {
     this.state.set('ERROR');
   }
 
+  public async handleExpiredSession(): Promise<void> {
+    const targetCvId = this.currentCvId;
+    console.log('[GeminiLive] Fin de temps ou expiration : sauvegarde d\'urgence du CV en cours...', targetCvId);
+
+    // 1. Sauvegarde préalable du brouillon actuel
+    if (targetCvId && targetCvId !== 'cv_default' && targetCvId !== 'new') {
+      try {
+        await firstValueFrom(this.apiService.saveDraft(targetCvId, this.currentDraft()));
+      } catch (e) {
+        console.warn('[GeminiLive] Sauvegarde draft à expiration non bloquante:', e);
+      }
+    }
+
+    // 2. Clôture de l'entretien et synthèse IA du CV à partir de la conversation
+    await this.handleCompleteInterview();
+
+    // 3. Rafraîchissement des soldes
+    this.paymentService.fetchProStatus();
+    this.authService.refreshCurrentUser().subscribe();
+    this.errorMessage.set(null);
+  }
+
   private armInactivityTimer(): void {
     this.clearInactivityTimer();
-    this.inactivityTimer = setTimeout(() => {
-      console.warn('[GeminiLive] Délai d\'inactivité atteint.');
-      this.stopSession();
+    this.inactivityTimer = setTimeout(async () => {
+      console.warn('[GeminiLive] Délai d\'inactivité prolongé atteint (silence total de 4 min). Finalisation et sauvegarde du CV...');
+      await this.handleExpiredSession();
     }, this.inactivityTimeoutMs);
   }
 

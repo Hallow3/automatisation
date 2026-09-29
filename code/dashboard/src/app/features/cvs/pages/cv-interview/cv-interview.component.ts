@@ -65,16 +65,21 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
   auditReport = this.geminiService.auditReport;
   hasStarted = this.geminiService.hasStarted;
   isStarting = this.geminiService.isStarting;
-  isWsReady = this.geminiService.isWsReady;
   isSynthesizing = this.geminiService.isSynthesizing;
+  isWsReady = this.geminiService.isWsReady;
+
+  // Signaux temps réel de facturation et durée
+  liveElapsedSeconds = this.geminiService.liveElapsedSeconds;
+  liveRemainingSeconds = this.geminiService.liveRemainingSeconds;
+  liveRemainingCredits = this.geminiService.liveRemainingCredits;
+  liveDurationFormatted = this.geminiService.liveDurationFormatted;
+  liveRemainingMinutesFormatted = this.geminiService.liveRemainingMinutesFormatted;
 
   readonly cvPreviewData = computed<CvData>(() => this.getCvPreviewData());
 
   isAiSpeaking = computed(() => this.state() === 'AI_SPEAKING');
   isUserSpeaking = computed(() => this.state() === 'LISTENING');
   isConnected = computed(() => this.state() === 'LISTENING' || this.state() === 'AI_SPEAKING');
-  audioBars = signal<number[]>([0.15, 0.2, 0.15, 0.2, 0.15, 0.2, 0.15, 0.2, 0.15, 0.2]);
-  private animInterval: any = null;
 
   startInterview(): void {
     const credits = this.authService.currentUser()?.proCredits ?? 0;
@@ -207,40 +212,6 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
       this.cvId = idParam;
     }
 
-    let tick = 0;
-    this.animInterval = setInterval(() => {
-      tick++;
-      if (this.isAiSpeaking()) {
-        this.audioBars.set([
-          0.3 + 0.5 * Math.abs(Math.sin(tick * 0.4)),
-          0.4 + 0.6 * Math.abs(Math.cos(tick * 0.3)),
-          0.5 + 0.5 * Math.abs(Math.sin(tick * 0.5 + 1)),
-          0.2 + 0.7 * Math.abs(Math.cos(tick * 0.4 + 2)),
-          0.6 + 0.4 * Math.abs(Math.sin(tick * 0.6 + 0.5)),
-          0.4 + 0.5 * Math.abs(Math.cos(tick * 0.35)),
-          0.3 + 0.6 * Math.abs(Math.sin(tick * 0.45)),
-          0.5 + 0.4 * Math.abs(Math.cos(tick * 0.5)),
-          0.3 + 0.5 * Math.abs(Math.sin(tick * 0.3)),
-          0.2 + 0.4 * Math.abs(Math.cos(tick * 0.25))
-        ]);
-      } else if (this.isUserSpeaking()) {
-        this.audioBars.set([
-          0.2 + 0.4 * Math.abs(Math.sin(tick * 0.25)),
-          0.3 + 0.5 * Math.abs(Math.cos(tick * 0.2)),
-          0.4 + 0.5 * Math.abs(Math.sin(tick * 0.3 + 1)),
-          0.5 + 0.4 * Math.abs(Math.cos(tick * 0.35 + 2)),
-          0.3 + 0.5 * Math.abs(Math.sin(tick * 0.3 + 0.5)),
-          0.4 + 0.4 * Math.abs(Math.cos(tick * 0.25)),
-          0.2 + 0.5 * Math.abs(Math.sin(tick * 0.2)),
-          0.3 + 0.4 * Math.abs(Math.cos(tick * 0.3)),
-          0.2 + 0.3 * Math.abs(Math.sin(tick * 0.2)),
-          0.15 + 0.2 * Math.abs(Math.cos(tick * 0.15))
-        ]);
-      } else {
-        this.audioBars.set([0.15, 0.2, 0.15, 0.2, 0.15, 0.2, 0.15, 0.2, 0.15, 0.2]);
-      }
-    }, 100);
-
     this.geminiService.interviewCompleted$.pipe(
       takeUntilDestroyed(this.destroyRef)
     ).subscribe(() => {
@@ -256,9 +227,6 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    if (this.animInterval) {
-      clearInterval(this.animInterval);
-    }
     this.geminiService.stopSession();
   }
 

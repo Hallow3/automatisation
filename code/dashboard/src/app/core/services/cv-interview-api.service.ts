@@ -31,6 +31,15 @@ export interface V2TurnResponse {
   sectionTransitionOccurred: boolean;
 }
 
+export interface HeartbeatResponse {
+  sessionId: string;
+  status: string;
+  elapsedSeconds: number;
+  remainingSeconds: number;
+  remainingCredits: number;
+  message: string;
+}
+
 export interface V2RequestEndResponse {
   approved: boolean;
   reason: string;
@@ -54,6 +63,10 @@ export class CvInterviewApiService {
     return this.http.post<V2TurnResponse>(`${this.base}/${cvId}/interview/v2/session`, {});
   }
 
+  sendHeartbeat(cvId: string, sessionId: string): Observable<HeartbeatResponse> {
+    return this.http.post<HeartbeatResponse>(`${this.base}/${cvId}/interview/v2/heartbeat`, { cvId, sessionId });
+  }
+
   syncTurnV2(cvId: string, payload: { sessionId: string; userTurn?: string; aiTurn?: string }): Observable<V2TurnResponse> {
     return this.http.post<V2TurnResponse>(`${this.base}/${cvId}/interview/v2/turn`, payload);
   }
@@ -72,10 +85,6 @@ export class CvInterviewApiService {
 
   synthesize(cvId: string, transcript: string): Observable<any> {
     return this.http.post<any>(`${this.base}/${cvId}/synthesize`, { transcript });
-  }
-
-  refundAbortedSession(cvId: string): Observable<{ refunded: boolean }> {
-    return this.http.post<{ refunded: boolean }>(`${this.base}/${cvId}/interview/refund-aborted`, {});
   }
 
   getCv(cvId: string): Observable<any> {

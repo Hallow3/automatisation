@@ -20,7 +20,8 @@ export type CvThumbnailLayout =
   | 'word-yellow'
   | 'word-peyton'
   | 'word-sidebar'
-  | 'word-ats';
+  | 'word-ats'
+  | 'onyx';
 
 @Component({
   selector: 'app-cv-thumbnail',
