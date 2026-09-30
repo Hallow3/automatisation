@@ -59,10 +59,10 @@ public class GeminiLiveTokenService {
     @Value("${gemini.api-key}")
     private String geminiApiKeySingle;
 
-    @Value("${gemini.live.model:gemini-3.1-flash-live-preview}")
+    @Value("${gemini.live.model:gemini-3.8-live}")
     private String geminiModel;
 
-    @Value("${gemini.model:gemini-3.5-flash-lite}")
+    @Value("${gemini.model:gemini-3.5-flash}")
     private String geminiTextModel;
 
 
@@ -158,7 +158,7 @@ public class GeminiLiveTokenService {
     }
 
     /**
-     * Génère une réponse structurée (JSON) via Gemini 3.1 Flash avec rotation de clés et failover.
+     * Génère une réponse structurée (JSON) avec rotation de clés et failover.
      */
     public String generateStructuredContent(String systemInstruction, String userPrompt) {
         if (apiKeys.isEmpty()) {
@@ -231,7 +231,7 @@ public class GeminiLiveTokenService {
         if (geminiTextModel != null && !geminiTextModel.isBlank()) {
             return geminiTextModel.trim();
         }
-        return "gemini-3.5-flash-lite";
+        return "gemini-3.5-flash";
     }
 
     private String callGeminiGenerateContent(String apiKey, int keyIndex, String systemInstruction, String userPrompt, boolean asJson) {

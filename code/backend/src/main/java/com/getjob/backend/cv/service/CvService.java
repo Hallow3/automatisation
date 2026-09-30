@@ -182,16 +182,16 @@ public class CvService {
             );
         }
 
-        // Reprise transparente Gemini Live (go_away) : vérification de session active et appartenance
+        // Le handle est validé par Gemini ; ici on vérifie uniquement l'appartenance du CV.
+        // Un entretien long peut ne pas avoir modifié updatedAt depuis plus de 15 minutes.
         if (resumptionHandle != null && !resumptionHandle.isBlank()) {
             boolean validResume = false;
             if (cvId != null && cvId.matches("^\\d+$")) {
                 validResume = findCvEntityForCurrentUser(cvId)
-                        .filter(c -> c.getUpdatedAt() != null && c.getUpdatedAt().isAfter(Instant.now().minus(Duration.ofMinutes(15))))
                         .isPresent();
             }
             if (!validResume) {
-                log.warn("[CvService] Reprise rejetée : CV {} inexistant, non autorisé ou session expirée (>15min) pour candidate_id={}",
+                log.warn("[CvService] Reprise rejetée : CV {} inexistant ou non autorisé pour candidate_id={}",
                         cvId, candidate.getId());
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Session de reprise invalide ou expirée.");
             }

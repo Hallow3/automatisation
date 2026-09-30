@@ -11,7 +11,7 @@ import java.util.*;
 
 /**
  * LLM Observateur et Extracteur silencieux (Spec V2, Section 8 & 9).
- * Analyse les tours de transcription en tâche de fond via Gemini (gemini-3.5-flash-lite),
+ * Analyse les tours de transcription en tâche de fond via le modèle texte Gemini configuré,
  * extrait les données factuelles structurées en JSON strict,
  * et évalue la complétude de la section active.
  */

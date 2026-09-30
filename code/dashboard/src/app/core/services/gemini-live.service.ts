@@ -122,6 +122,12 @@ export class GeminiLiveService {
 
   private hasMeaningfulUsage = false;
   private isResumingConnection = false;
+  private isRecoveringConnection = false;
+  private resumeUsedHandle = false;
+  private resumeAttempts = 0;
+  private readonly maxResumeAttempts = 3;
+  private resumeTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastWsSetupAt = 0;
   private currentCandidateFirstName = '';
   private cvStreamSubscription: Subscription | null = null;
   private heartbeatTimer: any = null;
@@ -338,7 +344,7 @@ export class GeminiLiveService {
       }
 
       const token = session?.token;
-      const model = session?.model || 'gemini-3.1-flash-live-preview';
+      const model = session?.model || 'gemini-3.8-live';
 
       if (session?.cvId) {
         this.currentCvId = session.cvId;
@@ -422,6 +428,20 @@ export class GeminiLiveService {
     return {
       onSetupComplete: () => {
         this.isWsReady.set(true);
+        this.lastWsSetupAt = Date.now();
+        if (this.isRecoveringConnection) {
+          this.isRecoveringConnection = false;
+          this.isResumingConnection = false;
+          this.errorMessage.set(null);
+          if (this.hasStarted()) {
+            this.state.set('LISTENING');
+            if (!this.resumeUsedHandle && this.latestControlMessage()) {
+              this.wsClient.sendClientContent(this.latestControlMessage(), false);
+            }
+            this.armInactivityTimer();
+            return;
+          }
+        }
 
         // Synchronisation effective des crédits uniquement après confirmation de la connexion WebSocket
         if (this.pendingProCredits !== null) {
@@ -486,16 +506,12 @@ export class GeminiLiveService {
       },
       onError: (err: string) => {
         this.finalizeCurrentTurn();
-        this.pendingProCredits = null;
-        this.shouldRefreshProStatusOnSetup = false;
         this.initialGreetingPending = false;
         this.isStarting.set(false);
-        this.state.set('TEMPORARILY_UNAVAILABLE');
-        this.triggerRefundIfAborted('ws_error: ' + err);
-        this.setError('Le service vocal n\'est pas disponible pour le moment. Votre progression a été conservée.');
+        this.isWsReady.set(false);
+        console.warn('[GeminiLive] Connexion Live interrompue:', err);
       },
       onSessionResumptionUpdate: (handle: string) => {
-        console.log('[GeminiLive] Handle de reprise de session mis à jour:', handle);
         this.wsClient.setResumptionHandle(handle);
       },
       onGoAway: (timeLeft?: string) => {
@@ -504,25 +520,35 @@ export class GeminiLiveService {
       },
       onClose: (code: number) => {
         this.finalizeCurrentTurn();
-        this.pendingProCredits = null;
-        this.shouldRefreshProStatusOnSetup = false;
+        if (this.lastUserTurnText.trim()) void this.syncCurrentTurnToBackend();
         this.initialGreetingPending = false;
         this.isStarting.set(false);
+        this.isWsReady.set(false);
 
-        // 1. Reprise de session transparente si signal go_away reçu et handle présent
-        if (this.isResumingConnection && this.wsClient.getResumptionHandle() && this.state() !== 'COMPLETED' && this.state() !== 'USER_STOPPED') {
-          console.log('[GeminiLive] Bascule transparente vers une nouvelle session avec jeton de reprise...');
-          this.isResumingConnection = false;
-          this.attemptSeamlessResume();
+        if (this.state() === 'COMPLETED' || this.state() === 'USER_STOPPED') return;
+
+        const setupAgeMs = this.lastWsSetupAt ? Date.now() - this.lastWsSetupAt : 0;
+        if (this.lastWsSetupAt && setupAgeMs > 30_000) this.resumeAttempts = 0;
+        // Un handle qui échoue aussitôt après le setup ne doit pas être réutilisé.
+        if (this.resumeUsedHandle && (!this.lastWsSetupAt || setupAgeMs < 30_000)) {
+          this.wsClient.setResumptionHandle(null);
+        }
+        if ((this.isResumingConnection || [1006, 1011, 1012, 1013].includes(code)
+            || (code === 1008 && this.isRecoveringConnection && this.resumeUsedHandle))
+            && this.scheduleResume()) {
           return;
         }
 
-        // 2. Remboursement automatique en cas de rupture de connexion anormale avant usage réel
         if (code !== 1000 && !this.hasMeaningfulUsage) {
           this.triggerRefundIfAborted(`ws_close_${code}`);
         }
 
-        if (this.state() !== 'COMPLETED' && this.state() !== 'USER_STOPPED' && code !== 1000 && this.state() !== 'ERROR') {
+        this.stopLiveTimers();
+        this.hasStarted.set(false);
+        this.isRecoveringConnection = false;
+        this.pendingProCredits = null;
+        this.shouldRefreshProStatusOnSetup = false;
+        if (this.state() !== 'ERROR') {
           this.state.set('TEMPORARILY_UNAVAILABLE');
           this.setError('Le service vocal n\'est pas disponible pour le moment. Votre progression a été conservée.');
         }
@@ -539,24 +565,42 @@ export class GeminiLiveService {
     this.isRefunding.set(false);
   }
 
+  private scheduleResume(): boolean {
+    if (this.resumeAttempts >= this.maxResumeAttempts || this.resumeTimer) return false;
+    this.resumeAttempts++;
+    this.isRecoveringConnection = true;
+    this.state.set('CONNECTING');
+    const cvId = this.currentCvId;
+    const delay = 1000 * (2 ** (this.resumeAttempts - 1)) + Math.floor(Math.random() * 250);
+    this.resumeTimer = setTimeout(() => {
+      this.resumeTimer = null;
+      if (this.currentCvId === cvId && this.isRecoveringConnection && this.state() === 'CONNECTING') {
+        void this.attemptSeamlessResume();
+      }
+    }, delay);
+    return true;
+  }
+
   private async attemptSeamlessResume(): Promise<void> {
     try {
       const handle = this.wsClient.getResumptionHandle();
-      console.log('[GeminiLive] Obtention d\'un jeton de session pour reprise transparente (sans débit de crédit)...');
       const session = await firstValueFrom(this.apiService.createSession(this.currentCvId, handle));
-      if (session?.token) {
-        const token = session.token;
-        const model = session.model || 'gemini-3.1-flash-live-preview';
-        this.wsClient.connect(
-          token,
-          model,
-          this.buildWsCallbacks(this.currentCandidateFirstName),
-          this.currentCandidateFirstName
-        );
-      }
+      if (!this.isRecoveringConnection || this.state() !== 'CONNECTING') return;
+      if (!session?.token) throw new Error('Jeton de reprise absent.');
+      this.resumeUsedHandle = !!handle;
+      this.wsClient.connect(session.token, session.model || 'gemini-3.8-live',
+        this.buildWsCallbacks(this.currentCandidateFirstName), this.currentCandidateFirstName);
     } catch (e) {
+      if (!this.isRecoveringConnection) return;
       console.warn('[GeminiLive] Échec de la reprise transparente:', e);
-      this.setError('Connexion interrompue avec le serveur.');
+      this.wsClient.setResumptionHandle(null);
+      if (!this.scheduleResume()) {
+        this.stopLiveTimers();
+        this.hasStarted.set(false);
+        this.isRecoveringConnection = false;
+        this.state.set('TEMPORARILY_UNAVAILABLE');
+        this.setError('Le service vocal est indisponible. Votre brouillon est sauvegardé pour reprendre.');
+      }
     }
   }
 
@@ -628,6 +672,10 @@ export class GeminiLiveService {
 
   stopSession(): void {
     this.stopLiveTimers();
+    if (this.resumeTimer) {
+      clearTimeout(this.resumeTimer);
+      this.resumeTimer = null;
+    }
     try {
       this.authService.refreshCurrentUser().subscribe();
     } catch (ignored) {}
@@ -636,6 +684,11 @@ export class GeminiLiveService {
     this.initialGreetingPending = false;
     this.isSessionStarting = false;
     this.isResumingConnection = false;
+    this.isRecoveringConnection = false;
+    this.resumeUsedHandle = false;
+    this.resumeAttempts = 0;
+    this.lastWsSetupAt = 0;
+    this.wsClient.setResumptionHandle(null);
     this.userWantsToStart = false;
     this.hasStarted.set(false);
     this.isStarting.set(false);

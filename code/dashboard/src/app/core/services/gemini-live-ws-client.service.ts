@@ -183,6 +183,7 @@ export class GeminiLiveWsClientService {
             functionDeclarations: [
               {
                 name: 'request_end_interview',
+                behavior: 'BLOCKING',
                 description: 'Demande la fin anticipée de l\'entretien UNIQUEMENT lorsque l\'utilisateur exprime explicitement qu\'il souhaite arrêter, quitter ou reprendre plus tard.',
                 parameters: {
                   type: 'OBJECT',
@@ -205,13 +206,10 @@ export class GeminiLiveWsClientService {
       }
     };
 
-    // ── Point 1: Handle de reprise de session Gemini Live ──
-    if (this.currentResumptionHandle) {
-      setupPayload.setup.sessionResumption = {
-        handle: this.currentResumptionHandle
-      };
-      console.log('[GeminiWsClient] Envoi setup avec sessionResumption handle:', this.currentResumptionHandle);
-    }
+    // Google n'envoie un handle de reprise que si cette option est active dès le premier setup.
+    setupPayload.setup.sessionResumption = this.currentResumptionHandle
+      ? { handle: this.currentResumptionHandle }
+      : {};
 
     this.ws.send(JSON.stringify(setupPayload));
   }
@@ -243,9 +241,10 @@ export class GeminiLiveWsClientService {
       if (resumptionUpdate) {
         const handle = resumptionUpdate.newHandle || resumptionUpdate.new_handle || resumptionUpdate.handle;
         if (handle) {
-          console.log('[GeminiWsClient] Jeton SessionResumptionUpdate reçu:', handle);
           this.currentResumptionHandle = handle;
           this.callbacks?.onSessionResumptionUpdate?.(handle);
+        } else if (resumptionUpdate.resumable === false) {
+          this.currentResumptionHandle = null;
         }
       }
 
