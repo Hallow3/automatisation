@@ -7,7 +7,8 @@ export class AudioPcmEngineService {
   // Capture Microphone (16 kHz PCM Linear 16-bit Mono)
   private audioCtx: AudioContext | null = null;
   private mediaStream: MediaStream | null = null;
-  private scriptNode: ScriptProcessorNode | null = null;
+  private captureNode: AudioWorkletNode | null = null;
+  private mediaSourceNode: MediaStreamAudioSourceNode | null = null;
   private silentGainNode: GainNode | null = null;
 
   // Lecture Audio (24 kHz PCM 16-bit)
@@ -51,26 +52,27 @@ export class AudioPcmEngineService {
       this.audioCtx = new AudioCtxClass({ sampleRate: 16000 });
       await this.audioCtx.resume();
 
-      const source = this.audioCtx.createMediaStreamSource(this.mediaStream);
-      this.scriptNode = this.audioCtx.createScriptProcessor(4096, 1, 1);
+      await this.audioCtx.audioWorklet.addModule(
+        new URL('audio/pcm-capture-processor-v1.js', document.baseURI).toString()
+      );
+      this.mediaSourceNode = this.audioCtx.createMediaStreamSource(this.mediaStream);
+      this.captureNode = new AudioWorkletNode(this.audioCtx, 'pcm-capture-processor');
 
-      this.scriptNode.onaudioprocess = (event) => {
+      this.captureNode.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
         if (this.isMuted) return;
-        const inputData = event.inputBuffer.getChannelData(0);
-        const pcm16 = this.floatTo16BitPCM(inputData);
-        const base64 = this.arrayBufferToBase64(pcm16.buffer);
-        onAudioChunk(base64);
+        onAudioChunk(this.arrayBufferToBase64(event.data));
       };
 
       this.silentGainNode = this.audioCtx.createGain();
       this.silentGainNode.gain.value = 0;
 
-      source.connect(this.scriptNode);
-      this.scriptNode.connect(this.silentGainNode);
+      this.mediaSourceNode.connect(this.captureNode);
+      this.captureNode.connect(this.silentGainNode);
       this.silentGainNode.connect(this.audioCtx.destination);
     } catch (err) {
+      this.stopMicrophone();
       console.error('[AudioEngine] Erreur accès microphone:', err);
-      throw new Error('Impossible d’accéder au microphone. Vérifiez vos autorisations.');
+      throw new Error('Impossible de démarrer le microphone. Vérifiez les autorisations et rechargez la page.');
     }
   }
 
@@ -82,9 +84,14 @@ export class AudioPcmEngineService {
       this.mediaStream.getTracks().forEach((t) => t.stop());
       this.mediaStream = null;
     }
-    if (this.scriptNode) {
-      this.scriptNode.disconnect();
-      this.scriptNode = null;
+    if (this.mediaSourceNode) {
+      this.mediaSourceNode.disconnect();
+      this.mediaSourceNode = null;
+    }
+    if (this.captureNode) {
+      this.captureNode.port.onmessage = null;
+      this.captureNode.disconnect();
+      this.captureNode = null;
     }
     if (this.silentGainNode) {
       this.silentGainNode.disconnect();
@@ -226,15 +233,6 @@ export class AudioPcmEngineService {
   }
 
   // --- Utilitaires de conversion ---
-
-  private floatTo16BitPCM(input: Float32Array): Int16Array {
-    const output = new Int16Array(input.length);
-    for (let i = 0; i < input.length; i++) {
-      const s = Math.max(-1, Math.min(1, input[i]));
-      output[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-    }
-    return output;
-  }
 
   private arrayBufferToBase64(buffer: ArrayBuffer): string {
     let binary = '';
