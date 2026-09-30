@@ -3,6 +3,8 @@ package com.getjob.backend.cv.interview.controller;
 import com.getjob.backend.candidate.domain.CandidateEntity;
 import com.getjob.backend.candidate.repository.CandidateRepository;
 import com.getjob.backend.cv.interview.service.CvInterviewStreamService;
+import com.getjob.backend.cv.interview.repository.CvInterviewSessionRepository;
+import com.getjob.backend.cv.repository.CvRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -29,6 +31,29 @@ public class CvInterviewStreamController {
 
     private final CvInterviewStreamService streamService;
     private final CandidateRepository candidateRepository;
+    private final CvRepository cvRepository;
+    private final CvInterviewSessionRepository sessionRepository;
+
+    private void requireOwnedSession(String cvId, String sessionId, CandidateEntity candidate) {
+        if (sessionId == null || sessionId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Identifiant de session requis.");
+        }
+        Long parsedCvId;
+        try {
+            parsedCvId = Long.valueOf(cvId);
+        } catch (NumberFormatException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Identifiant de CV invalide.");
+        }
+        var cv = cvRepository.findById(parsedCvId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "CV introuvable."));
+        var session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Session introuvable."));
+        if (!candidate.getId().equals(cv.getCandidateId())
+                || !candidate.getId().equals(session.getCandidateId())
+                || !parsedCvId.equals(session.getCvId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Accès refusé à cette session.");
+        }
+    }
 
     private CandidateEntity resolveCurrentCandidate() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -48,7 +73,7 @@ public class CvInterviewStreamController {
             @PathVariable String cvId,
             @RequestParam String sessionId
     ) {
-        resolveCurrentCandidate();
+        requireOwnedSession(cvId, sessionId, resolveCurrentCandidate());
         log.info("[CvStream] Nouvelle connexion SSE cv_id={} session_id={}", cvId, sessionId);
         return streamService.createEmitter(sessionId);
     }
@@ -63,24 +88,18 @@ public class CvInterviewStreamController {
             @PathVariable String cvId,
             @RequestBody Map<String, Object> payload
     ) {
-        resolveCurrentCandidate();
+        CandidateEntity candidate = resolveCurrentCandidate();
         String sessionId = (String) payload.get("sessionId");
         String segment = (String) payload.get("segment");
 
         if (sessionId == null || sessionId.isBlank() || segment == null || segment.isBlank()) {
             return ResponseEntity.badRequest().build();
         }
-
-        if (segment.trim().split("\\s+").length < 4) {
-            return ResponseEntity.accepted().build();
-        }
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> cvDataSoFar = (Map<String, Object>) payload.get("cvDataSoFar");
+        requireOwnedSession(cvId, sessionId, candidate);
 
         log.debug("[CvStream] Segment reçu cv_id={} session_id={} ({} mots)", cvId, sessionId,
                 segment.trim().split("\\s+").length);
-        streamService.processSegmentAsync(cvId, sessionId, segment.trim(), cvDataSoFar);
+        streamService.processSegmentAsync(cvId, sessionId, segment.trim());
         return ResponseEntity.accepted().build();
     }
 }

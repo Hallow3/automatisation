@@ -212,24 +212,20 @@ public class CvService {
             // Création explicite d'un nouveau CV : ne pas réutiliser de session ou CV existant
             existingCv = Optional.empty();
         } else {
-            // Si cvId n'est pas numérique (ex: "cv_default"), chercher une session active récente (< 15 min)
+            // Après une coupure longue, reprendre le dernier CV en cours du candidat.
             existingCv = cvRepository.findByCandidateId(candidate.getId()).stream()
-                    .filter(c -> c.getUpdatedAt() != null &&
-                            c.getUpdatedAt().isAfter(Instant.now().minus(Duration.ofMinutes(15))))
                     .filter(c -> "IN_PROGRESS".equalsIgnoreCase(c.getInterviewStatus()) ||
                                  "DRAFT_UPDATED".equalsIgnoreCase(c.getInterviewStatus()))
-                    .max(Comparator.comparing(CvEntity::getUpdatedAt, Comparator.nullsLast(Comparator.naturalOrder())));
+                    .max(Comparator.comparing(CvEntity::getId));
         }
 
         if (existingCv.isPresent()) {
             CvEntity cv = existingCv.get();
             boolean isStatusActive = "IN_PROGRESS".equalsIgnoreCase(cv.getInterviewStatus()) ||
                                      "DRAFT_UPDATED".equalsIgnoreCase(cv.getInterviewStatus());
-            boolean isRecent = cv.getUpdatedAt() != null &&
-                    cv.getUpdatedAt().isAfter(Instant.now().minus(Duration.ofMinutes(15)));
-            if (isStatusActive && isRecent) {
+            if (isStatusActive) {
                 isResumingActiveSession = true;
-                log.info("Reprise autorisée d'une session active récente (< 15 min) pour candidate_id={} cv_id={}",
+                log.info("Reprise du CV en cours pour candidate_id={} cv_id={}",
                         candidate.getId(), cv.getId());
             }
         }

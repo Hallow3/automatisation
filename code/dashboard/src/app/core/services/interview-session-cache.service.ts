@@ -17,7 +17,7 @@ export interface CachedInterviewSession {
 })
 export class InterviewSessionCacheService {
   private readonly STORAGE_PREFIX = 'getjob_interview_session_';
-  private readonly EXPIRATION_MS = 10 * 60 * 1000; // 10 minutes
+  private readonly EXPIRATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours de reprise après une coupure
 
   constructor() {
     this.cleanExpiredSessions();
@@ -51,7 +51,7 @@ export class InterviewSessionCacheService {
   }
 
   /**
-   * Restaure une session si elle existe et date de moins de 10 minutes.
+   * Restaure une session récente, y compris après une coupure prolongée.
    */
   getSession(cvId: string): CachedInterviewSession | null {
     if (!cvId) return null;

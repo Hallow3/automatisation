@@ -97,6 +97,7 @@ export class GeminiLiveService {
 
   private lastUserTurnText = '';
   private lastAiTurnText = '';
+  private syncInFlight = false;
 
   private isAiSpeakingCooldown = false;
   private echoCooldownTimer: any = null;
@@ -275,12 +276,7 @@ export class GeminiLiveService {
       this.hasStarted.set(false);
       this.isWsReady.set(false);
 
-      // Si cvId est 'new', purger les sessions précédentes du cache
-      if (cvId === 'new') {
-        this.sessionCache.clearAllSessions();
-      }
-
-      // Vérifier si une session récente (< 10 min) existe en cache
+      // Restaurer le dernier brouillon local de ce CV après une coupure.
       const cached = cvId === 'new' ? null : this.sessionCache.getSession(cvId);
       let isResume = false;
       let cachedContext = '';
@@ -362,13 +358,15 @@ export class GeminiLiveService {
           this.latestControlMessage.set(v2Session.controlMessage);
           if (v2Session.cvDataSoFar && Object.keys(v2Session.cvDataSoFar).length > 0) {
             this.currentDraft.set(v2Session.cvDataSoFar);
+            if (cached?.draft) this.mergeDraft(cached.draft);
+            this.sessionCache.saveSession(this.currentCvId, this.currentDraft(), this.transcript());
           }
           // Ouvrir le canal SSE pour les patches CV en temps réel
           this.cvStreamSubscription?.unsubscribe();
           this.cvStream.connect(this.currentCvId, v2Session.sessionId);
           this.cvStreamSubscription = this.cvStream.cvPatch$.subscribe(event => {
             if (event?.patch && Object.keys(event.patch).length > 0) {
-              this.currentDraft.set({ ...event.patch });
+              this.mergeDraft(event.patch);
               this.sessionCache.saveSession(this.currentCvId, this.currentDraft(), this.transcript());
             }
           });
@@ -487,6 +485,7 @@ export class GeminiLiveService {
         return await this.handleToolCall(name, callId, args);
       },
       onError: (err: string) => {
+        this.finalizeCurrentTurn();
         this.pendingProCredits = null;
         this.shouldRefreshProStatusOnSetup = false;
         this.initialGreetingPending = false;
@@ -504,6 +503,7 @@ export class GeminiLiveService {
         this.isResumingConnection = true;
       },
       onClose: (code: number) => {
+        this.finalizeCurrentTurn();
         this.pendingProCredits = null;
         this.shouldRefreshProStatusOnSetup = false;
         this.initialGreetingPending = false;
@@ -658,6 +658,7 @@ export class GeminiLiveService {
   }
 
   private async syncCurrentTurnToBackend(): Promise<void> {
+    if (this.syncInFlight) return;
     const sessionId = this.currentV2SessionId();
     if (!sessionId || !this.hasStarted() || this.lastUserTurnText.trim().length === 0) {
       return;
@@ -665,9 +666,8 @@ export class GeminiLiveService {
 
     const userTurnToSend = this.lastUserTurnText.trim();
     const aiTurnToSend = this.lastAiTurnText.trim();
-    this.lastUserTurnText = '';
-    this.lastAiTurnText = '';
 
+    this.syncInFlight = true;
     try {
       const v2Res = await firstValueFrom(
         this.apiService.syncTurnV2(this.currentCvId, {
@@ -678,11 +678,18 @@ export class GeminiLiveService {
       );
 
       if (v2Res) {
+        if (this.lastUserTurnText.startsWith(userTurnToSend)) {
+          this.lastUserTurnText = this.lastUserTurnText.slice(userTurnToSend.length).trim();
+        }
+        if (this.lastAiTurnText.startsWith(aiTurnToSend)) {
+          this.lastAiTurnText = this.lastAiTurnText.slice(aiTurnToSend.length).trim();
+        }
         this.currentState.set(v2Res.currentState);
         this.sectionStatus.set(v2Res.sectionStatus);
         this.turnsInSection.set(v2Res.turnsInSection);
         if (v2Res.cvDataSoFar) {
-          this.currentDraft.set(v2Res.cvDataSoFar);
+          this.mergeDraft(v2Res.cvDataSoFar);
+          this.sessionCache.saveSession(this.currentCvId, this.currentDraft(), this.transcript());
         }
 
         // Injection du contexte [INTERVIEW_STATE] dans Gemini Live
@@ -697,6 +704,11 @@ export class GeminiLiveService {
       }
     } catch (err) {
       console.warn('[GeminiLive] Erreur synchronisation tour V2:', err);
+    } finally {
+      this.syncInFlight = false;
+      if (this.lastUserTurnText.trim() && this.lastUserTurnText !== userTurnToSend) {
+        void this.syncCurrentTurnToBackend();
+      }
     }
   }
 
@@ -707,10 +719,10 @@ export class GeminiLiveService {
     }
     this.state.set('COMPLETED');
     const targetCvId = this.currentCvId;
-    this.sessionCache.clearSession(targetCvId);
-    this.sessionCache.clearAllSessions();
     this.wsClient.setResumptionHandle(null);
     this.stopSession();
+
+    let completionSaved = false;
 
     if (targetCvId && targetCvId !== 'cv_default' && targetCvId !== 'new') {
       const transcriptEntries = this.transcript();
@@ -724,6 +736,7 @@ export class GeminiLiveService {
         try {
           console.log('[GeminiLive] Déclenchement de la synthèse IA complète du CV à partir de la conversation...');
           const synthesized = await firstValueFrom(this.apiService.synthesize(targetCvId, transcriptText));
+          completionSaved = true;
           if (synthesized?.contentJson) {
             try {
               const parsed = typeof synthesized.contentJson === 'string'
@@ -739,6 +752,7 @@ export class GeminiLiveService {
           console.warn('[GeminiLive] Synthèse échouée, fallback sur completeInterview standard:', err);
           try {
             await firstValueFrom(this.apiService.completeInterview(targetCvId));
+            completionSaved = true;
           } catch (e) {}
         } finally {
           this.isSynthesizing.set(false);
@@ -748,13 +762,20 @@ export class GeminiLiveService {
       } else {
         try {
           await firstValueFrom(this.apiService.completeInterview(targetCvId));
+          completionSaved = true;
           this.paymentService.fetchProStatus();
           this.authService.refreshCurrentUser().subscribe();
         } catch (e) {}
       }
     }
 
-    this.interviewCompleted$.next();
+    if (completionSaved) {
+      this.sessionCache.clearSession(targetCvId);
+      this.interviewCompleted$.next();
+    } else {
+      this.sessionCache.saveSession(targetCvId, this.currentDraft(), this.transcript());
+      this.setError('La sauvegarde finale a échoué. Votre brouillon reste disponible pour reprendre.');
+    }
   }
 
   private async handleToolCall(name: string, callId: string, args: any): Promise<any> {
@@ -858,7 +879,7 @@ export class GeminiLiveService {
       // sans attendre la fin de réplique de Bray (Phase 1 de l'architecture streaming)
       const sessionId = this.currentV2SessionId();
       if (sessionId && this.currentCvId && this.currentCvId !== 'cv_default' && this.currentCvId !== 'new') {
-        this.cvStream.pushTranscriptSegment(this.currentCvId, sessionId, line, this.currentDraft());
+        this.cvStream.pushTranscriptSegment(this.currentCvId, sessionId, line);
       }
     } else if (role === 'ai') {
       this.lastAiTurnText = (this.lastAiTurnText ? this.lastAiTurnText + ' ' : '') + line;
@@ -935,41 +956,27 @@ export class GeminiLiveService {
     }
 
     if (Array.isArray(patch.experiences) && patch.experiences.length > 0) {
-      const existing = updated.experiences || [];
-      const merged = [...existing];
-
-      for (const newExp of patch.experiences) {
-        const idx = merged.findIndex(
-          (e: any) =>
-            e.company?.toLowerCase() === newExp.company?.toLowerCase() &&
-            e.position?.toLowerCase() === newExp.position?.toLowerCase()
-        );
-        if (idx !== -1) {
-          merged[idx] = { ...merged[idx], ...newExp };
-        } else {
-          merged.push(newExp);
-        }
-      }
+      const merged = [...(updated.experiences || [])];
+      patch.experiences.forEach((experience: any, index: number) => {
+        merged[index] = { ...(merged[index] || {}), ...experience };
+      });
       updated.experiences = merged;
     }
 
     if (Array.isArray(patch.education) && patch.education.length > 0) {
-      const existing = updated.education || [];
-      const merged = [...existing];
-
-      for (const newEdu of patch.education) {
-        const idx = merged.findIndex(
-          (e: any) =>
-            (e.school && newEdu.school && e.school.toLowerCase() === newEdu.school.toLowerCase()) ||
-            (e.degree && newEdu.degree && e.degree.toLowerCase() === newEdu.degree.toLowerCase())
-        );
-        if (idx !== -1) {
-          merged[idx] = { ...merged[idx], ...newEdu };
-        } else {
-          merged.push(newEdu);
-        }
-      }
+      const merged = [...(updated.education || [])];
+      patch.education.forEach((item: any, index: number) => {
+        merged[index] = { ...(merged[index] || {}), ...item };
+      });
       updated.education = merged;
+    }
+
+    if (Array.isArray(patch.projects) && patch.projects.length > 0) {
+      const merged = [...(updated.projects || [])];
+      patch.projects.forEach((project: any, index: number) => {
+        merged[index] = { ...(merged[index] || {}), ...project };
+      });
+      updated.projects = merged;
     }
 
     if (Array.isArray(patch.languages) && patch.languages.length > 0) {

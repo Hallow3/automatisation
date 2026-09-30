@@ -202,7 +202,9 @@ public class CvInterviewBillingService {
             s.setDurationSeconds(elapsedSeconds);
             s.setBilledCredits(creditsToBill);
             s.setTerminationReason(reason);
-            s.setInterviewStatus("COMPLETED".equalsIgnoreCase(reason) ? "COMPLETED" : "TERMINATED");
+            s.setInterviewStatus("COMPLETED".equalsIgnoreCase(reason) ? "COMPLETED"
+                    : "USER_STOPPED".equalsIgnoreCase(s.getInterviewStatus()) ? "USER_STOPPED"
+                    : "TEMPORARILY_UNAVAILABLE");
             sessionRepository.save(s);
             syncCvOnSessionEnd(s);
         });
@@ -241,7 +243,7 @@ public class CvInterviewBillingService {
         s.setDurationSeconds(elapsedSeconds);
         s.setBilledCredits(creditsToBill);
         s.setTerminationReason(reason);
-        s.setInterviewStatus("TERMINATED");
+        s.setInterviewStatus("TEMPORARILY_UNAVAILABLE");
         sessionRepository.save(s);
         syncCvOnSessionEnd(s);
     }
@@ -260,7 +262,10 @@ public class CvInterviewBillingService {
                 if ("DRAFT".equalsIgnoreCase(cv.getStatus())) {
                     cv.setStatus("DRAFT_READY");
                 }
-                if ("IN_PROGRESS".equalsIgnoreCase(cv.getInterviewStatus())) {
+                if (!"COMPLETED".equalsIgnoreCase(s.getInterviewStatus())
+                        && !"REVIEW".equalsIgnoreCase(cv.getInterviewStatus())) {
+                    cv.setInterviewStatus("DRAFT_UPDATED");
+                } else if ("IN_PROGRESS".equalsIgnoreCase(cv.getInterviewStatus())) {
                     cv.setInterviewStatus("COMPLETED");
                 }
                 cvRepository.save(cv);

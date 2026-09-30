@@ -4,10 +4,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.getjob.backend.cv.interview.domain.CvInterviewSessionEntity;
 import com.getjob.backend.cv.interview.dto.SectionPatchDto;
 import com.getjob.backend.cv.interview.repository.CvInterviewSessionRepository;
+import com.getjob.backend.cv.repository.CvRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.HashMap;
@@ -27,8 +30,9 @@ public class CvInterviewStreamService {
 
     private final InterviewObserverService observerService;
     private final CvInterviewSessionRepository sessionRepository;
+    private final CvRepository cvRepository;
     private final ObjectMapper objectMapper;
-    private final CvInterviewBillingService billingService;
+    private final PlatformTransactionManager transactionManager;
 
     // sessionId -> SseEmitter actif
     private final ConcurrentHashMap<String, SseEmitter> emitters = new ConcurrentHashMap<>();
@@ -40,19 +44,20 @@ public class CvInterviewStreamService {
      */
     public SseEmitter createEmitter(String sessionId) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
-        emitters.put(sessionId, emitter);
+        SseEmitter previous = emitters.put(sessionId, emitter);
+        if (previous != null) previous.complete();
 
         emitter.onCompletion(() -> {
-            emitters.remove(sessionId);
+            emitters.remove(sessionId, emitter);
             log.debug("[CvStream] SSE complété pour session={}", sessionId);
         });
         emitter.onTimeout(() -> {
-            emitters.remove(sessionId);
+            emitters.remove(sessionId, emitter);
             emitter.complete();
             log.debug("[CvStream] SSE timeout pour session={}", sessionId);
         });
         emitter.onError(e -> {
-            emitters.remove(sessionId);
+            emitters.remove(sessionId, emitter);
             log.debug("[CvStream] SSE erreur de transport pour session={}: {}", sessionId, e.getMessage());
         });
 
@@ -69,11 +74,10 @@ public class CvInterviewStreamService {
 
     /**
      * Traite un segment de transcription de manière asynchrone.
-     * Reçoit le cvDataSoFar directement du frontend pour ne pas dépendre
-     * de l'état DB qui n'est pas encore mis à jour au moment du push anticipé.
+     * La base est la source de vérité : le patch est persisté avant le push SSE.
      */
     @Async("cvStreamTaskExecutor")
-    public void processSegmentAsync(String cvId, String sessionId, String userSegment, Map<String, Object> cvDataSoFar) {
+    public void processSegmentAsync(String cvId, String sessionId, String userSegment) {
         SseEmitter emitter = emitters.get(sessionId);
         if (emitter == null) {
             log.debug("[CvStream] Pas d'emitter actif pour session={}, segment ignoré.", sessionId);
@@ -96,10 +100,31 @@ public class CvInterviewStreamService {
             );
 
             if (patchDto.getPatch() != null && !patchDto.getPatch().isEmpty()) {
-                // Utiliser le cvDataSoFar envoyé par le frontend (plus à jour que la DB)
-                Map<String, Object> updatedCvData = cvDataSoFar != null ? new HashMap<>(cvDataSoFar) : parseJsonMap(session.getCvDataSoFar());
-                mergeSectionPatchIntoCvData(currentState, sectionIndex, patchDto.getPatch(), updatedCvData);
-                pushCvPatch(emitter, sessionId, updatedCvData);
+                // Le patch doit être durable avant son émission. Le verrou sérialise ce chemin
+                // avec la synchronisation du tour qui peut changer de section en parallèle.
+                Map<String, Object> updatedCvData = new TransactionTemplate(transactionManager).execute(status -> {
+                    CvInterviewSessionEntity locked = sessionRepository.findLockedById(sessionId).orElse(null);
+                    if (locked == null || !currentState.equals(locked.getCurrentState())
+                            || !Integer.valueOf(sectionIndex).equals(locked.getSectionIndex())) return null;
+                    Map<String, Object> partial = parseJsonMap(locked.getSectionPartialData());
+                    partial.putAll(patchDto.getPatch());
+                    Map<String, Object> data = parseJsonMap(locked.getCvDataSoFar());
+                    mergeSectionPatchIntoCvData(currentState, sectionIndex, patchDto.getPatch(), data);
+                    try {
+                        String json = objectMapper.writeValueAsString(data);
+                        locked.setSectionPartialData(objectMapper.writeValueAsString(partial));
+                        locked.setCvDataSoFar(json);
+                        sessionRepository.save(locked);
+                        cvRepository.findById(locked.getCvId()).ifPresent(cv -> {
+                            cv.setContentJson(json);
+                            cvRepository.save(cv);
+                        });
+                    } catch (Exception e) {
+                        throw new IllegalStateException("Sauvegarde du patch CV impossible", e);
+                    }
+                    return data;
+                });
+                if (updatedCvData != null) pushCvPatch(emitter, sessionId, updatedCvData);
                 log.debug("[CvStream] Patch SSE anticipé envoyé pour session={} state={}", sessionId, currentState);
             }
         } catch (Exception e) {
@@ -117,7 +142,7 @@ public class CvInterviewStreamService {
             log.debug("[CvStream] Patch SSE envoyé pour session={}", sessionId);
         } catch (Exception e) {
             log.debug("[CvStream] Emitter fermé pour session={}", sessionId);
-            emitters.remove(sessionId);
+            emitters.remove(sessionId, emitter);
         }
     }
 

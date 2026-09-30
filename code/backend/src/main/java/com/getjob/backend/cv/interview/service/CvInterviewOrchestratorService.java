@@ -42,6 +42,18 @@ public class CvInterviewOrchestratorService {
     private final CvDraftValidator cvDraftValidator;
     private final ObjectMapper objectMapper;
 
+    public CvInterviewSessionEntity requireOwnedSession(String sessionId, CandidateEntity candidate) {
+        if (sessionId == null || sessionId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Identifiant de session requis.");
+        }
+        CvInterviewSessionEntity session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Session introuvable."));
+        if (!candidate.getId().equals(session.getCandidateId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Accès refusé à cette session.");
+        }
+        return session;
+    }
+
     /**
      * Initialise ou reprend une session d'entretien persistante liée à un CV.
      */
@@ -149,7 +161,7 @@ public class CvInterviewOrchestratorService {
      */
     @Transactional
     public InterviewTurnResponse processTurn(InterviewTurnRequest request, CandidateEntity candidate) {
-        CvInterviewSessionEntity session = sessionRepository.findById(request.getSessionId())
+        CvInterviewSessionEntity session = sessionRepository.findLockedById(request.getSessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Session introuvable : " + request.getSessionId()));
 
         if (!session.getCandidateId().equals(candidate.getId())) {
@@ -334,6 +346,9 @@ public class CvInterviewOrchestratorService {
 
         if (!session.getCandidateId().equals(candidate.getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Accès non autorisé à cette session.");
+        }
+        if (!session.getCvId().toString().equals(request.getCvId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Session liée à un autre CV.");
         }
 
         boolean isValidStop = stateMachine.isValidUserStopIntent(request.getUserIntentExcerpt(), request.getLastUserTurn());
@@ -593,9 +608,11 @@ public class CvInterviewOrchestratorService {
     }
 
     private Map<String, Object> loadInitialCvData(CvEntity cv, CandidateEntity candidate) {
-        // Toujours partir d'un brouillon vierge avec uniquement les coordonnées du candidat.
-        // Ne jamais pré-remplir depuis un contentJson existant pour éviter la contamination
-        // par les données d'un entretien ou import précédent.
+        // Une nouvelle session sur un CV existant reprend son dernier brouillon sauvegardé.
+        if (cv != null && cv.getContentJson() != null && !cv.getContentJson().isBlank()) {
+            Map<String, Object> saved = parseJsonMap(cv.getContentJson());
+            if (!saved.isEmpty()) return saved;
+        }
         Map<String, Object> initial = new HashMap<>();
         Map<String, String> identity = new HashMap<>();
         identity.put("fullName", candidate.getFullName() != null ? candidate.getFullName() : "");

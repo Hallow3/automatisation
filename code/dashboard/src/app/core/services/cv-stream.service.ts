@@ -52,12 +52,11 @@ export class CvStreamService {
   }
 
   /**
-   * Pousse un segment de transcription + l'état courant du CV vers le backend.
+   * Pousse un segment de transcription vers le backend.
    * Appelé dès la fin de parole du candidat (avant onModelTurnComplete).
-   * cvDataSoFar permet au backend d'avoir l'état le plus récent sans lire la DB.
    */
-  pushTranscriptSegment(cvId: string, sessionId: string, segment: string, cvDataSoFar: any): void {
-    this.http.post(`${this.base}/${cvId}/interview/push-transcript`, { sessionId, segment, cvDataSoFar })
+  pushTranscriptSegment(cvId: string, sessionId: string, segment: string): void {
+    this.http.post(`${this.base}/${cvId}/interview/push-transcript`, { sessionId, segment })
       .subscribe({ error: e => console.warn('[CvStream] Erreur push segment:', e) });
   }
 }

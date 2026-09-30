@@ -71,6 +71,10 @@ public class CvInterviewController {
             @RequestBody com.getjob.backend.cv.interview.dto.HeartbeatDto.Request request
     ) {
         CandidateEntity candidate = resolveCurrentCandidate();
+        var session = orchestratorService.requireOwnedSession(request.getSessionId(), candidate);
+        if (!id.equals(session.getCvId().toString())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Session liée à un autre CV.");
+        }
         return ResponseEntity.ok(billingService.recordHeartbeat(request.getSessionId(), candidate));
     }
 
@@ -99,9 +103,10 @@ public class CvInterviewController {
     ) {
         CandidateEntity candidate = resolveCurrentCandidate();
         request.setCvId(id);
-        if (request.getSessionId() != null) {
+        var response = orchestratorService.handleRequestEndInterview(request, candidate);
+        if (response.isApproved()) {
             billingService.terminateAndBill(request.getSessionId(), "USER_HANGUP");
         }
-        return ResponseEntity.ok(orchestratorService.handleRequestEndInterview(request, candidate));
+        return ResponseEntity.ok(response);
     }
 }
