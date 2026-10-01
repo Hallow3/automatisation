@@ -106,6 +106,11 @@ public class CvController {
         return ResponseEntity.ok(cvService.synthesizeCvFromTranscript(id, transcript));
     }
 
+    @GetMapping("/cvs/{id}/interview/recovery-status")
+    public ResponseEntity<Map<String, Boolean>> getInterviewRecoveryStatus(@PathVariable String id) {
+        return ResponseEntity.ok(Map.of("recoverable", cvService.hasRecoverableInterview(id)));
+    }
+
     @PostMapping("/cvs/{id}/ai-edit")
     public ResponseEntity<CvDto> aiEditCv(
             @PathVariable String id,

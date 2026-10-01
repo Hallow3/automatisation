@@ -80,6 +80,9 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
   currentPhase: Phase = 'templates';
   currentCvId: string | null = null;
   isLoadingCv = signal(false);
+  recoveryAvailable = signal(false);
+  isRecoveringInterview = signal(false);
+  recoveryError = signal<string | null>(null);
   showPaymentModal = signal<boolean>(false);
   proNotification = signal<string | null>(null);
 
@@ -447,6 +450,8 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
   private loadCvById(cvId: string): void {
     this.currentCvId = cvId;
     this.isLoadingCv.set(true);
+    this.recoveryAvailable.set(false);
+    this.recoveryError.set(null);
 
     const draft = this.geminiService.currentDraft();
     this.editor.init(cvId, draft || null);
@@ -464,9 +469,34 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
           this.refreshPreview();
         }
         this.isLoadingCv.set(false);
+        this.cvApi.getInterviewRecoveryStatus(cvId).subscribe({
+          next: (status) => this.recoveryAvailable.set(status.recoverable),
+          error: () => this.recoveryAvailable.set(false)
+        });
       },
       error: () => {
         this.isLoadingCv.set(false);
+      }
+    });
+  }
+
+  retrySavedInterview(): void {
+    const cvId = this.currentCvId;
+    if (!cvId || this.isRecoveringInterview()) return;
+    this.isRecoveringInterview.set(true);
+    this.recoveryError.set(null);
+    this.cvApi.retryInterviewSynthesis(cvId).subscribe({
+      next: (cv) => {
+        if (cv.contentJson) {
+          this.editor.init(cvId, cv.contentJson);
+          this.refreshPreview();
+        }
+        this.recoveryAvailable.set(false);
+        this.isRecoveringInterview.set(false);
+      },
+      error: () => {
+        this.recoveryError.set('Le quota du rédacteur IA est momentanément épuisé. Votre entretien reste enregistré ; réessayez plus tard sans le refaire.');
+        this.isRecoveringInterview.set(false);
       }
     });
   }

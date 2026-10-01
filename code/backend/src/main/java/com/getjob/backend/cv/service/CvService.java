@@ -11,6 +11,7 @@ import com.getjob.backend.candidate.repository.CandidateRepository;
 import com.getjob.backend.cv.domain.CvEntity;
 import com.getjob.backend.cv.domain.CvTemplateEntity;
 import com.getjob.backend.cv.dto.CvDto;
+import com.getjob.backend.cv.interview.repository.CvInterviewSessionRepository;
 import com.getjob.backend.cv.repository.CvRepository;
 import com.getjob.backend.cv.repository.CvTemplateRepository;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,7 @@ import java.util.stream.Collectors;
 public class CvService {
 
     private final CvRepository cvRepository;
+    private final CvInterviewSessionRepository interviewSessionRepository;
     private final CvTemplateRepository cvTemplateRepository;
     private final CandidateRepository candidateRepository;
     private final CandidateProfileRepository candidateProfileRepository;
@@ -200,6 +202,15 @@ public class CvService {
             tokenInfo.put("cvId", cvId.matches("^\\d+$") ? cvId : "");
             tokenInfo.put("proCredits", String.valueOf(candidate.getProCredits()));
             return tokenInfo;
+        }
+
+        // Vérifier le rédacteur AVANT de créer le CV et de démarrer la facturation vocale.
+        // Gemini Live peut être disponible alors que le quota du modèle texte est épuisé.
+        try {
+            tokenService.generatePlainTextContent("Réponds brièvement.", "OK");
+        } catch (ResponseStatusException e) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "La rédaction IA du CV est temporairement indisponible. Aucun entretien ne sera démarré ni facturé.", e);
         }
 
         // Contrôle de la reprise : CV spécifié ou session récente (< 15 min) en cours
@@ -375,8 +386,12 @@ public class CvService {
                     });
         });
 
+        String storedTranscript = loadPersistedInterviewTranscript(cv.getId(), candidate.getId());
+        if (storedTranscript.length() > (transcriptText == null ? 0 : transcriptText.length())) {
+            transcriptText = storedTranscript;
+        }
         if (transcriptText == null || transcriptText.trim().length() < 10) {
-            return mapToDto(cv);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transcription insuffisante pour rédiger le CV.");
         }
 
         boolean alreadyPaidInInterview = "IN_PROGRESS".equalsIgnoreCase(cv.getInterviewStatus())
@@ -465,17 +480,49 @@ public class CvService {
         // Appel IA hors transaction SQL pour préserver le pool HikariCP
         try {
             String jsonResult = tokenService.generateStructuredContent(systemInstruction, prompt);
-            if (jsonResult != null && !jsonResult.isBlank()) {
-                objectMapper.readTree(jsonResult);
+            if (jsonResult != null && cvDraftValidator.isDraftMeaningful(jsonResult)) {
                 CvEntity saved = persistSynthesizedCv(cv, jsonResult);
                 log.info("Synthèse IA réussie pour candidate_id={} cv_id={}", candidate.getId(), saved.getId());
                 return mapToDto(saved);
             }
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "La rédaction du CV n'a pas produit de contenu exploitable. Réessayez plus tard.");
+        } catch (ResponseStatusException e) {
+            log.warn("Synthèse IA indisponible pour cv_id={}: {}", cv.getId(), e.getReason());
+            throw e;
         } catch (Exception e) {
             log.error("Erreur lors de la synthèse IA du CV : {}", e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "La rédaction du CV est momentanément indisponible. Votre transcription est conservée.", e);
         }
+    }
 
-        return mapToDto(cv);
+    private String loadPersistedInterviewTranscript(Long cvId, Integer candidateId) {
+        return interviewSessionRepository.findFirstByCvIdOrderByCreatedAtDesc(cvId)
+                .filter(session -> candidateId.equals(session.getCandidateId()))
+                .map(session -> {
+                    try {
+                        JsonNode entries = objectMapper.readTree(session.getFullTranscript());
+                        if (!entries.isArray()) return "";
+                        StringBuilder text = new StringBuilder();
+                        for (JsonNode entry : entries) {
+                            String role = "user".equals(entry.path("role").asText()) ? "Candidat" : "Recruteur";
+                            String spoken = entry.path("text").asText("").trim();
+                            if (!spoken.isEmpty()) text.append(role).append(": ").append(spoken).append('\n');
+                        }
+                        return text.toString();
+                    } catch (Exception e) {
+                        log.warn("Transcription enregistrée illisible pour cv_id={}: {}", cvId, e.getMessage());
+                        return "";
+                    }
+                }).orElse("");
+    }
+
+    public boolean hasRecoverableInterview(String cvId) {
+        CandidateEntity candidate = resolveCurrentCandidate();
+        CvEntity cv = findCvEntityForCurrentUser(cvId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "CV introuvable."));
+        return !"COMPLETED".equalsIgnoreCase(cv.getInterviewStatus())
+                && loadPersistedInterviewTranscript(cv.getId(), candidate.getId()).length() >= 10;
     }
 
     @Transactional
@@ -527,25 +574,7 @@ public class CvService {
         if (draftData == null) return false;
         try {
             String json = draftData instanceof String s ? s : objectMapper.writeValueAsString(draftData);
-            if (json == null || json.isBlank() || json.equals("{}")) return false;
-            com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(json);
-            
-            if (root.has("experiences") && root.get("experiences").isArray() && root.get("experiences").size() > 0) {
-                return true;
-            }
-            if (root.has("education") && root.get("education").isArray() && root.get("education").size() > 0) {
-                return true;
-            }
-            if (root.has("skills") && root.get("skills").isArray() && root.get("skills").size() > 0) {
-                return true;
-            }
-            if (root.has("summary") && root.get("summary").asText("").trim().length() > 20) {
-                return true;
-            }
-            if (root.has("projects") && root.get("projects").isArray() && root.get("projects").size() > 0) {
-                return true;
-            }
-            return false;
+            return cvDraftValidator.isDraftMeaningful(json);
         } catch (Exception e) {
             return false;
         }

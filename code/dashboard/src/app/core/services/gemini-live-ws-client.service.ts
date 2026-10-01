@@ -153,6 +153,7 @@ export class GeminiLiveWsClientService {
         generationConfig: {
           responseModalities: ['AUDIO'],
           speechConfig: {
+            languageCode: 'fr-FR',
             voiceConfig: {
               prebuiltVoiceConfig: {
                 voiceName: 'Charon'

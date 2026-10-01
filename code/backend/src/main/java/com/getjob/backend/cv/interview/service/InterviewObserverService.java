@@ -110,6 +110,9 @@ public class InterviewObserverService {
             }
         } catch (Exception e) {
             log.warn("[InterviewObserverService] Erreur lors de l'observation LLM pour {}: {}", currentState, e.getMessage());
+            SectionPatchDto unavailable = buildEmptyPatch(currentState, sectionIndex);
+            unavailable.setObserverUnavailable(true);
+            return unavailable;
         }
 
         return buildEmptyPatch(currentState, sectionIndex);

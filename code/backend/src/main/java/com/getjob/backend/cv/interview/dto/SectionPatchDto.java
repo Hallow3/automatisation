@@ -23,4 +23,5 @@ public class SectionPatchDto {
     private Boolean ready_for_transition;
     private Boolean user_wants_skip;
     private Boolean user_has_more;
+    private Boolean observerUnavailable;
 }

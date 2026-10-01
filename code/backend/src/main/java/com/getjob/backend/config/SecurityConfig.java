@@ -2,6 +2,7 @@ package com.getjob.backend.config;
 
 import com.getjob.backend.auth.filter.JwtAuthenticationFilter;
 import com.getjob.backend.auth.service.CandidateUserDetailsService;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -66,6 +67,9 @@ public class SecurityConfig {
 
                 // ── Routes publiques et protégées ─────────────────────────────
                 .authorizeHttpRequests(auth -> auth
+                        // Les redispatchs internes d'une réponse SSE déjà autorisée ne portent pas
+                        // de nouveau contexte JWT dans une application stateless.
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                         // Auth endpoints : toujours publics
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/register").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/verify-email").permitAll()

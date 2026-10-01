@@ -92,10 +92,14 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
   }
 
   retrySession(): void {
-    const credits = this.authService.currentUser()?.proCredits ?? 0;
     const targetId = (this.geminiService.currentCvId && this.geminiService.currentCvId !== 'cv_default' && this.geminiService.currentCvId !== 'new')
       ? this.geminiService.currentCvId
       : this.cvId;
+    if (/rédacteur|rédaction/i.test(this.errorMessage() || '') && /^\d+$/.test(targetId)) {
+      this.router.navigate(['/cv-builder'], { queryParams: { action: 'editor', cvId: targetId } });
+      return;
+    }
+    const credits = this.authService.currentUser()?.proCredits ?? 0;
     const cached = this.geminiService.hasActiveCachedSession(targetId);
     if (credits < 1 && !cached) {
       this.paymentService.openPackModal();

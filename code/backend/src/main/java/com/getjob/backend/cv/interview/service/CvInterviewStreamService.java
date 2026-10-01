@@ -8,6 +8,7 @@ import com.getjob.backend.cv.repository.CvRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -37,7 +38,7 @@ public class CvInterviewStreamService {
     // sessionId -> SseEmitter actif
     private final ConcurrentHashMap<String, SseEmitter> emitters = new ConcurrentHashMap<>();
 
-    private static final long SSE_TIMEOUT_MS = 10 * 60 * 1000L; // 10 min
+    private static final long SSE_TIMEOUT_MS = 30 * 60 * 1000L;
 
     /**
      * Crée et enregistre un SseEmitter pour la session donnée.
@@ -79,10 +80,6 @@ public class CvInterviewStreamService {
     @Async("cvStreamTaskExecutor")
     public void processSegmentAsync(String cvId, String sessionId, String userSegment) {
         SseEmitter emitter = emitters.get(sessionId);
-        if (emitter == null) {
-            log.debug("[CvStream] Pas d'emitter actif pour session={}, segment ignoré.", sessionId);
-            return;
-        }
 
         CvInterviewSessionEntity session = sessionRepository.findById(sessionId).orElse(null);
         if (session == null) {
@@ -124,12 +121,30 @@ public class CvInterviewStreamService {
                     }
                     return data;
                 });
-                if (updatedCvData != null) pushCvPatch(emitter, sessionId, updatedCvData);
+                if (updatedCvData != null && emitter != null) pushCvPatch(emitter, sessionId, updatedCvData);
                 log.debug("[CvStream] Patch SSE anticipé envoyé pour session={} state={}", sessionId, currentState);
             }
         } catch (Exception e) {
             log.warn("[CvStream] Erreur traitement segment pour session={}: {}", sessionId, e.getMessage());
         }
+    }
+
+    public void publishCvSnapshot(String sessionId, Map<String, Object> cvData) {
+        SseEmitter emitter = emitters.get(sessionId);
+        if (emitter != null && cvData != null && !cvData.isEmpty()) {
+            pushCvPatch(emitter, sessionId, cvData);
+        }
+    }
+
+    @Scheduled(fixedDelay = 20000)
+    public void keepStreamsAlive() {
+        emitters.forEach((sessionId, emitter) -> {
+            try {
+                emitter.send(SseEmitter.event().comment("keepalive"));
+            } catch (Exception e) {
+                emitters.remove(sessionId, emitter);
+            }
+        });
     }
 
     private void pushCvPatch(SseEmitter emitter, String sessionId, Map<String, Object> cvData) {

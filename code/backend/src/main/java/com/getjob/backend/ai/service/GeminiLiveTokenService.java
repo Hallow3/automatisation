@@ -62,7 +62,7 @@ public class GeminiLiveTokenService {
     @Value("${gemini.live.model:gemini-3.8-live}")
     private String geminiModel;
 
-    @Value("${gemini.model:gemini-3.5-flash}")
+    @Value("${gemini.model:gemini-3.5-flash-lite}")
     private String geminiTextModel;
 
 
@@ -74,6 +74,7 @@ public class GeminiLiveTokenService {
 
     @PostConstruct
     public void init() {
+        this.apiKeys = new ArrayList<>();
         // Priorité : gemini.api-keys > gemini.api-key
         String raw = (geminiApiKeysRaw != null && !geminiApiKeysRaw.isBlank())
                 ? geminiApiKeysRaw
@@ -231,7 +232,7 @@ public class GeminiLiveTokenService {
         if (geminiTextModel != null && !geminiTextModel.isBlank()) {
             return geminiTextModel.trim();
         }
-        return "gemini-3.5-flash";
+        return "gemini-3.5-flash-lite";
     }
 
     private String callGeminiGenerateContent(String apiKey, int keyIndex, String systemInstruction, String userPrompt, boolean asJson) {

@@ -400,6 +400,18 @@
   ═════════════════════════════════════════════════════════════════════════ -->
   <div *ngIf="currentPhase === 'editor'" class="space-y-4 pb-24 lg:pb-0">
 
+    <div *ngIf="recoveryAvailable()" class="rounded-2xl border border-amber-200 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div>
+        <p class="text-sm font-semibold text-amber-950">Votre entretien vocal est enregistré</p>
+        <p class="text-xs text-amber-900 mt-1">La rédaction du CV a été interrompue. Vous pouvez la relancer sans refaire l'entretien ni payer de nouveau.</p>
+        <p *ngIf="recoveryError()" class="text-xs text-rose-700 mt-2">{{ recoveryError() }}</p>
+      </div>
+      <button type="button" (click)="retrySavedInterview()" [disabled]="isRecoveringInterview()"
+        class="rounded-xl bg-amber-900 px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-50 shrink-0">
+        {{ isRecoveringInterview() ? 'Rédaction en cours…' : 'Rédiger le CV enregistré' }}
+      </button>
+    </div>
+
     <!-- Notification Pro Toast -->
     <div
       *ngIf="proNotification()"

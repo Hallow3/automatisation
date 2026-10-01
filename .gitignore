@@ -135,6 +135,9 @@ dashboard/public/*.zip
 # ── 7. Docker overrides locaux ────────────────────────────────────────────────
 local-docker-compose.yml
 docker-compose.override.yml
+# Compose n8n local (racine uniquement) : contient un mot de passe en clair.
+# Ancré à la racine pour ne pas désactiver code/docker-compose.yml, qui est suivi.
+/docker-compose.yml
 
 # ── 8. IDEs & Éditeurs de Code ────────────────────────────────────────────────
 .idea/

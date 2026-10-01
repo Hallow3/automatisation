@@ -124,21 +124,30 @@ public class CvDraftValidator {
             JsonNode root = objectMapper.readTree(contentJson);
             if (root == null || root.isEmpty()) return false;
 
-            boolean hasIdentity = root.has("identity") && (
-                    root.get("identity").hasNonNull("fullName") ||
-                    root.get("identity").hasNonNull("email")
-            );
-
-            boolean hasHeadline = root.hasNonNull("headline") && !root.get("headline").asText().isBlank();
-            boolean hasSummary = root.hasNonNull("summary") && !root.get("summary").asText().isBlank();
-            boolean hasExperiences = root.has("experiences") && root.get("experiences").isArray() && root.get("experiences").size() > 0;
-            boolean hasEducation = root.has("education") && root.get("education").isArray() && root.get("education").size() > 0;
-            boolean hasSkills = root.has("skills") && root.get("skills").isArray() && root.get("skills").size() > 0;
-
-            return hasIdentity || hasHeadline || hasSummary || hasExperiences || hasEducation || hasSkills;
+            if (root.path("summary").asText("").trim().length() > 20) return true;
+            if (hasFilledEntry(root.path("experiences"), "position", "company", "context")) return true;
+            if (hasFilledEntry(root.path("education"), "school", "degree", "details")) return true;
+            if (hasFilledEntry(root.path("projects"), "name", "description", "context")) return true;
+            JsonNode skills = root.path("skills");
+            if (skills.isArray()) {
+                for (JsonNode skill : skills) {
+                    if (!skill.asText("").isBlank()) return true;
+                }
+            }
+            return false;
         } catch (Exception e) {
             return false;
         }
+    }
+
+    private boolean hasFilledEntry(JsonNode entries, String... fields) {
+        if (!entries.isArray()) return false;
+        for (JsonNode entry : entries) {
+            for (String field : fields) {
+                if (!entry.path(field).asText("").isBlank()) return true;
+            }
+        }
+        return false;
     }
 
     /**

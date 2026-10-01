@@ -5,6 +5,7 @@ import com.getjob.backend.candidate.repository.CandidateRepository;
 import com.getjob.backend.cv.interview.domain.CvInterviewSessionEntity;
 import com.getjob.backend.cv.interview.dto.HeartbeatDto;
 import com.getjob.backend.cv.interview.repository.CvInterviewSessionRepository;
+import com.getjob.backend.cv.service.CvDraftValidator;
 import lombok.Builder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,7 @@ public class CvInterviewBillingService {
     private final CandidateRepository candidateRepository;
     private final CvInterviewSessionRepository sessionRepository;
     private final CvRepository cvRepository;
+    private final CvDraftValidator cvDraftValidator;
 
     @Data
     @Builder
@@ -177,7 +179,7 @@ public class CvInterviewBillingService {
         long elapsedSeconds = Math.max(0, Math.min(rawElapsed, state.getMaxAllowedSeconds()));
 
         final int creditsToBill;
-        if (elapsedSeconds < 5) {
+        if ("AI_UNAVAILABLE".equals(reason) || elapsedSeconds < 5) {
             // Faux départ / fermeture immédiate sans échange
             creditsToBill = 0;
             log.info("[LiveBilling] Session {} fermée en moins de 5s ({}s) : aucun crédit débité.", sessionId, elapsedSeconds);
@@ -259,7 +261,8 @@ public class CvInterviewBillingService {
                 if (s.getCvDataSoFar() != null && s.getCvDataSoFar().trim().length() > 20) {
                     cv.setContentJson(s.getCvDataSoFar());
                 }
-                if ("DRAFT".equalsIgnoreCase(cv.getStatus())) {
+                if ("DRAFT".equalsIgnoreCase(cv.getStatus())
+                        && cvDraftValidator.isDraftMeaningful(cv.getContentJson())) {
                     cv.setStatus("DRAFT_READY");
                 }
                 if (!"COMPLETED".equalsIgnoreCase(s.getInterviewStatus())

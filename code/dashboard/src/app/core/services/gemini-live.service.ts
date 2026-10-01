@@ -745,6 +745,13 @@ export class GeminiLiveService {
           this.sessionCache.saveSession(this.currentCvId, this.currentDraft(), this.transcript());
         }
 
+        if (v2Res.interviewStatus === 'OBSERVER_UNAVAILABLE') {
+          this.stopSession();
+          this.state.set('TEMPORARILY_UNAVAILABLE');
+          this.errorMessage.set('Le rédacteur du CV a atteint sa limite temporaire. Votre entretien est enregistré et cette session ne sera pas facturée.');
+          return;
+        }
+
         // Injection du contexte [INTERVIEW_STATE] dans Gemini Live
         if (v2Res.controlMessage && v2Res.controlMessage !== this.latestControlMessage()) {
           this.latestControlMessage.set(v2Res.controlMessage);
@@ -770,8 +777,8 @@ export class GeminiLiveService {
     if (this.lastUserTurnText.trim().length > 0) {
       await this.syncCurrentTurnToBackend();
     }
-    this.state.set('COMPLETED');
     const targetCvId = this.currentCvId;
+    this.sessionCache.saveSession(targetCvId, this.currentDraft(), this.transcript());
     this.wsClient.setResumptionHandle(null);
     this.stopSession();
 
@@ -789,30 +796,24 @@ export class GeminiLiveService {
         try {
           console.log('[GeminiLive] Déclenchement de la synthèse IA complète du CV à partir de la conversation...');
           const synthesized = await firstValueFrom(this.apiService.synthesize(targetCvId, transcriptText));
-          completionSaved = true;
           if (synthesized?.contentJson) {
-            try {
-              const parsed = typeof synthesized.contentJson === 'string'
-                ? JSON.parse(synthesized.contentJson)
-                : synthesized.contentJson;
+            const parsed = typeof synthesized.contentJson === 'string'
+              ? JSON.parse(synthesized.contentJson)
+              : synthesized.contentJson;
+            if (this.hasSubstantiveCvContent(parsed)) {
               this.currentDraft.set(parsed);
+              completionSaved = true;
               console.log('[GeminiLive] CV synthétisé avec succès :', parsed);
-            } catch (e) {
-              console.warn('[GeminiLive] Erreur parsing contentJson synthétisé:', e);
             }
           }
         } catch (err) {
-          console.warn('[GeminiLive] Synthèse échouée, fallback sur completeInterview standard:', err);
-          try {
-            await firstValueFrom(this.apiService.completeInterview(targetCvId));
-            completionSaved = true;
-          } catch (e) {}
+          console.warn('[GeminiLive] Synthèse échouée, transcription conservée pour reprise:', err);
         } finally {
           this.isSynthesizing.set(false);
           this.paymentService.fetchProStatus();
           this.authService.refreshCurrentUser().subscribe();
         }
-      } else {
+      } else if (this.hasSubstantiveCvContent(this.currentDraft())) {
         try {
           await firstValueFrom(this.apiService.completeInterview(targetCvId));
           completionSaved = true;
@@ -823,12 +824,27 @@ export class GeminiLiveService {
     }
 
     if (completionSaved) {
+      this.state.set('COMPLETED');
       this.sessionCache.clearSession(targetCvId);
       this.interviewCompleted$.next();
     } else {
       this.sessionCache.saveSession(targetCvId, this.currentDraft(), this.transcript());
-      this.setError('La sauvegarde finale a échoué. Votre brouillon reste disponible pour reprendre.');
+      this.state.set('TEMPORARILY_UNAVAILABLE');
+      this.errorMessage.set('La rédaction du CV est momentanément indisponible. Votre entretien est conservé ; ne recommencez pas à zéro.');
     }
+  }
+
+  private hasSubstantiveCvContent(draft: any): boolean {
+    if (!draft || typeof draft !== 'object') return false;
+    if (typeof draft.summary === 'string' && draft.summary.trim().length > 20) return true;
+    if (Array.isArray(draft.skills) && draft.skills.some((skill: unknown) => typeof skill === 'string' && skill.trim())) return true;
+    return ['experiences', 'education', 'projects'].some((key) =>
+      Array.isArray(draft[key]) && draft[key].some((entry: any) =>
+        entry && typeof entry === 'object' &&
+        ['position', 'company', 'context', 'school', 'degree', 'details', 'name', 'description']
+          .some((field) => typeof entry[field] === 'string' && entry[field].trim())
+      )
+    );
   }
 
   private async handleToolCall(name: string, callId: string, args: any): Promise<any> {
@@ -928,12 +944,6 @@ export class GeminiLiveService {
 
     if (role === 'user') {
       this.lastUserTurnText = (this.lastUserTurnText ? this.lastUserTurnText + ' ' : '') + line;
-      // Push anticipé : envoyer le segment utilisateur dès qu'il est stabilisé,
-      // sans attendre la fin de réplique de Bray (Phase 1 de l'architecture streaming)
-      const sessionId = this.currentV2SessionId();
-      if (sessionId && this.currentCvId && this.currentCvId !== 'cv_default' && this.currentCvId !== 'new') {
-        this.cvStream.pushTranscriptSegment(this.currentCvId, sessionId, line);
-      }
     } else if (role === 'ai') {
       this.lastAiTurnText = (this.lastAiTurnText ? this.lastAiTurnText + ' ' : '') + line;
     }

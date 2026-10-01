@@ -205,6 +205,26 @@ public class CvInterviewOrchestratorService {
         Map<String, Object> currentPartial = parseJsonMap(session.getSectionPartialData());
         SectionPatchDto patchDto = observerService.observeSection(currentState, sectionIndex, sectionText.toString(), currentPartial);
 
+        if (Boolean.TRUE.equals(patchDto.getObserverUnavailable())) {
+            // L'entretien doit s'arrêter sans perdre le dernier tour ni avancer vers une
+            // autre section quand le rédacteur IA est indisponible.
+            session.setSectionTranscript(writeJson(sectionTranscript));
+            session.setTurnsInSection(Math.max(0, turnsInSection - 1));
+            sessionRepository.save(session);
+            return InterviewTurnResponse.builder()
+                    .sessionId(session.getId())
+                    .cvId(session.getCvId().toString())
+                    .currentState(currentState)
+                    .sectionIndex(sectionIndex)
+                    .turnsInSection(session.getTurnsInSection())
+                    .sectionStatus(session.getSectionStatus())
+                    .interviewStatus("OBSERVER_UNAVAILABLE")
+                    .controlMessage("")
+                    .cvDataSoFar(parseJsonMap(session.getCvDataSoFar()))
+                    .sectionTransitionOccurred(false)
+                    .build();
+        }
+
         // 3. Fusion en code du patch dans l'état partiel et les données CV
         if (patchDto.getPatch() != null && !patchDto.getPatch().isEmpty()) {
             currentPartial.putAll(patchDto.getPatch());

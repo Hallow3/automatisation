@@ -29,6 +29,7 @@ public class CvInterviewController {
     private final CvInterviewOrchestratorService orchestratorService;
     private final CandidateRepository candidateRepository;
     private final com.getjob.backend.cv.interview.service.CvInterviewBillingService billingService;
+    private final com.getjob.backend.cv.interview.service.CvInterviewStreamService streamService;
 
     private CandidateEntity resolveCurrentCandidate() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -89,7 +90,12 @@ public class CvInterviewController {
     ) {
         CandidateEntity candidate = resolveCurrentCandidate();
         request.setCvId(id);
-        return ResponseEntity.ok(orchestratorService.processTurn(request, candidate));
+        InterviewTurnResponse response = orchestratorService.processTurn(request, candidate);
+        streamService.publishCvSnapshot(response.getSessionId(), response.getCvDataSoFar());
+        if ("OBSERVER_UNAVAILABLE".equals(response.getInterviewStatus())) {
+            billingService.terminateAndBill(response.getSessionId(), "AI_UNAVAILABLE");
+        }
+        return ResponseEntity.ok(response);
     }
 
     /**

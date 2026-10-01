@@ -19,6 +19,14 @@ export class CvApiService {
     return this.http.get<Cv | null>(`${this.base}/cvs/${id}`);
   }
 
+  getInterviewRecoveryStatus(id: string): Observable<{ recoverable: boolean }> {
+    return this.http.get<{ recoverable: boolean }>(`${this.base}/cvs/${id}/interview/recovery-status`);
+  }
+
+  retryInterviewSynthesis(id: string): Observable<Cv> {
+    return this.http.post<Cv>(`${this.base}/cvs/${id}/synthesize`, { transcript: '' });
+  }
+
   createCv(cv: Partial<Cv>): Observable<Cv> {
     return this.http.post<Cv>(`${this.base}/cvs`, cv);
   }
