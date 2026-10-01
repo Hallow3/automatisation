@@ -1,26 +1,28 @@
 # Architecture Cible : Scribe Asynchrone en Flux Continu (Streaming CV Live)
 
 > **Document de conception technique**  
-> **Date :** Septembre 2026  
+> **Date :** 1 octobre 2026  
 > **Projet :** FallaJobs — Entretien Vocal IA & CV Builder  
-> **Statut :** Spécification & Préparation d'implémentation future  
+> **Statut :** Infrastructure SSE implémentée ; scribe anticipé encore planifié  
+
+> **Mise à jour de production :** Le déploiement `62df259` utilise `gemini-3.8-live` pour la voix, `fr-FR` avec la voix `Charon`, et le modèle backend `gemini-3.5-flash-lite` pour l'observation. Le chemin actif met à jour le CV après `turnComplete` via `POST /interview/v2/turn`. Le SSE existe, mais `/push-transcript` n'est pas encore appelé par le frontend.
 
 ---
 
 ## 1. Contexte & Diagnostic de l'Existant (V2)
 
 ### 1.1 Ce qui fonctionne aujourd'hui (Les acquis de la V2)
-* **Découplage strict Voix / Structuration :** L'assistant vocal Bray (`gemini-3.1-flash-live-preview`) est 100% dédié à l'échange oral fluide sans exécuter de `tool_calls` perturbateurs.
+* **Découplage strict Voix / Structuration :** L'assistant vocal Bray (`gemini-3.8-live`) est 100% dédié à l'échange oral fluide. Gemini Live n'exécute que `request_end_interview` pour une demande d'arrêt explicite.
 * **Extraction & State Machine Déterministe :** Le modèle de texte (`gemini-3.5-flash-lite`) extrait les faits selon des clés canoniques strictes et le code backend contrôle la validité des transitions (dates, rôles, complétude).
 * **Robustesse :** Zéro hallucination de structure vocale, gestion du barge-in et persistance MySQL propre.
 
-### 1.2 La limite actuelle : Le décalage temporel "Batch"
-Aujourd'hui, l'interaction s'opère par tours séquentiels bloquants :
+### 1.2 Le chemin actif : synchronisation après tour finalisé
+Aujourd'hui, l'interaction s'opère par tours séquentiels :
 1. Le candidat parle (10 à 20s) ➔ **Le CV reste figé.**
 2. L'IA vocale réfléchit et commence à répondre ➔ **Le CV reste figé.**
-3. L'IA vocale termine sa phrase (`onModelTurnComplete`) ➔ Un appel HTTP `POST /api/v2/interview/cv/{id}/turn` est envoyé au backend.
-4. Le backend appelle `gemini-3.5-flash-lite` en HTTP bloquant synchrone (attente de 1,5 à 2,5s).
-5. Le frontend reçoit le JSON complet et actualise le canvas.
+3. L'IA vocale termine sa phrase (`onModelTurnComplete`) ➔ `syncCurrentTurnToBackend()` envoie le tour à `/interview/v2/turn`.
+4. Le backend appelle `gemini-3.5-flash-lite`, persiste le patch et renvoie `cvDataSoFar`.
+5. Le frontend fusionne la réponse et actualise le canvas ; le SSE reste disponible pour le futur chemin anticipé.
 
 ```
 [Candidat parle] ──────► [Bray répond] ──────► [Requête HTTP POST] ──► [LLM génère JSON] ──► [CV mis à jour]
@@ -177,15 +179,15 @@ Remplacement de l'appel bloquant `generateContent` par l'API streaming de Gemini
                                        │
                                        ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ Phase 2 : Canal de Push SSE Backend                                          │
-│ - Mise en place de CvInterviewStreamController et SseEmitter                 │
-│ - Découplage de la réponse HTTP : le client reçoit les patchs au fil de l'eau│
+│ Phase 2 : Canal SSE Backend — infrastructure en place                        │
+│ - CvInterviewStreamController et SseEmitter implémentés                      │
+│ - Appel frontend de /push-transcript restant à intégrer                      │
 └──────────────────────────────────────┬───────────────────────────────────────┘
                                        │
                                        ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ Phase 3 : Streaming LLM (streamGenerateContent)                              │
-│ - Passage à streamGenerateContent sur gemini-3.5-flash-lite                  │
+│ Phase 3 : Streaming LLM anticipé — à planifier                               │
+│ - Passage contrôlé à streamGenerateContent sur gemini-3.5-flash-lite          │
 │ - Émission progressive des champs et puces du CV en temps réel               │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```

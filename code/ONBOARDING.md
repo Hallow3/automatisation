@@ -1,5 +1,7 @@
 # 🧭 GUIDE D'ONBOARDING — FALLAJOBS
 
+> **État de référence :** 1 octobre 2026 — production sur `62df259`.
+
 Bienvenue sur le projet **FallaJobs**.  
 Ce guide est conçu pour permettre à tout nouvel ingénieur, contributeur ou agent IA d'être opérationnel en moins de 10 minutes sur la codebase.
 
@@ -10,10 +12,10 @@ Ce guide est conçu pour permettre à tout nouvel ingénieur, contributeur ou ag
 | Axe | Détail |
 | :--- | :--- |
 | **Produit** | Plateforme SaaS B2B/B2C d'accélération de carrière assistée par IA. |
-| **Piliers Clés** | 1. Coach vocal d'entretien pour création de CV (Gemini 3.1 Live).<br>2. Galerie & Éditeur de CV A4 haute fidélité (9 templates Word/ATS).<br>3. Agrégation d'offres d'emploi & scoring d'affinité algorithmique (45-95%).<br>4. Rédaction IA de lettres de motivation personnalisées (Gemini 2.0 Flash).<br>5. Paiement programmatique Mobile Money (NotchPay) avec résilience WhatsApp. |
+| **Piliers Clés** | 1. Coach vocal d'entretien pour création de CV (Gemini 3.8 Live).<br>2. Galerie & Éditeur de CV A4 haute fidélité (9 templates Word/ATS).<br>3. Agrégation d'offres d'emploi & scoring d'affinité algorithmique (45-95%).<br>4. Rédaction IA de lettres de motivation personnalisées.<br>5. Paiement programmatique Mobile Money (NotchPay) avec résilience WhatsApp. |
 | **Backend** | Spring Boot 3.3.2, Java 17/21, Spring Security 6 (JWT HttpOnly), Flyway V1 -> V14, MySQL 8. |
 | **Frontend** | Angular 18 (100% Standalone, Signals), Tailwind CSS v3, Web Audio API (PCM 16k/24k). |
-| **IA & Audio** | Google Gemini 3.1 Flash Live (WebSocket), Gemini 2.0 Flash (REST multimodal/texte). |
+| **IA & Audio** | Google Gemini 3.8 Live (WebSocket, `Charon`, `fr-FR`), Gemini REST selon le modèle configuré. |
 | **Paiements** | NotchPay API (`POST /payments`), Webhook HMAC-SHA256, Idempotence, WhatsApp fallback. |
 
 ---
@@ -66,7 +68,7 @@ npm start
 ## 🧩 3. Cartographie de la Codebase
 
 ### 3.1. Structure Backend (`backend/src/main/java/com/getjob/backend/`)
-- `ai/` : Service de gestion des jetons éphémères Gemini Live 3.1 (`GeminiLiveTokenService.java`) avec rotation de clés.
+- `ai/` : Service de gestion des jetons éphémères Gemini Live 3.8 (`GeminiLiveTokenService.java`) avec rotation de clés.
 - `auth/` : Sécurité Spring Security 6, JWT en cookie HttpOnly, filtres `JwtAuthenticationFilter` et `RateLimitFilter`.
 - `candidate/` : Profils candidats, contrôleur `/api/v1/candidate/profile`, synchronisation de données.
 - `cv/` : Cycle de vie des CVs, validation des brouillons (`CvDraftValidator`), et export PDF headless (`CvPdfExportService`).
@@ -88,7 +90,8 @@ npm start
 - `core/prompts/cv-interview/` : Prompts modulaires pour l'IA d'entretien vocal (Bray).
 - `core/services/` :
   - `cv-interview-api.service.ts` : API d'orchestration vocale V2 (session, tour de parole, arrêt anticipé, remboursement).
-  - `gemini-live-ws-client.service.ts` : Communication WebSocket audio bidirectionnelle avec Gemini Live (tool `request_end_interview`).
+  - `gemini-live-ws-client.service.ts` : Communication WebSocket audio bidirectionnelle avec Gemini Live (`Charon`, `fr-FR`, outil unique `request_end_interview`).
+  - `cv-stream.service.ts` : Connexion SSE aux patchs CV ; le chemin V2 principal utilise actuellement la réponse de `/interview/v2/turn`.
   - `audio-pcm-engine.service.ts` : Capture micro PCM 16kHz via Worklet et lecture PCM 24kHz.
   - `interview-session-cache.service.ts` : Cache de résilience locale (10 min) en cas de déconnexion.
   - `payment.service.ts` : Tunnel NotchPay, crédits pro synchronisés et modales de repli WhatsApp.
@@ -104,6 +107,8 @@ npm start
 - **Reprise Gratuite Sécurisée** : La reprise d'une session en cours (< 15 min) est 100% gratuite quel que soit le format de route (`new`, `cv_default`, ou id numérique).
 - **Audio & WebSocket Direct** : Le frontend ouvre un canal WebSocket direct `wss://generativelanguage.googleapis.com/...` en PCM 16kHz entrant et 24kHz sortant, guidé par le persona *Bray*.
 - **Orchestration Hybride** : À chaque fin de tour de parole, le frontend synchronise la transcription avec le backend (`POST /interview/v2/turn`). La State Machine backend (`InterviewStateMachineService`) progresse à travers 10 sections strictes et réinjecte des instructions contextuelles `[INTERVIEW_STATE]`.
+- **Moment de mise à jour du CV** : Le premier patch apparaît après la première réponse finale du candidat et la réponse suivante de Gemini, lorsque `turnComplete` déclenche `syncCurrentTurnToBackend()`. L'accueil et les transcriptions partielles ne modifient pas encore le CV.
+- **Autorité des écritures** : Gemini Live ne peut pas appeler `update_cv_draft`, `audit_cv_integrity` ou `complete_interview`. Ces opérations restent côté backend afin d'éviter les écritures concurrentes et les transactions longues.
 - **Extraction & Clôture Déterministe** : L'Observateur LLM extrait les faits en arrière-plan sans latence audio. La fin d'entretien repose sur l'outil unique `request_end_interview`, validé côté serveur.
 
 ### 2. Double Moteur d'Export PDF (100% Gratuit)

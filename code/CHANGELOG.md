@@ -1,5 +1,19 @@
 # CHANGELOG — Suivi de Développement & Intégration
 
+## [1.4.0] - 2026-10-01
+
+### 🎙️ Stabilisation Production de l'entretien vocal, prompts et voix francophone
+
+- Déploiement production du commit `62df259` sur le VPS ; frontend et backend Docker sont `healthy`.
+- Passage du modèle vocal documenté à `gemini-3.8-live`, avec `languageCode: fr-FR` et voix `Charon`.
+- Harmonisation du prompt vocal vers une intonation inspirée du français camerounais contemporain, avec diction claire, rythme posé et accent subtil.
+- Réintégration des prompts modulaires : persona recruteur, stratégie de valeur, algorithme d'entretien, garde-fous et règles de brouillon.
+- Maintien d'un seul outil Gemini Live : `request_end_interview`. Les écritures CV, audits et finalisation restent sous le contrôle du backend V2.
+- Documentation du moment de mise à jour du CV : après la première réponse candidat finalisée, `turnComplete`, puis `POST /interview/v2/turn`.
+- Ajout de tests backend : 33 tests passent sans échec, couvrant tokens Gemini, orchestration, SSE, observation, validation et synthèse.
+- Ajustement des budgets Angular `anyComponentStyle` à `8 kB` en avertissement et `12 kB` en erreur.
+- Infrastructure SSE documentée comme disponible ; le déclenchement frontend anticipé via `/push-transcript` reste une étape future.
+
 ## [1.3.1] - 2026-09-21
 
 ### 🛡️ Stabilisation Critique : Éradication du Débit Intempestif, Refonte Bannière Crédits, Orbe Mobile & Déploiement Production
