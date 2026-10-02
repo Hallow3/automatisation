@@ -60,13 +60,18 @@ body {
   color: #4338ca;
 }
 
-/* Les barres de défilement restent visibles par défaut pour garder les pages navigables. */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.no-scrollbar {
-  -ms-overflow-style: none;
+/* Masquer les barres de défilement sans désactiver le défilement. */
+*,
+*::before,
+*::after {
   scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
