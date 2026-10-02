@@ -1,0 +1,68 @@
+{
+  "name": "Camille Test",
+  "title": "Responsable des projets numeriques",
+  "email": "camille.test@example.com",
+  "phone": "+237 600 000 000",
+  "city": "Douala",
+  "summary": "Responsable de projets numeriques avec dix ans d'experience dans la conception de plateformes de services. J'ai pilote des equipes pluridisciplinaires, structure des programmes de transformation et accompagne des utilisateurs dans plusieurs pays. Mes projets associent architecture logicielle, formation, qualite et mesure des resultats. Je coordonne les decisions techniques avec les besoins du terrain et documente les choix pour faciliter la maintenance.",
+  "experiences": [
+    {
+      "role": "Responsable technique",
+      "company": "Entreprise Alpha",
+      "city": "Douala",
+      "period": "2022 - Present",
+      "description": "Direction d'une equipe de developpement et livraison de services accessibles sur ordinateur et mobile.",
+      "bullets": [
+        "Organisation du travail de douze developpeurs sur une plateforme utilisee chaque jour par plusieurs equipes.",
+        "Conception d'une architecture stable pour les donnees, les applications et les integrations partenaires.",
+        "Reduction des incidents de production grace a des controles automatiques et une meilleure observabilite.",
+        "Formation des responsables metier a la lecture des indicateurs et aux decisions de priorisation."
+      ]
+    },
+    {
+      "role": "Developpeuse principale",
+      "company": "Entreprise Beta",
+      "city": "Yaounde",
+      "period": "2018 - 2022",
+      "description": "Construction de logiciels pour la gestion des operations et la collaboration entre services.",
+      "bullets": [
+        "Mise en place d'interfaces simples pour la saisie et la verification des informations quotidiennes.",
+        "Migration progressive d'applications anciennes vers une base de code maintenable et documentee.",
+        "Animation de revues de code, de sessions de transfert de competences et de retours utilisateurs.",
+        "Suivi des performances, des temps de reponse et de la disponibilite des services critiques."
+      ]
+    },
+    {
+      "role": "Ingenieure logicielle",
+      "company": "Entreprise Gamma",
+      "city": "Bafoussam",
+      "period": "2015 - 2018",
+      "description": "Developpement de solutions web pour des clients publics et prives.",
+      "bullets": [
+        "Realisation de modules de facturation, de suivi des demandes et de production de rapports.",
+        "Collaboration avec les equipes de support pour corriger les problemes constates sur le terrain.",
+        "Documentation des procedures de mise en production et de reprise apres incident.",
+        "Controle final de la derniere experience avec le marqueur EXPERIENCEFINALE."
+      ]
+    }
+  ],
+  "education": [
+    { "degree": "Master en informatique", "school": "Universite des Sciences Appliquees", "year": "2015" },
+    { "degree": "Licence en mathematiques", "school": "Universite Regionale", "year": "2013" }
+  ],
+  "skills": [
+    "Architecture logicielle", "Java", "Spring Boot", "Angular", "Bases de donnees",
+    "Gestion de projet", "Accessibilite", "Formation", "Analyse de donnees", "Qualite logicielle"
+  ],
+  "languages": [
+    { "name": "Francais", "level": "Courant" },
+    { "name": "Anglais", "level": "Professionnel" }
+  ],
+  "projects": [
+    { "name": "Portail de services", "detail": "Mise en ligne d'un parcours de demande et de suivi des dossiers." },
+    { "name": "Programme de formation", "detail": "Controle final du dernier projet avec le marqueur PROJETFINAL." }
+  ],
+  "personalQualities": ["Ecoute", "Rigueur", "Esprit de cooperation"],
+  "interests": ["Lecture", "Photographie", "Cyclisme"],
+  "accent": "#2563eb"
+}

@@ -107,5 +107,14 @@
       </div>
     </section>
 
+    <section *ngIf="data.personalQualities?.length" class="classic-section">
+      <h2 class="classic-section-title" [style.borderColor]="currentAccent">Qualités</h2>
+      <p>{{ data.personalQualities?.join(', ') }}</p>
+    </section>
+    <section *ngIf="data.interests?.length" class="classic-section">
+      <h2 class="classic-section-title" [style.borderColor]="currentAccent">Centres d'intérêt</h2>
+      <p>{{ data.interests?.join(', ') }}</p>
+    </section>
+
   </main>
 </article>

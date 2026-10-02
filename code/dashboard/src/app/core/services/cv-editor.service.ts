@@ -36,6 +36,7 @@ export class CvEditorService {
   ]);
   readonly templateId = signal<string>('modern');
   public cvData!: WritableSignal<CvData>;
+  private projects: CvData['projects'] = [];
 
   private _currentCvId: string | null = null;
   private _destroy$ = new Subject<void>();
@@ -86,6 +87,8 @@ export class CvEditorService {
       }),
       headline:    [u?.targetRole || ''],
       summary:     [''],
+      personalQualitiesText: [''],
+      interestsText: [''],
       links:       this.fb.array([]),
       experiences: this.fb.array([]),
       education:   this.fb.array([]),
@@ -107,6 +110,20 @@ export class CvEditorService {
   init(cvId: string, data: any): void {
     this._currentCvId = cvId;
     this._destroy$.next();
+    const user = this.authService.currentUser();
+    this.form.reset({
+      identity: {
+        fullName: user?.fullName || '',
+        email: user?.email || '',
+        phone: user?.phone || '',
+        city: user?.city || '',
+        linkedin: ''
+      },
+      headline: user?.targetRole || '',
+      summary: '',
+      personalQualitiesText: '',
+      interestsText: ''
+    }, { emitEvent: false });
     
     // Réinitialiser les arrays sans détruire l'instance form
     this.links.clear();
@@ -114,6 +131,7 @@ export class CvEditorService {
     this.education.clear();
     this.skills.clear();
     this.languages.clear();
+    this.projects = [];
 
     this.patchFromData(data);
     this._setupAutoSave();
@@ -192,6 +210,10 @@ export class CvEditorService {
       return;
     }
     const d: any = typeof data === 'string' ? JSON.parse(data) : data;
+    this.projects = Array.isArray(d.projects) ? d.projects.map((project: any) => ({
+      name: project.name || '',
+      detail: project.detail || project.description || project.context || ''
+    })) : [];
 
     this.form.patchValue({
       identity: {
@@ -202,7 +224,9 @@ export class CvEditorService {
         linkedin: d.identity?.linkedin || d.linkedin || ''
       },
       headline: d.headline || d.title || u?.targetRole || '',
-      summary:  d.summary  || ''
+      summary:  d.summary  || '',
+      personalQualitiesText: Array.isArray(d.personalQualities) ? d.personalQualities.join(', ') : '',
+      interestsText: Array.isArray(d.interests) ? d.interests.join(', ') : ''
     });
 
     this.links.clear();
@@ -356,6 +380,8 @@ export class CvEditorService {
       phone:   v.identity?.phone    || u?.phone || '',
       city:    v.identity?.city     || u?.city || '',
       summary: v.summary            || '',
+      personalQualities: this.splitOptionalList(v.personalQualitiesText),
+      interests: this.splitOptionalList(v.interestsText),
       skills:  skills,
       links: (v.links || [])
         .filter((l: any) => l?.url && l.url.trim())
@@ -389,6 +415,7 @@ export class CvEditorService {
             level: l.level || ''
           };
         }),
+      projects: this.projects,
       sectionOrder: this.sectionOrder()
     };
   }
@@ -401,11 +428,14 @@ export class CvEditorService {
       identity:     v.identity,
       headline:     v.headline,
       summary:      v.summary,
+      personalQualities: this.splitOptionalList(v.personalQualitiesText),
+      interests: this.splitOptionalList(v.interestsText),
       links:        v.links,
       experiences:  v.experiences,
       education:    v.education,
       skills:       (v.skills || []).filter((s: string) => s?.trim()),
       languages:    v.languages,
+      projects:     this.projects,
       sectionOrder: this.sectionOrder(),
       template:     this.templateId()
     };
@@ -417,5 +447,9 @@ export class CvEditorService {
       this.templateId.set(template);
     }
     return this.cvApi.saveDraft(cvId, this._toApiPayload());
+  }
+
+  private splitOptionalList(value: string | null | undefined): string[] {
+    return (value || '').split(',').map(item => item.trim()).filter(Boolean);
   }
 }

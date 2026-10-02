@@ -1,4 +1,4 @@
-<div class="space-y-4 sm:space-y-6 p-3 sm:p-6 lg:p-8 max-w-full overflow-hidden">
+<div class="space-y-4 sm:space-y-6 p-3 sm:p-6 lg:p-8 max-w-full min-w-0">
   
   <!-- Header Bar -->
   <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -173,7 +173,7 @@
         (click)="openPreviewModal(item, $event)"
         class="cv-mini-preview-container group-hover:border-brand-400 transition cursor-pointer">
         <div class="cv-mini-preview-wrapper">
-          <app-cv-preview [cv]="getCvData(item)" [template]="item.template" />
+          <app-cv-preview [cv]="getCvData(item)" [template]="item.template" [showPageBreaks]="false" />
         </div>
       </div>
 
@@ -209,7 +209,7 @@
           <!-- Dropdown popup -->
           <div
             *ngIf="menuOpenId === item.id"
-            class="absolute right-0 top-8 z-50 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl ring-1 ring-black/5 animate-fade-in">
+            class="fixed inset-x-3 bottom-3 z-50 max-h-[70dvh] overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl ring-1 ring-black/5 animate-fade-in sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-8 sm:w-44 sm:max-h-[50vh]">
             <button
               type="button"
               (click)="downloadCvPdf(item, $event)"
@@ -288,7 +288,7 @@
           (click)="openPreviewModal(item, $event)"
           class="cv-row-mini-preview group-hover:border-brand-400 transition cursor-pointer">
           <div class="cv-row-mini-canvas">
-            <app-cv-preview [cv]="getCvData(item)" [template]="item.template" />
+            <app-cv-preview [cv]="getCvData(item)" [template]="item.template" [showPageBreaks]="false" />
           </div>
         </div>
 
@@ -311,7 +311,7 @@
       </div>
 
       <!-- Right: Action Buttons -->
-      <div class="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+      <div class="flex w-full max-w-full flex-wrap items-center justify-end gap-1.5 self-end sm:w-auto sm:self-center sm:flex-nowrap">
         <a
           [routerLink]="['/cv-builder']"
           [queryParams]="{ action: 'editor', cvId: item.id }"
@@ -346,7 +346,7 @@
           <!-- Dropdown popup (Clean text without icons, Traduire instead of Télécharger) -->
           <div
             *ngIf="menuOpenId === item.id"
-            class="absolute right-0 top-9 z-50 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl ring-1 ring-black/5 animate-fade-in">
+            class="fixed inset-x-3 bottom-3 z-50 max-h-[70dvh] overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl ring-1 ring-black/5 animate-fade-in sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-9 sm:w-44 sm:max-h-[50vh]">
             <button
               type="button"
               (click)="openTranslateModal(item, $event)"
@@ -472,7 +472,7 @@
 
       <!-- Modal Body Canvas -->
       <div class="flex-1 overflow-auto bg-[#E8EDF3] p-3 sm:p-8 flex justify-center items-start">
-        <div class="bg-white shadow-2xl rounded-sm my-2 pointer-events-none origin-top" style="width: 794px; min-height: 1123px;">
+        <div class="shrink-0 bg-white shadow-2xl rounded-sm my-2 pointer-events-none" style="width: 794px;" [style.zoom]="getPreviewScale()">
           <app-cv-preview [cv]="getCvData(selectedCvForPreview()!)" [template]="selectedCvForPreview()!.template" />
         </div>
       </div>

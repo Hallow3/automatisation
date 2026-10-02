@@ -26,12 +26,14 @@ export class CvPrintComponent implements OnInit {
   cvData = signal<CvData | null>(null);
   loading = signal<boolean>(true);
   isReady = signal<boolean>(false);
+  private autoPrint = false;
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id') || 'sample';
     const queryTpl = this.route.snapshot.queryParamMap.get('template');
     const printToken = this.route.snapshot.queryParamMap.get('token');
     const autoPrint = this.route.snapshot.queryParamMap.get('print') === 'true';
+    this.autoPrint = autoPrint;
 
     this.cvId.set(id);
     if (queryTpl) {
@@ -40,7 +42,6 @@ export class CvPrintComponent implements OnInit {
 
     if (id === 'sample' || id === 'demo') {
       this.cvData.set(SAMPLE_CIVIL_ENGINEER_CV);
-      this.markAsReady(autoPrint);
       return;
     }
 
@@ -70,11 +71,9 @@ export class CvPrintComponent implements OnInit {
         } else {
           this.loadFallbackData();
         }
-        this.markAsReady(autoPrint);
       },
       error: () => {
         this.loadFallbackData();
-        this.markAsReady(autoPrint);
       }
     });
   }
@@ -191,6 +190,12 @@ export class CvPrintComponent implements OnInit {
       experiences,
       education,
       languages,
+      personalQualities: Array.isArray(raw.personalQualities) ? raw.personalQualities : [],
+      interests: Array.isArray(raw.interests) ? raw.interests : [],
+      projects: Array.isArray(raw.projects) ? raw.projects.map((project: any) => ({
+        name: project.name || '',
+        detail: project.detail || project.description || project.context || ''
+      })) : [],
       links,
       linkedin,
       accent: raw.accent || '#2563eb',
@@ -212,14 +217,13 @@ export class CvPrintComponent implements OnInit {
     this.cvData.set(SAMPLE_CIVIL_ENGINEER_CV);
   }
 
-  private markAsReady(autoPrint: boolean): void {
+  markAsReady(): void {
+    if (this.isReady()) return;
     this.loading.set(false);
-    setTimeout(() => {
-      this.isReady.set(true);
-      document.body.classList.add('cv-print-ready');
-      if (autoPrint) {
-        setTimeout(() => window.print(), 300);
-      }
-    }, 250);
+    this.isReady.set(true);
+    document.body.classList.add('cv-print-ready');
+    if (this.autoPrint) {
+      setTimeout(() => window.print(), 300);
+    }
   }
 }

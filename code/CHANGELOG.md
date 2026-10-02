@@ -1,5 +1,24 @@
 # CHANGELOG — Suivi de Développement & Intégration
 
+## [En cours] - 2026-10-02 — Retours utilisateurs CV
+
+- [x] L'entretien poursuit le parcours après les expériences jusqu'aux langues, puis demande les qualités et loisirs en précisant leur caractère facultatif.
+- [x] Le JSON, l'éditeur, les modèles et la vue d'impression conservent ces informations facultatives ainsi que les projets.
+- [x] Le nom complet et l'email du compte sont protégés pendant l'extraction et la rédaction IA.
+- [x] La clôture réussie de l'entretien facture la durée et rafraîchit le solde avant l'ouverture de l'éditeur.
+- [x] Les nouveaux CV générés portent une date et une heure dans leur titre.
+- [x] L'utilisateur choisit de reprendre son dernier entretien ou de créer un CV neuf ; le second choix vide les sessions locales.
+- [x] L'aperçu répartit le contenu débordant sur des feuilles A4 distinctes ; le zoom mobile suit la hauteur réelle du document.
+- [x] Les menus de CV mobiles restent accessibles et défilants, et les barres de défilement globales ne sont plus masquées.
+- [x] Les marges contradictoires de l'impression A4 et le masquage du contenu débordant ont été supprimés.
+- [x] Le fichier fourni `CV_41.pdf` a confirmé une seule page avec la colonne latérale et les expériences coupées ; la vue d'export utilise désormais la pagination A4 et attend la fin du calcul avant d'être déclarée prête.
+- [x] La pagination et les règles A4 s'appliquent aux trois modèles (moderne, classique et Onyx) ; les expériences longues peuvent répartir leurs puces entre deux feuilles sans perdre leur intitulé.
+- [x] Les marges du modèle classique restent présentes à l'impression et la colonne Onyx affiche les qualités et loisirs même lorsqu'elle ne contient que ces rubriques.
+- [x] Test PDF reproductible avec un JSON complet : Chromium génère exactement deux pages A4 pour chaque modèle, avec les rubriques de fin présentes sur la deuxième page. La règle globale d'impression laisse maintenant le document dépasser la hauteur de l'écran.
+- [x] Les textes longs de la colonne latérale du modèle moderne se replient dans leur largeur disponible.
+- [ ] Régénérer `CV_41.pdf` avec les mêmes données après déploiement et vérifier visuellement les pages sur téléphone.
+
+
 ## [1.4.0] - 2026-10-01
 
 ### 🎙️ Stabilisation Production de l'entretien vocal, prompts et voix francophone

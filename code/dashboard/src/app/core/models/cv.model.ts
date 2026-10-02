@@ -4,6 +4,7 @@ export interface Cv {
   template: string;
   templateLabel?: string;
   status: string;
+  interviewStatus?: string;
   isDefault?: boolean;
   contentJson?: string;
   createdAt?: string;

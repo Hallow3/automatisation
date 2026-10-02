@@ -249,6 +249,8 @@ export class CvListComponent implements OnInit {
       phone: data?.identity?.phone || data?.phone || u?.phone || '',
       city: data?.identity?.city || data?.city || u?.city || '',
       summary: data?.summary || '',
+      personalQualities: data?.personalQualities || [],
+      interests: data?.interests || [],
       skills: data?.skills || [],
       experiences: (data?.experiences || []).map((e: any) => ({
         role: e.position || e.role || '',
@@ -264,7 +266,11 @@ export class CvListComponent implements OnInit {
       languages: (data?.languages || []).map((l: any) => {
         if (typeof l === 'string') return { lang: l, level: '' };
         return { lang: l.lang || l.name || '', level: l.level || '' };
-      })
+      }),
+      projects: (data?.projects || []).map((project: any) => ({
+        name: project.name || '',
+        detail: project.detail || project.description || project.context || ''
+      }))
     };
   }
 
@@ -285,6 +291,11 @@ export class CvListComponent implements OnInit {
 
   closeMenu(): void {
     this.menuOpenId = null;
+  }
+
+  getPreviewScale(): number {
+    if (typeof window === 'undefined') return 1;
+    return Math.min(1, (window.innerWidth - 40) / 794);
   }
 
   downloadPdf(item: CvItemDisplay, event: Event): void {
@@ -318,7 +329,7 @@ export class CvListComponent implements OnInit {
   openDuplicateModal(item: CvItemDisplay, event: Event): void {
     event.stopPropagation();
     this.closeMenu();
-    const newTitle = `${item.title} (Copie)`;
+    const newTitle = `${item.title} (Copie du ${new Date().toLocaleDateString('fr-FR')})`;
     this.cvApi.createCv({
       title: newTitle,
       template: item.rawCv.template,
@@ -370,7 +381,7 @@ export class CvListComponent implements OnInit {
 
     const lang = this.targetLanguage();
     const cvData = this.getCvData(item);
-    const newTitle = `${item.title} (${lang})`;
+    const newTitle = `${item.title} (${lang}, ${new Date().toLocaleDateString('fr-FR')})`;
 
     this.cvApi.createCv({
       title: newTitle,

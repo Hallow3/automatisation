@@ -467,8 +467,7 @@ public class CvInterviewOrchestratorService {
             case "IDENTITY" -> {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> idMap = (Map<String, Object>) cvData.computeIfAbsent("identity", k -> new HashMap<String, Object>());
-                if (norm.containsKey("fullName")) idMap.put("fullName", norm.get("fullName"));
-                if (norm.containsKey("email")) idMap.put("email", norm.get("email"));
+                // L'identité du compte est la source de vérité, jamais l'extraction vocale.
                 if (norm.containsKey("phone")) idMap.put("phone", norm.get("phone"));
                 if (norm.containsKey("city")) idMap.put("city", norm.get("city"));
             }
@@ -544,6 +543,11 @@ public class CvInterviewOrchestratorService {
                 Object langsObj = norm.get("languages");
                 if (langsObj instanceof List<?> list) {
                     cvData.put("languages", list);
+                }
+            }
+            case "OPTIONAL_DETAILS" -> {
+                for (String key : List.of("personalQualities", "interests")) {
+                    if (norm.get(key) instanceof List<?> list) cvData.put(key, list);
                 }
             }
         }
@@ -631,7 +635,16 @@ public class CvInterviewOrchestratorService {
         // Une nouvelle session sur un CV existant reprend son dernier brouillon sauvegardé.
         if (cv != null && cv.getContentJson() != null && !cv.getContentJson().isBlank()) {
             Map<String, Object> saved = parseJsonMap(cv.getContentJson());
-            if (!saved.isEmpty()) return saved;
+            if (!saved.isEmpty()) {
+                Object rawIdentity = saved.get("identity");
+                @SuppressWarnings("unchecked")
+                Map<String, Object> identity = rawIdentity instanceof Map<?, ?> map
+                        ? (Map<String, Object>) map : new HashMap<>();
+                saved.put("identity", identity);
+                if (candidate.getFullName() != null) identity.put("fullName", candidate.getFullName());
+                if (candidate.getEmail() != null) identity.put("email", candidate.getEmail());
+                return saved;
+            }
         }
         Map<String, Object> initial = new HashMap<>();
         Map<String, String> identity = new HashMap<>();
@@ -646,6 +659,8 @@ public class CvInterviewOrchestratorService {
         initial.put("education", new ArrayList<>());
         initial.put("skills", new ArrayList<>());
         initial.put("languages", new ArrayList<>());
+        initial.put("personalQualities", new ArrayList<>());
+        initial.put("interests", new ArrayList<>());
         initial.put("projects", new ArrayList<>());
         return initial;
     }

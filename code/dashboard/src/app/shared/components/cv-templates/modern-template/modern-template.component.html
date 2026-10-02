@@ -110,6 +110,15 @@
         </div>
       </section>
 
+      <section *ngIf="data.personalQualities?.length" class="exec-side-section">
+        <h2 class="exec-side-title">Qualités</h2>
+        <p>{{ data.personalQualities?.join(', ') }}</p>
+      </section>
+      <section *ngIf="data.interests?.length" class="exec-side-section">
+        <h2 class="exec-side-title">Centres d'intérêt</h2>
+        <p>{{ data.interests?.join(', ') }}</p>
+      </section>
+
     </aside>
 
   </div>

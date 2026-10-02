@@ -194,6 +194,14 @@ export class GeminiLiveService {
     return this.sessionCache.getSession(cvId)?.draft ?? null;
   }
 
+  public startFreshInterview(): void {
+    this.sessionCache.clearAllSessions();
+    this.resetDraft();
+    this.currentCvId = 'new';
+    this.currentState.set('IDENTITY');
+    this.sectionStatus.set('IN_PROGRESS');
+  }
+
   /**
    * Déclenche activement le cycle complet d'entretien vocal au clic explicite de l'utilisateur :
    * 1. Débit du crédit & obtention du jeton de session backend
@@ -676,9 +684,6 @@ export class GeminiLiveService {
       clearTimeout(this.resumeTimer);
       this.resumeTimer = null;
     }
-    try {
-      this.authService.refreshCurrentUser().subscribe();
-    } catch (ignored) {}
     this.pendingProCredits = null;
     this.shouldRefreshProStatusOnSetup = false;
     this.initialGreetingPending = false;
@@ -810,20 +815,18 @@ export class GeminiLiveService {
           console.warn('[GeminiLive] Synthèse échouée, transcription conservée pour reprise:', err);
         } finally {
           this.isSynthesizing.set(false);
-          this.paymentService.fetchProStatus();
-          this.authService.refreshCurrentUser().subscribe();
         }
       } else if (this.hasSubstantiveCvContent(this.currentDraft())) {
         try {
           await firstValueFrom(this.apiService.completeInterview(targetCvId));
           completionSaved = true;
-          this.paymentService.fetchProStatus();
-          this.authService.refreshCurrentUser().subscribe();
         } catch (e) {}
       }
     }
 
     if (completionSaved) {
+      await firstValueFrom(this.authService.refreshCurrentUser());
+      this.paymentService.fetchProStatus();
       this.state.set('COMPLETED');
       this.sessionCache.clearSession(targetCvId);
       this.interviewCompleted$.next();
@@ -832,6 +835,26 @@ export class GeminiLiveService {
       this.state.set('TEMPORARILY_UNAVAILABLE');
       this.errorMessage.set('La rédaction du CV est momentanément indisponible. Votre entretien est conservé ; ne recommencez pas à zéro.');
     }
+  }
+
+  public async quitInterview(): Promise<void> {
+    const sessionId = this.currentV2SessionId();
+    const cvId = this.currentCvId;
+    if (sessionId && /^\d+$/.test(cvId) && this.hasStarted()) {
+      try {
+        await firstValueFrom(this.apiService.requestEndInterviewV2(cvId, {
+          sessionId,
+          reason: 'user_quit',
+          userIntentExcerpt: 'Je veux quitter',
+          lastUserTurn: 'Je veux quitter'
+        }));
+      } catch (error) {
+        console.warn('[GeminiLive] Clôture immédiate indisponible :', error);
+      }
+    }
+    this.stopSession();
+    await firstValueFrom(this.authService.refreshCurrentUser());
+    this.paymentService.fetchProStatus();
   }
 
   private hasSubstantiveCvContent(draft: any): boolean {
@@ -1005,13 +1028,18 @@ export class GeminiLiveService {
       updated.identity = {
         ...curId,
         ...patch.identity,
-        fullName: (curId.fullName && curId.fullName.trim()) ? curId.fullName : (patch.identity.fullName || ''),
-        email: (curId.email && curId.email.trim()) ? curId.email : (patch.identity.email || '')
+        fullName: this.authService.currentUser()?.fullName || curId.fullName || patch.identity.fullName || '',
+        email: this.authService.currentUser()?.email || curId.email || patch.identity.email || ''
       };
     }
 
     if (patch.headline) updated.headline = patch.headline;
     if (patch.summary) updated.summary = patch.summary;
+    for (const key of ['personalQualities', 'interests'] as const) {
+      if (Array.isArray(patch[key])) {
+        updated[key] = [...new Set([...(updated[key] || []), ...patch[key]])];
+      }
+    }
 
     if (Array.isArray(patch.skills) && patch.skills.length > 0) {
       const set = new Set([...(updated.skills || []), ...patch.skills]);
@@ -1083,7 +1111,9 @@ export class GeminiLiveService {
       skills: [],
       experiences: [],
       education: [],
-      languages: []
+      languages: [],
+      personalQualities: [],
+      interests: []
     };
   }
 

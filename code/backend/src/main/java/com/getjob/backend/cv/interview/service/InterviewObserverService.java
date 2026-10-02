@@ -52,6 +52,7 @@ public class InterviewObserverService {
                    - Section EDUCATION : {"school": string, "degree": string, "year": string (ex: "2022"), "details": string}
                    - Section SKILLS : {"skills": [string]}
                    - Section LANGUAGES : {"languages": [{"lang": string, "level": string}]}
+                   - Section OPTIONAL_DETAILS : {"personalQualities": [string], "interests": [string]}
                 3. Identifie dans "missing_fields" les informations importantes non encore fournies pour cette section :
                    - Pour EXPERIENCE : Si les dates ne sont pas précisées, ajoute TOUJOURS "dates de début et de fin (ou période)" dans missing_fields.
                    - Pour EDUCATION : Si l'année n'est pas précisée, ajoute TOUJOURS "année d'obtention" dans missing_fields.
@@ -61,6 +62,7 @@ public class InterviewObserverService {
                    - Pour EDUCATION : school + (degree ou spécialité).
                    - Pour IDENTITY : Le nom complet et l'email sont déjà pré-remplis par défaut. ready_for_transition est toujours true dès que le téléphone/ville ont été abordés ou s'il n'y a rien d'autre à ajouter.
                    - Pour TARGET : headline ou métier visé clair.
+                   - Pour OPTIONAL_DETAILS : true après la réponse du candidat, même s'il ne souhaite rien ajouter. Ces informations sont facultatives.
                 6. Définis "user_wants_skip" à true si le candidat indique explicitement n'avoir rien à fournir (ex: "je n'ai pas de projet", "aucun diplôme", "on passe").
                 7. Définis "user_has_more" à true si le candidat mentionne ou confirme avoir une autre expérience passée (ou autre formation) à détailler.
                 

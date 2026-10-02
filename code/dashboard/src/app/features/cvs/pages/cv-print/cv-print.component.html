@@ -7,5 +7,6 @@
     [cv]="cvData()!"
     [template]="template()"
     [scale]="1"
-    [showPageBreaks]="false" />
+    [showPageBreaks]="true"
+    (paginationSettled)="markAsReady()" />
 </div>

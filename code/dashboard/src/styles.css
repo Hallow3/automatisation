@@ -27,6 +27,15 @@ body {
   touch-action: manipulation;
 }
 
+@media print {
+  html,
+  body {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+}
+
 /* Eliminate 300ms mobile tap delay and webkit tap gray highlight across all clickable elements */
 button,
 a,
@@ -51,20 +60,7 @@ body {
   color: #4338ca;
 }
 
-/* ═════════════════════════════════════════════════════════════════════════
-   HIDE ALL SCROLLBARS GLOBALLY ACROSS ALL BROWSERS (Preserve scrolling)
-   ══════════════════════════════════════════════════════════════════════════ */
-* {
-  -ms-overflow-style: none !important;  /* IE and Edge */
-  scrollbar-width: none !important;     /* Firefox */
-}
-
-*::-webkit-scrollbar {
-  display: none !important;            /* Chrome, Safari, Opera */
-  width: 0 !important;
-  height: 0 !important;
-}
-
+/* Les barres de défilement restent visibles par défaut pour garder les pages navigables. */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }

@@ -79,6 +79,8 @@ public class CvWriterService {
                       "level": string
                     }
                   ],
+                  "personalQualities": [string],
+                  "interests": [string],
                   "projects": [
                     {
                       "name": string,
@@ -106,6 +108,21 @@ public class CvWriterService {
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> polished = objectMapper.readValue(cleaned.trim(), Map.class);
+                // Le rédacteur peut reformuler le CV, mais pas réécrire l'identité confirmée.
+                if (rawCvData.get("identity") instanceof Map<?, ?> identity) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> polishedIdentity = polished.get("identity") instanceof Map<?, ?> map
+                            ? (Map<String, Object>) map : new java.util.HashMap<>();
+                    for (String key : java.util.List.of("fullName", "email")) {
+                        if (identity.get(key) != null) polishedIdentity.put(key, identity.get(key));
+                    }
+                    polished.put("identity", polishedIdentity);
+                }
+                for (String key : java.util.List.of("personalQualities", "interests")) {
+                    if (!polished.containsKey(key) && rawCvData.containsKey(key)) {
+                        polished.put(key, rawCvData.get(key));
+                    }
+                }
                 return polished;
             }
         } catch (Exception e) {

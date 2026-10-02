@@ -1,18 +1,32 @@
 .cv-scale-wrapper {
-  display: block;
   width: 794px;
   min-width: 794px;
   max-width: 794px;
   transform-origin: top center;
   transition: transform 0.2s ease-out;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 .cv-page-sheet-container {
+  position: relative;
   width: 794px;
   min-width: 794px;
   max-width: 794px;
   margin: 0 auto;
+  min-height: 1123px;
+  background: white;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.13);
+}
+
+.cv-page-number {
+  position: absolute;
+  right: 8px;
+  bottom: -16px;
+  font: 10px/1 sans-serif;
+  color: #64748b;
 }
 
 /* Page A4 styling (Exact physical sheet) */
@@ -41,6 +55,7 @@
   }
 
   .cv-scale-wrapper {
+    display: block !important;
     transform: none !important;
     width: 210mm !important;
     max-width: 210mm !important;
@@ -51,9 +66,22 @@
     margin: 0 auto !important;
     width: 210mm !important;
     max-width: 210mm !important;
+    min-height: 297mm !important;
+    box-shadow: none !important;
+    break-after: page;
+    page-break-after: always;
   }
 
-  .cv-paper, .modern-paper, .classic-paper {
+  .cv-page-sheet-container:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .cv-page-number { display: none !important; }
+
+  .cv-scale-wrapper { gap: 0 !important; }
+
+  .cv-paper, .exec-paper, .classic-paper, .onyx-paper {
     box-shadow: none !important;
     width: 210mm !important;
     max-width: 210mm !important;
@@ -83,24 +111,6 @@
 }
 
 @media print {
-  @page {
-    size: A4 portrait;
-    margin: 10mm;
-  }
-
-  body {
-    background: white !important;
-    color: black !important;
-  }
-
-  .cv-paper {
-    box-shadow: none !important;
-    max-width: 100% !important;
-    min-height: auto !important;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-
   .cv-section,
   .cv-item {
     break-inside: avoid !important;

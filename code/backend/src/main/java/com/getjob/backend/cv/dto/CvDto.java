@@ -12,6 +12,7 @@ public class CvDto {
     private String template;
     private String templateLabel;
     private String status;
+    private String interviewStatus;
     private String contentJson;
     private String createdAt;
     private String updatedAt;

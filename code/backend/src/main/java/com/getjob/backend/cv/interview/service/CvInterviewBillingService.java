@@ -258,7 +258,8 @@ public class CvInterviewBillingService {
         if (s == null || s.getCvId() == null) return;
         try {
             cvRepository.findById(s.getCvId()).ifPresent(cv -> {
-                if (s.getCvDataSoFar() != null && s.getCvDataSoFar().trim().length() > 20) {
+                if (!"COMPLETED".equalsIgnoreCase(s.getInterviewStatus())
+                        && s.getCvDataSoFar() != null && s.getCvDataSoFar().trim().length() > 20) {
                     cv.setContentJson(s.getCvDataSoFar());
                 }
                 if ("DRAFT".equalsIgnoreCase(cv.getStatus())
@@ -266,9 +267,9 @@ public class CvInterviewBillingService {
                     cv.setStatus("DRAFT_READY");
                 }
                 if (!"COMPLETED".equalsIgnoreCase(s.getInterviewStatus())
-                        && !"REVIEW".equalsIgnoreCase(cv.getInterviewStatus())) {
+                        && !"COMPLETED".equalsIgnoreCase(cv.getInterviewStatus())) {
                     cv.setInterviewStatus("DRAFT_UPDATED");
-                } else if ("IN_PROGRESS".equalsIgnoreCase(cv.getInterviewStatus())) {
+                } else if ("COMPLETED".equalsIgnoreCase(s.getInterviewStatus())) {
                     cv.setInterviewStatus("COMPLETED");
                 }
                 cvRepository.save(cv);

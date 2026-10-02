@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { GeminiLiveService } from '../../../../core/services/gemini-live.service';
 import { AuthService } from '../../../../core/services/auth.service';
+import { CvApiService } from '../../../../core/services/cv-api.service';
 import { PdfExportService } from '../../../../core/services/pdf-export.service';
 import { PaymentService } from '../../../../core/services/payment.service';
 import { CvPreviewComponent, CvData } from '../../../../shared/components/cv-preview/cv-preview.component';
@@ -40,6 +41,7 @@ interface DraftSectionItem {
 export class CvInterviewComponent implements OnInit, OnDestroy {
   public geminiService = inject(GeminiLiveService);
   private authService = inject(AuthService);
+  private cvApi = inject(CvApiService);
   private pdfService = inject(PdfExportService);
   public paymentService = inject(PaymentService);
   private route = inject(ActivatedRoute);
@@ -48,6 +50,8 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
 
 
   cvId: string = 'cv_default';
+  resumeChoiceOpen = signal(false);
+  previousCvId: string | null = null;
   showConfirmModal = false;
   isPaused = false;
   isMuted = signal(false);
@@ -82,6 +86,7 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
   isConnected = computed(() => this.state() === 'LISTENING' || this.state() === 'AI_SPEAKING');
 
   startInterview(): void {
+    if (this.resumeChoiceOpen()) return;
     const credits = this.authService.currentUser()?.proCredits ?? 0;
     const cached = this.geminiService.hasActiveCachedSession(this.cvId);
     if (credits < 1 && !cached) {
@@ -180,7 +185,7 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
   sectionStatus = this.geminiService.sectionStatus;
 
   get draftSections(): DraftSectionItem[] {
-    const stateOrder = ['IDENTITY', 'TARGET', 'EXPERIENCE', 'PROJECTS', 'EDUCATION', 'SKILLS', 'LANGUAGES', 'FINALIZE', 'REVIEW', 'DONE'];
+    const stateOrder = ['IDENTITY', 'TARGET', 'EXPERIENCE', 'PROJECTS', 'EDUCATION', 'SKILLS', 'LANGUAGES', 'OPTIONAL_DETAILS', 'FINALIZE', 'REVIEW', 'DONE'];
     const cur = this.currentState();
     const curIdx = stateOrder.indexOf(cur);
 
@@ -191,7 +196,8 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
       { id: 's4', state: 'PROJECTS', name: 'Projets & Réalisations' },
       { id: 's5', state: 'EDUCATION', name: 'Formation & Diplômes' },
       { id: 's6', state: 'SKILLS', name: 'Compétences clés' },
-      { id: 's7', state: 'LANGUAGES', name: 'Langues & Niveaux' }
+      { id: 's7', state: 'LANGUAGES', name: 'Langues & Niveaux' },
+      { id: 's8', state: 'OPTIONAL_DETAILS', name: 'Qualités & loisirs (facultatif)' }
     ];
 
     return sections.map(s => {
@@ -223,11 +229,34 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
       this.router.navigate(['/cv-builder'], { queryParams: { action: 'editor', cvId: realCvId } });
     });
 
-    // Si une session active précédente sur ce CV existe en cache local, restaurer le brouillon passivement
-    const cachedDraft = this.geminiService.getCachedDraft(this.cvId);
-    if (cachedDraft) {
-      this.geminiService.currentDraft.set(cachedDraft);
-    }
+    this.cvApi.getCvs().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: cvs => {
+        const active = cvs
+          .filter(cv => ['IN_PROGRESS', 'DRAFT_UPDATED', 'ACTIVE'].includes(cv.interviewStatus || ''))
+          .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+        const previous = /^\d+$/.test(this.cvId)
+          ? active.find(cv => cv.id === this.cvId)
+          : active[0];
+        if (previous) {
+          this.previousCvId = previous.id;
+          this.resumeChoiceOpen.set(true);
+        }
+      }
+    });
+  }
+
+  resumePreviousInterview(): void {
+    if (!this.previousCvId) return;
+    this.cvId = this.previousCvId;
+    const draft = this.geminiService.getCachedDraft(this.cvId);
+    if (draft) this.geminiService.currentDraft.set(draft);
+    this.resumeChoiceOpen.set(false);
+  }
+
+  startFromScratch(): void {
+    this.geminiService.startFreshInterview();
+    this.cvId = 'new';
+    this.resumeChoiceOpen.set(false);
   }
 
   ngOnDestroy(): void {
@@ -240,8 +269,8 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
     this.geminiService.setMuted(this.isMuted());
   }
 
-  confirmQuit(): void {
-    this.geminiService.triggerRefundIfAborted('user_quit');
+  async confirmQuit(): Promise<void> {
+    await this.geminiService.quitInterview();
     this.router.navigate(['/cvs']);
   }
 
@@ -285,12 +314,14 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
     const d = this.draft();
     const u = this.authService.currentUser();
     return {
-      name: d?.identity?.fullName || u?.fullName || 'Prénom Nom',
+      name: u?.fullName || d?.identity?.fullName || 'Prénom Nom',
       title: d?.headline || u?.targetRole || 'Titre recherché',
-      email: d?.identity?.email || u?.email || '',
+      email: u?.email || d?.identity?.email || '',
       phone: d?.identity?.phone || u?.phone || '',
       city: d?.identity?.city || u?.city || '',
       summary: d?.summary || '',
+      personalQualities: d?.personalQualities || [],
+      interests: d?.interests || [],
       skills: (d?.skills || []).filter((s: string) => s && s.trim()),
       experiences: (d?.experiences || [])
         .filter((exp: any) => exp?.position?.trim() || exp?.role?.trim() || exp?.company?.trim())
@@ -324,7 +355,11 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
             lang: l.lang || l.name || l.language || '',
             level: l.level || ''
           };
-        })
+        }),
+      projects: (d?.projects || []).map((project: any) => ({
+        name: project.name || '',
+        detail: project.detail || project.description || project.context || ''
+      }))
     };
   }
 }

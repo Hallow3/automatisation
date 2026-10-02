@@ -23,6 +23,7 @@ public class InterviewStateMachineService {
             "EDUCATION",
             "SKILLS",
             "LANGUAGES",
+            "OPTIONAL_DETAILS",
             "FINALIZE",
             "REVIEW",
             "DONE"
@@ -35,7 +36,8 @@ public class InterviewStateMachineService {
             "PROJECTS", 4,
             "EDUCATION", 4,
             "SKILLS", 4,
-            "LANGUAGES", 3
+            "LANGUAGES", 3,
+            "OPTIONAL_DETAILS", 3
     );
 
     // Expressions explicites d'arrêt utilisateur
@@ -78,8 +80,10 @@ public class InterviewStateMachineService {
      * Valide si une intention d'arrêt est explicite et légitime selon les règles de la spec V2 (Section 14).
      */
     public boolean isValidUserStopIntent(String userIntentExcerpt, String lastUserTurn) {
-        String combined = ((userIntentExcerpt != null ? userIntentExcerpt : "") + " " +
-                (lastUserTurn != null ? lastUserTurn : "")).trim();
+        // La transcription du candidat prime sur l'interprétation fournie par l'IA.
+        String combined = lastUserTurn != null && !lastUserTurn.isBlank()
+                ? lastUserTurn.trim()
+                : (userIntentExcerpt != null ? userIntentExcerpt.trim() : "");
 
         if (combined.isBlank()) {
             return false;
@@ -119,6 +123,12 @@ public class InterviewStateMachineService {
 
         // Copie des champs manquants pour enrichissement déterministe
         List<String> effectiveMissing = new ArrayList<>(missingFields != null ? missingFields : Collections.emptyList());
+        if (turnsInSection == 0 && "LANGUAGES".equals(currentState)) {
+            effectiveMissing.add("Langues pratiquées et niveau de maîtrise");
+        }
+        if (turnsInSection == 0 && "OPTIONAL_DETAILS".equals(currentState)) {
+            effectiveMissing.add("Demander les qualités personnelles et les loisirs en précisant que la réponse est facultative");
+        }
 
         // Injection déterministe des dates si absentes du partial data
         if ("EXPERIENCE".equals(currentState) && partialData != null) {
@@ -211,6 +221,7 @@ public class InterviewStateMachineService {
             case "EDUCATION" -> "Connaître le dernier diplôme ou la formation clé obtenue (établissement, spécialité, année d'obtention).";
             case "SKILLS" -> "Faire ressortir 4 à 8 compétences techniques et relationnelles phares confirmées par le parcours.";
             case "LANGUAGES" -> "Noter les langues maîtrisées et le niveau pratique estimé (courant, intermédiaire, etc.).";
+            case "OPTIONAL_DETAILS" -> "Demander si le candidat souhaite ajouter des qualités personnelles et des centres d'intérêt ou loisirs. Préciser clairement que ces informations sont facultatives et passer à la suite s'il refuse.";
             case "FINALIZE" -> "Toutes les sections ont été parcourues. Annoncer au candidat la finalisation et la préparation de son CV structuré.";
             case "REVIEW" -> "CV structuré et rédigé. Inviter le candidat à le parcourir.";
             default -> "Poursuivre l'échange professionnel avec rigueur et bienveillance.";

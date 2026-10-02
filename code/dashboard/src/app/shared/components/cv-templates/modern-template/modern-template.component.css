@@ -368,7 +368,7 @@
   color: #475569;
   margin: 1px 0 0 0;
   overflow-wrap: anywhere;
-  word-break: break-word;
+  word-break: break-all;
   line-height: 1.3;
 }
 
@@ -428,6 +428,7 @@
 
 .exec-lang-item {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
@@ -449,8 +450,8 @@
 
 .exec-lang-level {
   font-weight: 700;
-  white-space: nowrap;
-  flex-shrink: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 @media print {

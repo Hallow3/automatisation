@@ -42,7 +42,9 @@ export class OnyxTemplateComponent implements CvTemplateComponent {
     return (
       (d.skills?.length ?? 0) > 0 ||
       (d.education?.length ?? 0) > 0 ||
-      (d.languages?.length ?? 0) > 0
+      (d.languages?.length ?? 0) > 0 ||
+      (d.personalQualities?.length ?? 0) > 0 ||
+      (d.interests?.length ?? 0) > 0
     );
   }
 }

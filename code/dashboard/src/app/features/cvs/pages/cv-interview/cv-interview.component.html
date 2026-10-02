@@ -1,4 +1,14 @@
 <div class="space-y-4 sm:space-y-6 p-3 sm:p-6 max-w-full overflow-hidden pb-20 lg:pb-6">
+  <div *ngIf="resumeChoiceOpen()" class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/70 p-4" role="dialog" aria-modal="true" aria-labelledby="resume-interview-title">
+    <div class="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
+      <h2 id="resume-interview-title" class="text-lg font-bold text-slate-900">Reprendre votre CV ?</h2>
+      <p class="mt-2 text-sm text-slate-600">Un entretien précédent est encore en cours. Vous pouvez le continuer ou démarrer un nouveau CV.</p>
+      <div class="mt-5 flex flex-col gap-2 sm:flex-row">
+        <button type="button" (click)="resumePreviousInterview()" class="min-h-10 flex-1 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white">Continuer la dernière session</button>
+        <button type="button" (click)="startFromScratch()" class="min-h-10 flex-1 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">Créer un CV à partir de zéro</button>
+      </div>
+    </div>
+  </div>
   <!-- Top Header Bar -->
   <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl sm:rounded-2xl border border-brand-100 bg-white px-4 py-3 shadow-sm">
     <div class="flex items-center gap-3 min-w-0">
@@ -483,15 +493,10 @@
       <!-- Live Canvas Container (Scrollable) -->
       <div class="flex-1 overflow-auto rounded-xl bg-[#DDE4EE] p-4 flex justify-center items-start min-h-[520px]">
         <div
-          class="relative bg-white shadow-2xl rounded-sm transition-all duration-150 my-1 origin-top"
-          [style.width.px]="794 * desktopScale()"
-          [style.minHeight.px]="1123 * desktopScale()">
-          <div
-            class="origin-top-left"
-            [style.transform]="'scale(' + desktopScale() + ')'"
-            [style.width.px]="794">
-            <app-cv-preview [cv]="cvPreviewData()" template="moderne" />
-          </div>
+          class="relative shrink-0 bg-white shadow-2xl rounded-sm my-1"
+          [style.width.px]="794"
+          [style.zoom]="desktopScale()">
+          <app-cv-preview [cv]="cvPreviewData()" template="moderne" />
         </div>
       </div>
     </div>
@@ -627,17 +632,12 @@
       </div>
 
       <!-- Canvas Body -->
-      <div class="flex-1 overflow-auto bg-[#DDE4EE] p-3 flex justify-center items-start min-h-[400px]">
+      <div class="flex-1 overflow-auto bg-[#DDE4EE] p-3 flex items-start min-h-[400px]" [class.justify-center]="mobileScaleMode() === 'fit'">
         <div
-          class="relative bg-white shadow-2xl rounded-sm transition-all duration-150 my-2 origin-top"
-          [style.width.px]="794 * getMobileScale()"
-          [style.minHeight.px]="1123 * getMobileScale()">
-          <div
-            class="origin-top-left"
-            [style.transform]="'scale(' + getMobileScale() + ')'"
-            [style.width.px]="794">
-            <app-cv-preview [cv]="cvPreviewData()" template="moderne" />
-          </div>
+          class="relative shrink-0 bg-white shadow-2xl rounded-sm my-2"
+          [style.width.px]="794"
+          [style.zoom]="getMobileScale()">
+          <app-cv-preview [cv]="cvPreviewData()" template="moderne" />
         </div>
       </div>
 

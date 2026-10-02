@@ -12,6 +12,7 @@ import com.getjob.backend.cv.domain.CvEntity;
 import com.getjob.backend.cv.domain.CvTemplateEntity;
 import com.getjob.backend.cv.dto.CvDto;
 import com.getjob.backend.cv.interview.repository.CvInterviewSessionRepository;
+import com.getjob.backend.cv.interview.service.CvInterviewBillingService;
 import com.getjob.backend.cv.repository.CvRepository;
 import com.getjob.backend.cv.repository.CvTemplateRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,8 @@ import org.springframework.data.domain.Pageable;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -41,6 +44,7 @@ public class CvService {
 
     private final CvRepository cvRepository;
     private final CvInterviewSessionRepository interviewSessionRepository;
+    private final CvInterviewBillingService interviewBillingService;
     private final CvTemplateRepository cvTemplateRepository;
     private final CandidateRepository candidateRepository;
     private final CandidateProfileRepository candidateProfileRepository;
@@ -128,7 +132,7 @@ public class CvService {
         CvEntity cvEntity = CvEntity.builder()
                 .candidateId(candidate.getId())
                 .templateId(templateId)
-                .title(dto.getTitle() != null && !dto.getTitle().isBlank() ? dto.getTitle() : "Nouveau CV")
+                .title(dto.getTitle() != null && !dto.getTitle().isBlank() ? dto.getTitle() : datedCvTitle("Nouveau CV"))
                 .contentJson(contentJson)
                 .status(dto.getStatus() != null ? dto.getStatus() : "DRAFT")
                 .interviewStatus("DRAFT")
@@ -257,7 +261,7 @@ public class CvService {
             CvEntity newCv = CvEntity.builder()
                     .candidateId(candidate.getId())
                     .templateId(parseTemplateCodeToId("moderne"))
-                    .title("CV Entretien IA")
+                    .title(datedCvTitle("CV Entretien IA"))
                     .contentJson(buildInitialContentJson(candidate))
                     .status("DRAFT")
                     .interviewStatus("IN_PROGRESS")
@@ -294,7 +298,7 @@ public class CvService {
                         CvEntity newCv = CvEntity.builder()
                                 .candidateId(candidate.getId())
                                 .templateId(parseTemplateCodeToId("moderne"))
-                                .title("CV Entretien IA")
+                                .title(datedCvTitle("CV Entretien IA"))
                                 .contentJson(buildInitialContentJson(candidate))
                                 .status("DRAFT")
                                 .interviewStatus("IN_PROGRESS")
@@ -355,6 +359,7 @@ public class CvService {
         CvEntity saved = cvRepository.save(cv);
 
         syncCandidateProfile(saved);
+        finishInterviewBilling(saved, candidate);
 
         return Map.of(
                 "cvId", saved.getId().toString(),
@@ -377,7 +382,7 @@ public class CvService {
                         CvEntity newCv = CvEntity.builder()
                                 .candidateId(candidate.getId())
                                 .templateId(parseTemplateCodeToId("moderne"))
-                                .title("CV Entretien IA")
+                                .title(datedCvTitle("CV Entretien IA"))
                                 .contentJson(buildInitialContentJson(candidate))
                                 .status("DRAFT")
                                 .interviewStatus("IN_PROGRESS")
@@ -396,6 +401,7 @@ public class CvService {
 
         boolean alreadyPaidInInterview = "IN_PROGRESS".equalsIgnoreCase(cv.getInterviewStatus())
                 || "DRAFT_UPDATED".equalsIgnoreCase(cv.getInterviewStatus())
+                || "REVIEW".equalsIgnoreCase(cv.getInterviewStatus())
                 || "COMPLETED".equalsIgnoreCase(cv.getInterviewStatus());
 
         if (!alreadyPaidInInterview) {
@@ -463,6 +469,8 @@ public class CvService {
                   "level": string
                 }
               ],
+              "personalQualities": [string],
+              "interests": [string],
               "projects": [
                 {
                   "name": string,
@@ -481,7 +489,8 @@ public class CvService {
         try {
             String jsonResult = tokenService.generateStructuredContent(systemInstruction, prompt);
             if (jsonResult != null && cvDraftValidator.isDraftMeaningful(jsonResult)) {
-                CvEntity saved = persistSynthesizedCv(cv, jsonResult);
+                CvEntity saved = persistSynthesizedCv(cv, restoreAccountIdentity(jsonResult, candidate));
+                finishInterviewBilling(saved, candidate);
                 log.info("Synthèse IA réussie pour candidate_id={} cv_id={}", candidate.getId(), saved.getId());
                 return mapToDto(saved);
             }
@@ -533,6 +542,37 @@ public class CvService {
         CvEntity saved = cvRepository.save(cv);
         syncCandidateProfile(saved);
         return saved;
+    }
+
+    private String restoreAccountIdentity(String json, CandidateEntity candidate) {
+        try {
+            JsonNode parsed = objectMapper.readTree(json);
+            if (!(parsed instanceof ObjectNode root)) return json;
+            ObjectNode identity = root.get("identity") instanceof ObjectNode existing
+                    ? existing : objectMapper.createObjectNode();
+            if (candidate.getFullName() != null && !candidate.getFullName().isBlank()) {
+                identity.put("fullName", candidate.getFullName());
+            }
+            if (candidate.getEmail() != null && !candidate.getEmail().isBlank()) {
+                identity.put("email", candidate.getEmail());
+            }
+            root.set("identity", identity);
+            return objectMapper.writeValueAsString(root);
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Le CV généré est illisible.", e);
+        }
+    }
+
+    private String datedCvTitle(String prefix) {
+        String date = DateTimeFormatter.ofPattern("dd-MM-yyyy HH'h'mm")
+                .format(Instant.now().atZone(ZoneId.of("Africa/Douala")));
+        return prefix + " — " + date;
+    }
+
+    private void finishInterviewBilling(CvEntity cv, CandidateEntity candidate) {
+        interviewSessionRepository.findFirstByCvIdOrderByCreatedAtDesc(cv.getId())
+                .filter(session -> candidate.getId().equals(session.getCandidateId()))
+                .ifPresent(session -> interviewBillingService.terminateAndBill(session.getId(), "COMPLETED"));
     }
 
     // ── Helpers privés ────────────────────────────────────────────────────────
@@ -700,6 +740,7 @@ public class CvService {
                 .template(templateCode)
                 .templateLabel(templateLabel)
                 .status(entity.getStatus() != null ? entity.getStatus() : "DRAFT")
+                .interviewStatus(entity.getInterviewStatus())
                 .contentJson(entity.getContentJson())
                 .createdAt(entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : null)
                 .updatedAt(entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null)
@@ -721,6 +762,8 @@ public class CvService {
             initial.put("education", List.of());
             initial.put("skills", List.of());
             initial.put("languages", List.of());
+            initial.put("personalQualities", List.of());
+            initial.put("interests", List.of());
             return objectMapper.writeValueAsString(initial);
         } catch (Exception e) {
             log.error("Erreur création contentJson initial : {}", e.getMessage());
@@ -775,7 +818,7 @@ public class CvService {
             CvEntity newCv = CvEntity.builder()
                     .candidateId(candidate.getId())
                     .templateId(parseTemplateCodeToId("moderne"))
-                    .title("CV Modifié par IA")
+                    .title(datedCvTitle("CV Modifié par IA"))
                     .contentJson(buildInitialContentJson(candidate))
                     .status("DRAFT")
                     .interviewStatus("COMPLETED")

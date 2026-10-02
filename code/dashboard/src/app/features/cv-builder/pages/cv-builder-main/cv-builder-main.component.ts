@@ -545,7 +545,7 @@ export class CvBuilderMainComponent implements OnInit, OnDestroy {
       const templateName = this.templateOptions.find(t => t.id === template)?.name || 'Moderne';
       this.isLoadingCv.set(true);
       this.cvApi.createCv({
-        title: `CV ${templateName}`,
+        title: `CV ${templateName} — ${new Date().toLocaleDateString('fr-FR')}`,
         template: template
       }).subscribe({
         next: (newCv) => {

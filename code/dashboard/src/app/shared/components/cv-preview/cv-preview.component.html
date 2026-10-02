@@ -1,5 +1,6 @@
 <div class="cv-scale-wrapper" [style.transform]="scale !== 1 ? 'scale(' + scale + ')' : null" [style.transformOrigin]="'top center'">
-  <div class="cv-page-sheet-container flex flex-col items-center">
-    <ng-container *ngComponentOutlet="activeComponent; inputs: templateInputs" />
+  <div *ngFor="let page of pages; let index = index" #pageSheet class="cv-page-sheet-container">
+    <ng-container *ngComponentOutlet="activeComponent; inputs: inputsFor(page)" />
+    <span *ngIf="showPageBreaks" class="cv-page-number">Page {{ index + 1 }}</span>
   </div>
 </div>

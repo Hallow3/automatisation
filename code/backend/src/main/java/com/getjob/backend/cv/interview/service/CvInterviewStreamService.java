@@ -203,6 +203,11 @@ public class CvInterviewStreamService {
             case "LANGUAGES" -> {
                 if (patch.get("languages") instanceof List<?> list) cvData.put("languages", list);
             }
+            case "OPTIONAL_DETAILS" -> {
+                for (String key : java.util.List.of("personalQualities", "interests")) {
+                    if (patch.get(key) instanceof List<?> list) cvData.put(key, list);
+                }
+            }
             case "PROJECTS" -> {
                 List<Map<String, Object>> projects = (List<Map<String, Object>>) cvData.computeIfAbsent("projects", k -> new java.util.ArrayList<>());
                 while (projects.size() <= index) projects.add(new HashMap<>());

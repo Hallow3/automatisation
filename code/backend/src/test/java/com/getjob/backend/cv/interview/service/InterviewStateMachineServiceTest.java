@@ -26,7 +26,8 @@ class InterviewStateMachineServiceTest {
         assertEquals("EDUCATION", stateMachine.getNextSection("PROJECTS"));
         assertEquals("SKILLS", stateMachine.getNextSection("EDUCATION"));
         assertEquals("LANGUAGES", stateMachine.getNextSection("SKILLS"));
-        assertEquals("FINALIZE", stateMachine.getNextSection("LANGUAGES"));
+        assertEquals("OPTIONAL_DETAILS", stateMachine.getNextSection("LANGUAGES"));
+        assertEquals("FINALIZE", stateMachine.getNextSection("OPTIONAL_DETAILS"));
         assertEquals("REVIEW", stateMachine.getNextSection("FINALIZE"));
         assertEquals("DONE", stateMachine.getNextSection("REVIEW"));
     }
@@ -64,6 +65,7 @@ class InterviewStateMachineServiceTest {
         assertFalse(stateMachine.isValidUserStopIntent("Rien de plus", null));
         assertFalse(stateMachine.isValidUserStopIntent("", "   "));
         assertFalse(stateMachine.isValidUserStopIntent(null, null));
+        assertFalse(stateMachine.isValidUserStopIntent("Arrête l'entretien", "Oui, je peux parler de mes langues."));
     }
 
     @Test
@@ -97,5 +99,13 @@ class InterviewStateMachineServiceTest {
         );
 
         assertTrue(msg.contains("Dernier tour recommandé sur cette section"));
+    }
+
+    @Test
+    void optionalDetailsAreExplicitlyOffered() {
+        String msg = stateMachine.buildControlMessage(
+                "OPTIONAL_DETAILS", 0, 0, Collections.emptyMap(), Collections.emptyList());
+        assertTrue(msg.contains("facultatives"));
+        assertTrue(msg.contains("loisirs"));
     }
 }

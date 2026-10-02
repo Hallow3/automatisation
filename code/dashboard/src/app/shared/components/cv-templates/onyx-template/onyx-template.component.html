@@ -134,6 +134,15 @@
         </div>
       </section>
 
+      <section *ngIf="data.personalQualities?.length" class="onyx-section onyx-section--aside">
+        <h2 class="onyx-section-title"><span class="onyx-section-mark"></span><span>Qualités</span></h2>
+        <p>{{ data.personalQualities?.join(', ') }}</p>
+      </section>
+      <section *ngIf="data.interests?.length" class="onyx-section onyx-section--aside">
+        <h2 class="onyx-section-title"><span class="onyx-section-mark"></span><span>Centres d'intérêt</span></h2>
+        <p>{{ data.interests?.join(', ') }}</p>
+      </section>
+
     </aside>
 
   </main>
