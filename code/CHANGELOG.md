@@ -1,5 +1,10 @@
 # CHANGELOG — Suivi de Développement & Intégration
 
+## [1.4.2] - 2026-10-02 — Masquage des barres de défilement
+
+- Déploiement frontend du commit `9da4b47` sur `fallajobs.com` ; le conteneur frontend est `healthy`, le bundle CSS est servi en `200` et le backend reste `healthy`.
+- Les barres de défilement sont masquées dans tous les éléments frontend, tandis que le défilement reste actif.
+
 ## [1.4.1] - 2026-10-02 — Retours utilisateurs CV
 
 - Déploiement production du commit `a584574` sur `fallajobs.com` : frontend et backend Docker `healthy`, `/actuator/health` retourne `UP`, accueil HTTPS et nouveau bundle Angular répondent `200`.
