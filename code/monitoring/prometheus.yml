@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: fallajobs-backend
+    metrics_path: /actuator/prometheus
+    bearer_token_file: /run/secrets/metrics-token
+    static_configs:
+      - targets: [fallajobs-backend:8081]
+  - job_name: container-state
+    static_configs:
+      - targets: [fallajobs-node-exporter:9100]

@@ -1,6 +1,7 @@
 package com.getjob.backend.config;
 
 import com.getjob.backend.auth.filter.JwtAuthenticationFilter;
+import com.getjob.backend.monitoring.MetricsTokenFilter;
 import com.getjob.backend.auth.service.CandidateUserDetailsService;
 import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
@@ -57,6 +58,7 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthFilter;
     private final com.getjob.backend.auth.filter.RateLimitFilter rateLimitFilter;
     private final CandidateUserDetailsService userDetailsService;
+    private final MetricsTokenFilter metricsTokenFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -83,6 +85,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/webhooks/notchpay", "/api/v1/payments/webhooks/notchpay", "/api/v1/payments/webhook").permitAll()
                         // Actuator Health & Info : accessibles pour les probes d'orchestration / monitoring de production
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/actuator/prometheus").permitAll()
                         // Données d'impression éphémères consommées par le moteur Chromium headless (protégé par jeton à usage unique)
                         .requestMatchers(HttpMethod.GET, "/api/v1/cvs/*/print-data").permitAll()
                         // Téléchargement sécurisé par ticket temporaire à usage unique (pour ouverture dans un nouvel onglet)
@@ -112,6 +115,7 @@ public class SecurityConfig {
 
                 // ── Rate Limiter & Filtre JWT avant le filtre username/password de Spring ─────
                 .addFilterBefore(rateLimitFilter, org.springframework.security.web.context.SecurityContextHolderFilter.class)
+                .addFilterBefore(metricsTokenFilter, org.springframework.security.web.context.SecurityContextHolderFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

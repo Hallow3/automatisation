@@ -1,0 +1,78 @@
+services:
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    container_name: fallajobs-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/secrets/metrics-token:/run/secrets/metrics-token:ro
+      - prometheus-data:/prometheus
+    networks: [app-network]
+
+  loki:
+    image: grafana/loki:3.7.8
+    container_name: fallajobs-loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/config.yml
+    volumes:
+      - ./monitoring/loki.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+    networks: [app-network]
+
+  alloy:
+    image: grafana/alloy:v1.20.1
+    container_name: fallajobs-alloy
+    restart: unless-stopped
+    command: run --server.http.listen-addr=0.0.0.0:12345 --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
+    volumes:
+      - ./monitoring/alloy.alloy:/etc/alloy/config.alloy:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - alloy-data:/var/lib/alloy/data
+    networks: [app-network]
+
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:v1.10.2
+    container_name: fallajobs-node-exporter
+    restart: unless-stopped
+    command:
+      - --web.listen-address=:9100
+      - --collector.disable-defaults
+      - --collector.textfile
+      - --collector.textfile.directory=/textfile
+    volumes:
+      - /opt/fallajobs-monitoring/metrics:/textfile:ro
+    networks: [app-network]
+
+  grafana:
+    image: grafana/grafana:12.3.1
+    container_name: fallajobs-grafana
+    restart: unless-stopped
+    env_file:
+      - ./monitoring/monitoring.env
+    environment:
+      GF_SERVER_ROOT_URL: https://fallajobs.com/monitoring/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_SECURITY_COOKIE_SAMESITE: strict
+      GF_LOG_LEVEL: info
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/provisioning:/etc/grafana/provisioning:ro
+    networks: [app-network]
+
+networks:
+  app-network:
+    external: true
+
+volumes:
+  prometheus-data:
+  loki-data:
+  alloy-data:
+  grafana-data:

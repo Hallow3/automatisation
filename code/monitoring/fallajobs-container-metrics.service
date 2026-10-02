@@ -1,0 +1,8 @@
+[Unit]
+Description=Refresh FallaJobs Docker container state metrics
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/fallajobs-monitoring/container-state.sh

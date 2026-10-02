@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh FallaJobs Docker container state metrics regularly
+
+[Timer]
+OnBootSec=15s
+OnUnitActiveSec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
