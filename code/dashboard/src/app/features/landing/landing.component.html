@@ -96,56 +96,16 @@
 
       <canvas #ambientCanvas class="absolute inset-0 w-full h-full pointer-events-none opacity-60"></canvas>
 
-      <div class="relative z-10 w-full rounded-xl sm:rounded-2xl overflow-hidden bg-slate-900 shadow-inner h-[55vh] min-h-[400px] sm:h-auto sm:min-h-0 sm:aspect-[16/9] flex items-center justify-center group cursor-pointer"
-           (click)="togglePlayVideo()">
-
-        <video #videoElement
-               class="w-full h-full object-cover"
-               [class.hidden]="!isVideoPlaying()"
-               playsinline loop muted>
+      <div class="relative z-10 w-full overflow-hidden rounded-xl bg-slate-950 shadow-inner aspect-video">
+        <video class="h-full w-full object-contain"
+               autoplay loop muted playsinline controls preload="metadata"
+               poster="/assets/landing-poster.jpg"
+               aria-label="Présentation vidéo de FallaJobs">
+          <source src="/assets/landing.mp4" type="video/mp4" />
+          Votre navigateur ne peut pas lire cette vidéo.
         </video>
-
-        <div *ngIf="!isVideoPlaying()" class="relative w-full h-full">
-          <img src="/assets/warman_preview.jpg"
-               alt="Aperçu FallaJobs"
-               class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.02]" />
-
-          <div class="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent flex flex-col justify-between p-5 sm:p-10 text-white">
-
-            <div class="flex items-center justify-between">
-              <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-md border border-white/20 text-xs font-medium text-white">
-                <!-- <span class="w-2 h-2 rounded-full bg-brand-400 animate-ping"></span> -->
-                <span>Aperçu de l'expérience FallaJobs</span>
-              </div>
-              <span class="text-xs text-white/70 font-mono">01:15 • DÉMO</span>
-            </div>
-
-            <div class="absolute inset-0 flex items-center justify-center">
-              <div class="relative flex items-center justify-center">
-                <div class="absolute w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-white/20 animate-ping pointer-events-none"></div>
-                <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white text-slate-900 flex items-center justify-center shadow-2xl transition-transform duration-300 group-hover:scale-110">
-                  <svg class="w-7 h-7 sm:w-8 sm:h-8 translate-x-0.5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z"/>
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            <div class="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4">
-              <div>
-                <p class="text-[11px] sm:text-xs uppercase tracking-widest text-brand-200 font-semibold mb-1">Entretien vocal & WhatsApp</p>
-                <h3 class="font-serif text-base sm:text-2xl font-normal text-white leading-snug">
-                  Regardez comment Bray transforme une discussion de 5 minutes en contrat d'embauche.
-                </h3>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
       </div>
     </div>
-
     <p class="text-center text-xs text-slate-400 mt-4 font-mono">
       Propulsé par les modèles multimodaux Gemini en temps réel & agents de recherche autonomes.
     </p>

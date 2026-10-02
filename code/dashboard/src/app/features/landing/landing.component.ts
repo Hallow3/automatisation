@@ -34,11 +34,9 @@ export class LandingComponent implements OnInit, AfterViewInit, OnDestroy {
   public authService = inject(AuthService);
 
   @ViewChild('ambientCanvas', { static: false }) ambientCanvasRef?: ElementRef<HTMLCanvasElement>;
-  @ViewChild('videoElement', { static: false }) videoElementRef?: ElementRef<HTMLVideoElement>;
   @ViewChild('videoSection', { static: false }) videoSectionRef?: ElementRef<HTMLDivElement>;
 
   isAuthenticated = this.authService.isAuthenticated;
-  isVideoPlaying = signal(false);
   videoExpanded = signal(false);
   expandedSteps = signal<Record<number, boolean>>({});
 
@@ -111,20 +109,6 @@ export class LandingComponent implements OnInit, AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     if (this.animFrameId) cancelAnimationFrame(this.animFrameId);
     this.intersectionObserver?.disconnect();
-  }
-
-  togglePlayVideo(): void {
-    const video = this.videoElementRef?.nativeElement;
-    if (video) {
-      if (video.paused) {
-        video.play().then(() => this.isVideoPlaying.set(true)).catch(() => {});
-      } else {
-        video.pause();
-        this.isVideoPlaying.set(false);
-      }
-    } else {
-      this.isVideoPlaying.update(v => !v);
-    }
   }
 
   scrollToSection(id: string): void {
