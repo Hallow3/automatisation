@@ -194,11 +194,16 @@ export class CvPreviewComponent implements AfterViewInit, OnDestroy {
       const article = overflowingSheet.querySelector<HTMLElement>('article');
       const mainBottom = mainColumn && article ? this.bottomWithin(mainColumn, article) : 0;
       const sideBottom = sideColumn && article ? this.bottomWithin(sideColumn, article) : 0;
-      const overflowingColumn = mainBottom > 1125 && mainBottom >= sideBottom
-        ? 'main'
-        : sideBottom > 1125
-          ? 'side'
-          : 'all';
+      let overflowingColumn: 'main' | 'side' | 'all' = 'all';
+      if (mainColumn && article) {
+        const mainOverflows = mainBottom > 1125;
+        const sideOverflows = !!sideColumn && sideBottom > 1125;
+        if (!mainOverflows && !sideOverflows) {
+          this.paginationSettled.emit();
+          return;
+        }
+        overflowingColumn = mainOverflows && (!sideOverflows || mainBottom >= sideBottom) ? 'main' : 'side';
+      }
       const current = this.copyPage(this.pages[overflowingIndex]);
       const next = this.pages[overflowingIndex + 1]
         ? this.copyPage(this.pages[overflowingIndex + 1])
@@ -220,13 +225,11 @@ export class CvPreviewComponent implements AfterViewInit, OnDestroy {
   }
 
   private bottomWithin(element: HTMLElement, ancestor: HTMLElement): number {
-    let bottom = element.scrollHeight;
-    let current: HTMLElement | null = element;
-    while (current && current !== ancestor) {
-      bottom += current.offsetTop;
-      current = current.offsetParent as HTMLElement | null;
-    }
-    return current === ancestor ? bottom : 0;
+    const ancestorRect = ancestor.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+    if (!ancestorRect.height) return 0;
+    const unscaledFactor = ancestor.offsetHeight / ancestorRect.height;
+    return (elementRect.bottom - ancestorRect.top) * unscaledFactor;
   }
 
   private emptyPage(): CvData {
