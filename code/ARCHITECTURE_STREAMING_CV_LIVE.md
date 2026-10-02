@@ -1,11 +1,11 @@
 # Architecture Cible : Scribe Asynchrone en Flux Continu (Streaming CV Live)
 
 > **Document de conception technique**  
-> **Date :** 1 octobre 2026  
+> **Date :** 2 octobre 2026
 > **Projet :** FallaJobs — Entretien Vocal IA & CV Builder  
 > **Statut :** Infrastructure SSE implémentée ; scribe anticipé encore planifié  
 
-> **Mise à jour de production :** Le déploiement `62df259` utilise `gemini-3.8-live` pour la voix, `fr-FR` avec la voix `Charon`, et le modèle backend `gemini-3.5-flash-lite` pour l'observation. Le chemin actif met à jour le CV après `turnComplete` via `POST /interview/v2/turn`. Le SSE existe, mais `/push-transcript` n'est pas encore appelé par le frontend.
+> **Mise à jour de production :** Le déploiement `a584574` utilise `gemini-3.8-live` pour la voix, `fr-FR` avec la voix `Charon`, et le modèle backend `gemini-3.5-flash-lite` pour l'observation. Le chemin actif met à jour le CV après `turnComplete` via `POST /interview/v2/turn`. L'entretien poursuit les questions jusqu'aux langues et aux rubriques facultatives. La facturation à la durée est clôturée côté backend avant le rafraîchissement du solde. Le SSE existe, mais `/push-transcript` n'est pas encore appelé par le frontend.
 
 ---
 

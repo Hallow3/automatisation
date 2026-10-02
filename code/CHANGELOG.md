@@ -1,6 +1,9 @@
 # CHANGELOG — Suivi de Développement & Intégration
 
-## [En cours] - 2026-10-02 — Retours utilisateurs CV
+## [1.4.1] - 2026-10-02 — Retours utilisateurs CV
+
+- Déploiement production du commit `a584574` sur `fallajobs.com` : frontend et backend Docker `healthy`, `/actuator/health` retourne `UP`, accueil HTTPS et nouveau bundle Angular répondent `200`.
+- Vérifications avant déploiement : **36 tests backend réussis**, build Angular de production réussi et trois PDF de contrôle de **deux pages A4** générés avec un JSON complet (moderne, classique, Onyx).
 
 - [x] L'entretien poursuit le parcours après les expériences jusqu'aux langues, puis demande les qualités et loisirs en précisant leur caractère facultatif.
 - [x] Le JSON, l'éditeur, les modèles et la vue d'impression conservent ces informations facultatives ainsi que les projets.
@@ -16,7 +19,7 @@
 - [x] Les marges du modèle classique restent présentes à l'impression et la colonne Onyx affiche les qualités et loisirs même lorsqu'elle ne contient que ces rubriques.
 - [x] Test PDF reproductible avec un JSON complet : Chromium génère exactement deux pages A4 pour chaque modèle, avec les rubriques de fin présentes sur la deuxième page. La règle globale d'impression laisse maintenant le document dépasser la hauteur de l'écran.
 - [x] Les textes longs de la colonne latérale du modèle moderne se replient dans leur largeur disponible.
-- [ ] Régénérer `CV_41.pdf` avec les mêmes données après déploiement et vérifier visuellement les pages sur téléphone.
+- [ ] Régénérer le CV utilisateur `CV_41.pdf` depuis son compte et vérifier le résultat sur téléphone ; le PDF fourni avant déploiement reste inchangé.
 
 
 ## [1.4.0] - 2026-10-01

@@ -1,6 +1,6 @@
 # 🧭 GUIDE D'ONBOARDING — FALLAJOBS
 
-> **État de référence :** 1 octobre 2026 — production sur `62df259`.
+> **État de référence :** 2 octobre 2026 — production sur `a584574` (version 1.4.1).
 
 Bienvenue sur le projet **FallaJobs**.  
 Ce guide est conçu pour permettre à tout nouvel ingénieur, contributeur ou agent IA d'être opérationnel en moins de 10 minutes sur la codebase.
@@ -12,7 +12,7 @@ Ce guide est conçu pour permettre à tout nouvel ingénieur, contributeur ou ag
 | Axe | Détail |
 | :--- | :--- |
 | **Produit** | Plateforme SaaS B2B/B2C d'accélération de carrière assistée par IA. |
-| **Piliers Clés** | 1. Coach vocal d'entretien pour création de CV (Gemini 3.8 Live).<br>2. Galerie & Éditeur de CV A4 haute fidélité (9 templates Word/ATS).<br>3. Agrégation d'offres d'emploi & scoring d'affinité algorithmique (45-95%).<br>4. Rédaction IA de lettres de motivation personnalisées.<br>5. Paiement programmatique Mobile Money (NotchPay) avec résilience WhatsApp. |
+| **Piliers Clés** | 1. Coach vocal d'entretien pour création de CV (Gemini 3.8 Live).<br>2. Galerie & éditeur de CV A4 paginé (rendus moderne, classique et Onyx).<br>3. Agrégation d'offres d'emploi & scoring d'affinité algorithmique (45-95%).<br>4. Rédaction IA de lettres de motivation personnalisées.<br>5. Paiement programmatique Mobile Money (NotchPay) avec résilience WhatsApp. |
 | **Backend** | Spring Boot 3.3.2, Java 17/21, Spring Security 6 (JWT HttpOnly), Flyway V1 -> V14, MySQL 8. |
 | **Frontend** | Angular 18 (100% Standalone, Signals), Tailwind CSS v3, Web Audio API (PCM 16k/24k). |
 | **IA & Audio** | Google Gemini 3.8 Live (WebSocket, `Charon`, `fr-FR`), Gemini REST selon le modèle configuré. |
@@ -89,7 +89,7 @@ npm start
 - `features/applications/` : Tableau et Kanban de suivi des candidatures.
 - `core/prompts/cv-interview/` : Prompts modulaires pour l'IA d'entretien vocal (Bray).
 - `core/services/` :
-  - `cv-interview-api.service.ts` : API d'orchestration vocale V2 (session, tour de parole, arrêt anticipé, remboursement).
+  - `cv-interview-api.service.ts` : API d'orchestration vocale V2 (session, tour de parole, arrêt anticipé, heartbeat).
   - `gemini-live-ws-client.service.ts` : Communication WebSocket audio bidirectionnelle avec Gemini Live (`Charon`, `fr-FR`, outil unique `request_end_interview`).
   - `cv-stream.service.ts` : Connexion SSE aux patchs CV ; le chemin V2 principal utilise actuellement la réponse de `/interview/v2/turn`.
   - `audio-pcm-engine.service.ts` : Capture micro PCM 16kHz via Worklet et lecture PCM 24kHz.
@@ -102,9 +102,8 @@ npm start
 
 ### 1. Entretien Vocal IA Découplé (Architecture V2)
 - **Consultation Gratuite & État Initial `IDLE`** : La navigation vers `/cvs/interview` depuis la barre latérale ne consomme aucun crédit. L'écran s'ouvre dans un état d'attente passif.
-- **Débit sur Action Volontaire Uniquement** : Le prélèvement d'1 crédit Pro et l'appel `POST /api/v1/cvs/{id}/interview/session` ne sont déclenchés **que** lorsque le candidat clique délibérément sur « Commencer l'entretien » (`startInterviewFlow()`).
-- **Garantie de Remboursement Automatique** : En cas d'interruption technique (refus micro, déconnexion WebSocket, fermeture inopinée avant usage), le crédit est immédiatement restitué (`/interview/refund`).
-- **Reprise Gratuite Sécurisée** : La reprise d'une session en cours (< 15 min) est 100% gratuite quel que soit le format de route (`new`, `cv_default`, ou id numérique).
+- **Facturation à la durée** : Le clic « Commencer l'entretien » exige au moins un crédit et lance le compteur backend. À la clôture, le service facture une minute entamée par crédit ; un départ de moins de cinq secondes et une indisponibilité IA ne sont pas facturés. Le solde est rafraîchi avant l'éditeur.
+- **Reprise ou nouveau CV** : L'utilisateur choisit de reprendre une session existante ou de repartir de zéro ; le second choix nettoie la mémoire locale de la session.
 - **Audio & WebSocket Direct** : Le frontend ouvre un canal WebSocket direct `wss://generativelanguage.googleapis.com/...` en PCM 16kHz entrant et 24kHz sortant, guidé par le persona *Bray*.
 - **Orchestration Hybride** : À chaque fin de tour de parole, le frontend synchronise la transcription avec le backend (`POST /interview/v2/turn`). La State Machine backend (`InterviewStateMachineService`) progresse à travers 10 sections strictes et réinjecte des instructions contextuelles `[INTERVIEW_STATE]`.
 - **Moment de mise à jour du CV** : Le premier patch apparaît après la première réponse finale du candidat et la réponse suivante de Gemini, lorsque `turnComplete` déclenche `syncCurrentTurnToBackend()`. L'accueil et les transcriptions partielles ne modifient pas encore le CV.
@@ -113,6 +112,8 @@ npm start
 
 ### 2. Double Moteur d'Export PDF (100% Gratuit)
 - **Serveur (Headless Chromium)** : Via `POST /api/v1/cvs/{id}/download-ticket`, puis `GET /api/v1/cvs/{id}/download?token=...`. Un sémaphore borne la concurrence à 2 instances Chromium simultanées pour préserver le processeur et la mémoire. L'exportation est 100% gratuite et sans restriction de paiement.
+- **Pagination commune** : `CvPreviewComponent` répartit le contenu sur des feuilles A4 pour les trois rendus `modern`, `classic` et `onyx`. L'impression attend la fin du calcul ; les règles globales d'impression laissent les pages suivantes visibles.
+- **Test PDF** : Après `npm run build -- --configuration=production`, lancer `python tests/cv_pdf_pagination.py` depuis `dashboard/` (dépendance `tests/requirements.txt`). Le test sert un JSON complet, invoque Chromium avec les options de l'export backend et vérifie deux pages A4 pour chaque rendu.
 - **Client (jsPDF / html2canvas)** : Génération vectorielle immédiate dans le navigateur.
 
 ### 3. Tunnel de Paiement NotchPay & Fallback WhatsApp
@@ -195,6 +196,6 @@ docker compose ps
 ## 📚 7. Documents de Référence
 
 - [**`CONTEXTE_PROJET.md`**](file:///D:/automatisation/code/CONTEXTE_PROJET.md) : Spécification technique exhaustive, diagrammes d'architecture complets, catalogue REST et modèles de CV.
-- [**`CHANGELOG.md`**](file:///D:/automatisation/code/CHANGELOG.md) : Historique versionné détaillé des développements (V1.0.0 à V1.3.1).
+- [**`CHANGELOG.md`**](file:///D:/automatisation/code/CHANGELOG.md) : Historique versionné détaillé des développements et déploiements.
 - [**`MOBILE_FIRST_STANDARDS.md`**](file:///D:/automatisation/code/MOBILE_FIRST_STANDARDS.md) : Charte technique et directives design Mobile-First.
 - [**`SKILL.md`**](file:///D:/automatisation/code/SKILL.md) : Référentiel d'ingénierie senior et règles d'or opérationnelles.

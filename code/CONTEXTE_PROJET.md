@@ -1,19 +1,22 @@
 # 🚀 CONTEXTE GLOBAL & RÉFÉRENTIEL TECHNIQUE EXHAUSTIF — FALLAJOBS
 
-> **Date de mise à jour** : 1 octobre 2026  
-> **Version active** : 1.4.0  
+> **Date de mise à jour** : 2 octobre 2026
+> **Version active** : 1.4.1
 > **Statut global** : Déployé en production (VPS fallajobs.com) & qualifié  
 > **Auteurs & Maintenance** : Équipe d'ingénierie FallaJobs
 
-### État de référence au 1 octobre 2026
+### État de référence au 2 octobre 2026
 
-- Production déployée sur le commit `62df259`.
+- Production déployée sur le commit `a584574`.
 - Frontend Angular et backend Spring Boot reconstruits avec Docker ; les deux conteneurs sont `healthy` et `/actuator/health` retourne `UP`.
 - Modèle vocal configuré : `gemini-3.8-live`, voix `Charon`, langue `fr-FR`.
 - La voix est guidée vers une intonation inspirée du français camerounais contemporain. Gemini Live ne dispose pas d'une voix native `fr-CM` garantie.
 - Gemini Live ne reçoit qu'un seul outil : `request_end_interview`. Les mises à jour CV, les audits et la finalisation sont exécutés côté backend.
 - Le CV se met à jour après chaque tour vocal finalisé via `POST /interview/v2/turn`. Le canal SSE est disponible, mais le frontend ne pousse pas encore les segments partiels vers `/push-transcript`.
-- Les tests backend passent : **33 tests, 0 échec**. Le build Angular production passe avec les budgets `anyComponentStyle` à `8 kB` (warning) et `12 kB` (erreur).
+- L'entretien poursuit le parcours après les expériences jusqu'aux langues, qualités et loisirs facultatifs. Le nom complet et l'email du compte sont conservés lors de la synthèse IA.
+- La facturation vocale intervient à la clôture selon la durée (1 crédit par minute entamée, départ de moins de 5 secondes non facturé). Le solde est rafraîchi avant l'ouverture de l'éditeur.
+- Les modèles Angular actuels sont `modern`, `classic` et `onyx`. Leur aperçu et leur export Chromium utilisent la même pagination A4 ; un test avec JSON complet produit exactement deux pages pour chacun.
+- Les tests backend passent : **36 tests, 0 échec**. Le build Angular de production et le test PDF des trois modèles passent.
 
 ---
 
@@ -144,7 +147,7 @@ sequenceDiagram
     GeminiAPI-->>Front: ServerContent (Audio Voix PCM 24kHz)
     
     GeminiAPI-->>Front: turnComplete après la réponse de Bray
-    Front->>Back: POST /api/v2/interview/cv/42/turn
+    Front->>Back: POST /api/v1/cvs/42/interview/v2/turn
     Back->>Back: InterviewObserverService + CvInterviewOrchestratorService
     Back->>Back: CvDraftValidator.validateDraft()
     Back-->>Front: cvDataSoFar + controlMessage
@@ -155,7 +158,10 @@ sequenceDiagram
     Front->>Back: POST /api/v1/cvs/42/interview/complete
     Back->>Back: Garde isDraftMeaningful() -> Status COMPLETED / DRAFT_READY
     Back->>Back: Synchronisation candidate_profile
-    Back-->>Front: Redirection vers /cv-builder?id=42
+    Back->>Back: Facturation à la durée et mise à jour du solde
+    Front->>Back: GET /api/v1/auth/me
+    Back-->>Front: Solde de crédits actualisé
+    Front->>Front: Redirection vers /cv-builder?id=42
 ```
 
 ### 2.3. Flux de Paiement Programmatique NotchPay & Fallback WhatsApp
@@ -224,7 +230,7 @@ sequenceDiagram
     Back->>Chromium: Lancement headless Chromium sur URL /print/cv/42?token=yyy
     Chromium->>Back: GET /api/v1/cvs/42/print-data?token=yyy
     Back-->>Chromium: CvDto (JSON complet sans cookies de session)
-    Chromium->>Chromium: Rendu HTML/CSS A4 physique
+    Chromium->>Chromium: Pagination commune modern/classic/onyx sur feuilles A4
     Chromium-->>Back: Flux PDF vectoriel 100% net
     Back->>Back: Libération sémaphore
     Back-->>Front: Stream PDF (Content-Disposition: attachment; filename="CV_42.pdf")
@@ -356,7 +362,7 @@ dashboard/src/app/
 │   │   ├── cv-audit-engine.service.ts           # Moteur d'audit déterministe audit_cv_integrity
 │   │   ├── cv-editor.service.ts                 # État réactif du CV et auto-sauvegarde
 │   │   ├── cv-interview-api.service.ts          # Réservation de sessions vocales
-│   │   ├── gemini-live-ws-client.service.ts     # Client WebSocket audio Gemini 3.1 Live
+│   │   ├── gemini-live-ws-client.service.ts     # Client WebSocket audio Gemini Live
 │   │   ├── interview-session-cache.service.ts   # Cache local de résilience (10 min) après déconnexion
 │   │   ├── opportunity-api.service.ts           # Offres d'emploi & lettres IA
 │   │   ├── payment.service.ts                   # Tunnel NotchPay, crédits pro & fallback WhatsApp
@@ -430,10 +436,9 @@ L'architecture cible élimine la surcharge cognitive de Gemini Live en dissocian
 
 ### 5.3. Cycle de Vie, Monétisation & Résilience des Crédits
 - **Consultation Libre & État Initial `IDLE`** : L'accès à l'interface d'entretien vocal (`/cvs/interview`) n'effectue aucun appel de réservation ni aucun prélèvement de crédit. L'utilisateur découvre l'environnement et configure son audio sans coût.
-- **Débit Atomique sur Action Explicite (`startInterviewFlow()`)** : Le débit d'1 crédit Pro et la création de session backend (`POST /api/v1/cvs/{id}/interview/session`) ne sont déclenchés **que** sur validation délibérée (« Commencer l'entretien ») via `decrementProCreditIfAvailable()`.
-- **Reprise Gratuite Sécurisée (< 15 min)** : Toute reconnexion ou rafraîchissement d'un CV en cours (y compris avec identifiant `'new'` ou `'cv_default'`) réactive la session active sans prélever de crédit supplémentaire.
-- **Garantie de Remboursement Automatique (`refundAbortedInterviewSession`)** :
-   - Si la session vocale est interrompue techniquement (fermeture anormale, erreur micro, abandon avant usage signifiant), le crédit Pro est immédiatement récrédité en base, le quota d'interviews décrémenté, et le statut positionné à `ABORTED`.
+- **Démarrage et plafond** : Le clic « Commencer l'entretien » ouvre une session si le solde contient au moins un crédit. Le temps maximal autorisé est calculé à raison de 60 secondes par crédit disponible.
+- **Facturation à la clôture** : `CvInterviewBillingService` débite en base une fois par minute entamée ; un faux départ de moins de cinq secondes ou une indisponibilité IA ne consomme aucun crédit. Le frontend relit le solde à la fin de l'entretien.
+- **Reprise** : Un CV en cours peut être repris avec un handle valide et sans nouveau débit initial. L'utilisateur choisit explicitement entre reprendre et créer un CV neuf.
 - **Bannière d'Épuisement Mobile-First Épurée** : Remplacement de l'alerte surdimensionnée par une carte discrète, aux couleurs de la marque (`brand-navy` / `brand-orange`), sans aucun conflit de contraste, guidant vers l'acquisition de crédits.
 
 
@@ -580,8 +585,8 @@ erDiagram
 | `POST` | `/api/v1/cvs` | Authentifié | Création d'un CV : `{ title, template, contentJson? }` |
 | `DELETE` | `/api/v1/cvs/{id}` | Authentifié | Suppression d'un CV appartenant au candidat |
 | `GET` | `/api/v1/cv-templates` | Public | Liste des modèles de CV actifs disponibles |
-| `POST` | `/api/v1/cvs/{id}/interview/session` | Authentifié | Démarre la session vocale Gemini 3.1 Live & réserve le token éphémère (débit atomique 1 crédit) |
-| `POST` | `/api/v1/cvs/{id}/interview/refund` | Authentifié | Restitution immédiate d'1 crédit Pro en cas d'interruption technique ou fermeture anormale |
+| `POST` | `/api/v1/cvs/{id}/interview/session` | Authentifié | Démarre la session vocale si au moins un crédit est disponible ; la durée est facturée à la clôture |
+| `POST` | `/api/v1/cvs/{id}/interview/refund-aborted` | Authentifié | Route de compatibilité ; la facturation à la durée ne prélève pas de crédit au démarrage |
 | `POST` | `/api/v1/cvs/{id}/interview/v2/session` | Authentifié | Initialise ou reprend une session d'orchestration vocale V2 persistante |
 | `POST` | `/api/v1/cvs/{id}/interview/v2/turn` | Authentifié | Synchronise un tour de parole utilisateur/IA et injecte le bloc de guidage `[INTERVIEW_STATE]` |
 | `POST` | `/api/v1/cvs/{id}/interview/v2/request-end` | Authentifié | Validation stricte et déterministe de la demande d'arrêt utilisateur anticipée |
@@ -624,17 +629,13 @@ erDiagram
 
 ## 🎨 8. Catalogue des Modèles de CV (Microsoft Word & ATS)
 
-| Code Modèle | Nom Commercial | Accent Couleur | Structure & Typographie | Cible Métier |
-| :--- | :--- | :--- | :--- | :--- |
-| `word-bloc` | **CV Bloc de couleur** | `#243b53` (Ardoise) | En-tête ardoise + 2 colonnes équilibrées | Tech, Chefs de Projet, Design |
-| `word-soigne` | **CV Soigné & Énergique** | `#dc2626` (Rouge vif) | Monogramme rond + timeline rouge | Direction, Management, Vente |
-| `word-violet` | **CV Créatif Magenta** | `#6b21a8` (Pourpre) | Sidebar violette + avatar & compétences | UI/UX, Médias, Communication |
-| `word-cadre` | **CV Cadre & Conseil** | `#d97706` (Doré ambré) | Double encadrement raffiné et filets dorés | Conseil, Audit, Finance |
-| `word-navy` | **CV Bleu Nuit Exécutif** | `#1e3a8a` (Bleu marine) | Bandeau sombre supérieur + monogramme | Directeurs, Ingénieurs, PMO |
-| `word-minimal` | **CV Minimaliste Filets** | `#1e293b` (Anthracite) | En-tête centré épuré avec double filet | Juridique, RH, Administration |
-| `word-peyton` | **CV Typographique Bleu** | `#2563eb` (Bleu roi) | Titres stylisés majuscules + lecture fluide | Marketing, Vente B2B |
-| `word-sidebar` | **CV Moderne en colonnes** | `#0284c7` (Bleu ciel) | Colonne latérale grise avec timeline | Développeurs, Systèmes/Réseaux |
-| `word-ats` | **CV Classique ATS** | `#000000` (Noir pur) | 100% textuel sans colonnes, optimisé parseurs | Banques, Grandes Administrations |
+| Code du rendu Angular | Nom affiché | Structure |
+| :--- | :--- | :--- |
+| `modern` | CV Moderne & Dynamique | Deux colonnes, compétences en badges |
+| `classic` | CV Classique & ATS | Une colonne, lecture linéaire |
+| `onyx` | CV Onyx & Timeline | Deux colonnes, monogramme et chronologie |
+
+Les anciens identifiants enregistrés sont normalisés vers l'un de ces trois rendus. La pagination A4 est commune aux trois modèles pour l'aperçu et l'export PDF.
 
 ---
 
