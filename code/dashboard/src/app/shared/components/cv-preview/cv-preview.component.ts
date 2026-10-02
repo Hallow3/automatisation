@@ -74,6 +74,7 @@ export interface CvData {
   linkedin?: string;
   accent?: string;
   sectionOrder?: CvSectionKey[];
+  continuationPage?: boolean;
 }
 
 export function createDefaultCvData(user?: {
@@ -187,11 +188,23 @@ export class CvPreviewComponent implements AfterViewInit, OnDestroy {
         this.paginationSettled.emit();
         return;
       }
+      const overflowingSheet = sheets[overflowingIndex].nativeElement;
+      const mainColumn = overflowingSheet.querySelector<HTMLElement>('.exec-main-col, .onyx-main');
+      const sideColumn = overflowingSheet.querySelector<HTMLElement>('.exec-side-col, .onyx-aside');
+      const article = overflowingSheet.querySelector<HTMLElement>('article');
+      const mainBottom = mainColumn && article ? this.bottomWithin(mainColumn, article) : 0;
+      const sideBottom = sideColumn && article ? this.bottomWithin(sideColumn, article) : 0;
+      const overflowingColumn = mainBottom > 1125 && mainBottom >= sideBottom
+        ? 'main'
+        : sideBottom > 1125
+          ? 'side'
+          : 'all';
       const current = this.copyPage(this.pages[overflowingIndex]);
       const next = this.pages[overflowingIndex + 1]
         ? this.copyPage(this.pages[overflowingIndex + 1])
         : this.emptyPage();
-      if (!this.moveLastBlock(current, next)) {
+      next.continuationPage = true;
+      if (!this.moveLastBlock(current, next, overflowingColumn)) {
         this.paginationSettled.emit();
         return;
       }
@@ -206,6 +219,16 @@ export class CvPreviewComponent implements AfterViewInit, OnDestroy {
     }, 0);
   }
 
+  private bottomWithin(element: HTMLElement, ancestor: HTMLElement): number {
+    let bottom = element.scrollHeight;
+    let current: HTMLElement | null = element;
+    while (current && current !== ancestor) {
+      bottom += current.offsetTop;
+      current = current.offsetParent as HTMLElement | null;
+    }
+    return current === ancestor ? bottom : 0;
+  }
+
   private emptyPage(): CvData {
     return {
       ...this.sourceData,
@@ -216,7 +239,8 @@ export class CvPreviewComponent implements AfterViewInit, OnDestroy {
       languages: [],
       projects: [],
       personalQualities: [],
-      interests: []
+      interests: [],
+      continuationPage: true
     };
   }
 
@@ -233,10 +257,12 @@ export class CvPreviewComponent implements AfterViewInit, OnDestroy {
     };
   }
 
-  private moveLastBlock(current: CvData, next: CvData): boolean {
-    const fields: Array<'interests' | 'personalQualities' | 'languages' | 'projects' | 'education' | 'skills'> = [
-      'interests', 'personalQualities', 'languages', 'projects', 'education', 'skills'
-    ];
+  private moveLastBlock(current: CvData, next: CvData, column: 'main' | 'side' | 'all'): boolean {
+    const fields: Array<'interests' | 'personalQualities' | 'languages' | 'projects' | 'education' | 'skills'> = column === 'main'
+      ? ['projects']
+      : column === 'side'
+        ? ['interests', 'personalQualities', 'languages', 'education', 'skills']
+        : ['interests', 'personalQualities', 'languages', 'projects', 'skills', 'education'];
     for (const field of fields) {
       const source = current[field];
       if (source?.length) {
@@ -246,7 +272,7 @@ export class CvPreviewComponent implements AfterViewInit, OnDestroy {
       }
     }
     const lastExperience = current.experiences[current.experiences.length - 1];
-    if (lastExperience) {
+    if (column !== 'side' && lastExperience) {
       const bullets = lastExperience.bullets || [];
       // Une expérience peut dépasser une page à elle seule : continuer ses puces
       // sur la page suivante tout en répétant son intitulé pour garder le contexte.
@@ -278,7 +304,7 @@ export class CvPreviewComponent implements AfterViewInit, OnDestroy {
       next.experiences.unshift(current.experiences.pop()!);
       return true;
     }
-    if (current.summary) {
+    if (column !== 'side' && current.summary) {
       next.summary = current.summary;
       current.summary = '';
       return true;

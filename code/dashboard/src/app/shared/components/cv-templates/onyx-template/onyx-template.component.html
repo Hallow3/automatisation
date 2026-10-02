@@ -4,7 +4,7 @@
   <div class="onyx-accent-bar"></div>
 
   <!-- En-tête : monogramme + identité -->
-  <header class="onyx-header">
+  <header *ngIf="!data.continuationPage" class="onyx-header">
     <div class="onyx-monogram">{{ initials }}</div>
     <div class="onyx-identity">
       <h1 class="onyx-name">{{ data.name || 'Prénom Nom' }}</h1>
@@ -13,7 +13,7 @@
   </header>
 
   <!-- Bandeau de coordonnées -->
-  <div class="onyx-contact-strip">
+  <div *ngIf="!data.continuationPage" class="onyx-contact-strip">
     <span *ngIf="data.city" class="onyx-contact-item">{{ data.city }}</span>
     <span *ngIf="data.email" class="onyx-contact-item">{{ data.email }}</span>
     <span *ngIf="data.phone" class="onyx-contact-item">{{ data.phone }}</span>

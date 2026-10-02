@@ -1,6 +1,6 @@
 <article class="cv-paper classic-paper">
   <!-- En-tête classique sobre & centré -->
-  <header class="classic-header">
+  <header *ngIf="!data.continuationPage" class="classic-header">
     <h1 class="classic-name">{{ data.name || 'Prénom Nom' }}</h1>
     <p class="classic-title" [style.color]="currentAccent">{{ data.title || 'Titre professionnel' }}</p>
 

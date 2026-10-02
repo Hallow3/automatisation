@@ -1,7 +1,7 @@
 <!-- @Input() data: CvData, @Input() accent: string (utiliser currentAccent dans le template) -->
 <article class="exec-paper">
 
-  <header class="exec-header">
+  <header *ngIf="!data.continuationPage" class="exec-header">
     <h1 class="exec-name">{{ data.name || 'Prénom Nom' }}</h1>
     <p class="exec-title" [style.color]="currentAccent">{{ data.title || 'Titre professionnel' }}</p>
 
@@ -35,7 +35,7 @@
     </div>
   </header>
 
-  <div class="exec-divider" [style.backgroundColor]="currentAccent"></div>
+  <div *ngIf="!data.continuationPage" class="exec-divider" [style.backgroundColor]="currentAccent"></div>
 
   <div class="exec-body">
 
