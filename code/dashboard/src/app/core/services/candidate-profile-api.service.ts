@@ -19,6 +19,8 @@ export interface CandidateProfile {
   mobility: string;
   skills: string[];
   aiInstructions: string;
+  whatsappNumber?: string;
+  automation?: AutomationSettings;
   notifications?: {
     emailNewOpportunities?: boolean;
     emailWeeklyReport?: boolean;
@@ -27,6 +29,17 @@ export interface CandidateProfile {
   proCredits?: number;
   isProAgent?: boolean;
   agentShopName?: string;
+}
+
+export interface AutomationSettings {
+  searchEnabled: boolean;
+  autoApplyEnabled: boolean;
+  coverLetterEnabled: boolean;
+  whatsappEnabled: boolean;
+  dailyCreditBudget: number;
+  mailboxProvider: '' | 'GMAIL' | 'OUTLOOK';
+  mailboxAddress: string;
+  mailboxConnected: boolean;
 }
 
 @Injectable({

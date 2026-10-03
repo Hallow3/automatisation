@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.getjob.backend.candidate.domain.CandidateEntity;
 import com.getjob.backend.candidate.domain.CandidateProfileEntity;
 import com.getjob.backend.candidate.dto.CandidateProfileDto;
+import com.getjob.backend.candidate.dto.AutomationSettingsDto;
 import com.getjob.backend.candidate.repository.CandidateProfileRepository;
 import com.getjob.backend.candidate.repository.CandidateRepository;
 import lombok.RequiredArgsConstructor;
@@ -77,6 +78,9 @@ public class CandidateProfileService {
         if (dto.getPhone() != null) {
             candidate.setPhone(dto.getPhone().trim());
         }
+        if (dto.getWhatsappNumber() != null) {
+            candidate.setWhatsappNumber(dto.getWhatsappNumber().trim());
+        }
         if (dto.getCity() != null) {
             candidate.setCity(dto.getCity().trim());
         }
@@ -112,6 +116,41 @@ public class CandidateProfileService {
         if (dto.getSkills() != null) rawDataMap.put("skills", dto.getSkills());
         if (dto.getAiInstructions() != null) rawDataMap.put("aiInstructions", dto.getAiInstructions());
         if (dto.getNotifications() != null) rawDataMap.put("notifications", dto.getNotifications());
+        if (dto.getAutomation() != null) {
+            AutomationSettingsDto settings = dto.getAutomation();
+            if (settings.isSearchEnabled() && (candidate.getTargetRole() == null || candidate.getTargetRole().isBlank()
+                    || candidate.getCity() == null || candidate.getCity().isBlank())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le poste et la ville sont nécessaires pour la recherche automatique.");
+            }
+            if (settings.isWhatsappEnabled() && (candidate.getWhatsappNumber() == null || candidate.getWhatsappNumber().isBlank())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Un numéro WhatsApp est nécessaire pour les notifications.");
+            }
+            if (settings.getDailyCreditBudget() < 1 || settings.getDailyCreditBudget() > 5) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le budget quotidien doit être compris entre 1 et 5 crédits.");
+            }
+            String provider = settings.getMailboxProvider() == null ? "" : settings.getMailboxProvider().trim().toUpperCase(Locale.ROOT);
+            if (!provider.isEmpty() && !Set.of("GMAIL", "OUTLOOK").contains(provider)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Fournisseur de messagerie non reconnu.");
+            }
+            String address = settings.getMailboxAddress() == null ? "" : settings.getMailboxAddress().trim();
+            if (provider.isEmpty() != address.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choisissez le type de boîte mail et son adresse.");
+            }
+            if (!address.isEmpty() && !address.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Adresse de messagerie invalide.");
+            }
+            Map<String, Object> automation = new HashMap<>();
+            automation.put("searchEnabled", settings.isSearchEnabled());
+            automation.put("autoApplyEnabled", settings.isAutoApplyEnabled());
+            automation.put("coverLetterEnabled", settings.isCoverLetterEnabled());
+            automation.put("whatsappEnabled", settings.isWhatsappEnabled());
+            automation.put("dailyCreditBudget", settings.getDailyCreditBudget());
+            automation.put("mailboxProvider", provider);
+            automation.put("mailboxAddress", address);
+            // mailboxConnected n'est jamais modifiable depuis le formulaire.
+            automation.put("mailboxConnected", false);
+            rawDataMap.put("automation", automation);
+        }
 
         try {
             profile.setRawData(objectMapper.writeValueAsString(rawDataMap));
@@ -144,6 +183,21 @@ public class CandidateProfileService {
                 ? (Map<String, Object>) notif
                 : Map.of("emailNewOpportunities", true, "emailWeeklyReport", false, "interviewReminders", true);
 
+        Map<String, Object> automation = rawData.get("automation") instanceof Map<?, ?> saved
+                ? (Map<String, Object>) saved : Collections.emptyMap();
+        int dailyCreditBudget = automation.get("dailyCreditBudget") instanceof Number budget
+                ? Math.max(1, Math.min(5, budget.intValue())) : 1;
+        AutomationSettingsDto automationSettings = AutomationSettingsDto.builder()
+                .searchEnabled(Boolean.TRUE.equals(automation.get("searchEnabled")))
+                .autoApplyEnabled(Boolean.TRUE.equals(automation.get("autoApplyEnabled")))
+                .coverLetterEnabled(Boolean.TRUE.equals(automation.get("coverLetterEnabled")))
+                .whatsappEnabled(Boolean.TRUE.equals(automation.get("whatsappEnabled")))
+                .dailyCreditBudget(dailyCreditBudget)
+                .mailboxProvider((String) automation.getOrDefault("mailboxProvider", ""))
+                .mailboxAddress((String) automation.getOrDefault("mailboxAddress", ""))
+                .mailboxConnected(false)
+                .build();
+
         return CandidateProfileDto.builder()
                 .candidateId(candidate.getId())
                 .fullName(candidate.getFullName())
@@ -161,6 +215,8 @@ public class CandidateProfileService {
                 .skills(skills)
                 .aiInstructions((String) rawData.getOrDefault("aiInstructions", ""))
                 .notifications(notifications)
+                .automation(automationSettings)
+                .whatsappNumber(candidate.getWhatsappNumber() != null ? candidate.getWhatsappNumber() : "")
                 .proCredits(candidate.getProCredits() != null ? candidate.getProCredits() : 0)
                 .isProAgent(candidate.isProAgent())
                 .agentShopName(candidate.getAgentShopName())

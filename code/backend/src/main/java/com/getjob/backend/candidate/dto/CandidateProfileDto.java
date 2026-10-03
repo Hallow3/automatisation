@@ -27,6 +27,8 @@ public class CandidateProfileDto {
     private List<String> skills;
     private String aiInstructions;
     private Map<String, Object> notifications;
+    private AutomationSettingsDto automation;
+    private String whatsappNumber;
     private Integer proCredits;
     private boolean isProAgent;
     private String agentShopName;
