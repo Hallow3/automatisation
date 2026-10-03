@@ -77,8 +77,14 @@ def main() -> None:
     server = ThreadingHTTPServer(("127.0.0.1", 0), FixtureServer)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
+    base_skills = list(FIXTURE["skills"])
     try:
         for template in TEMPLATES:
+            # A long sidebar used to push the main column onto later pages.
+            FIXTURE["skills"] = base_skills + (
+                [f"Technique specialisee {i}" for i in range(25)]
+                if template in ("modern", "classic") else []
+            )
             pdf_path = OUTPUT / f"cv-two-page-{template}.pdf"
             pdf_path.unlink(missing_ok=True)
             with tempfile.TemporaryDirectory(prefix="chrome-cv-", dir=OUTPUT) as profile:
@@ -107,8 +113,11 @@ def main() -> None:
                 for marker in MARKERS:
                     if marker.casefold() not in combined:
                         raise AssertionError(f"{template}: contenu manquant : {marker}")
-                if "Cyclisme" not in texts[1]:
+                final_marker = "Cyclisme" if template in ("modern", "classic") else "PROJETFINAL"
+                if final_marker not in texts[1]:
                     raise AssertionError(f"{template}: la deuxieme page ne contient pas la fin du CV")
+                if template == "modern" and ("PROFIL" not in texts[0] or "Java" not in texts[0]):
+                    raise AssertionError("modern: les deux colonnes doivent commencer sur la premiere page")
                 for number, (page, page_text) in enumerate(zip(pdf, texts), 1):
                     if len(page_text.strip()) < 60:
                         raise AssertionError(f"{template}: page {number} vide")

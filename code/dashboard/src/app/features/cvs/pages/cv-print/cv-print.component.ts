@@ -112,17 +112,14 @@ export class CvPrintComponent implements OnInit {
       let period = (e.period || '').trim();
       if (!period && (e.startDate || e.endDate)) {
         const start = (e.startDate || '').trim();
-        const end = (e.endDate || (start ? 'Présent' : '')).trim();
+        const end = (e.endDate || '').trim();
         period = [start, end].filter(Boolean).join(' - ');
       }
 
-      const description = (e.description || e.context || '').trim();
-
-      const rawBullets = [
-        ...(Array.isArray(e.bullets) ? e.bullets : (typeof e.bullets === 'string' && e.bullets.trim() ? [e.bullets] : [])),
-        ...(Array.isArray(e.responsibilities) ? e.responsibilities : (typeof e.responsibilities === 'string' && e.responsibilities.trim() ? [e.responsibilities] : [])),
-        ...(Array.isArray(e.achievements) ? e.achievements : (typeof e.achievements === 'string' && e.achievements.trim() ? [e.achievements] : []))
-      ];
+      const bulletSource = [e.responsibilities, e.bullets, e.achievements]
+        .find(value => Array.isArray(value) ? value.some(item => String(item || '').trim()) : typeof value === 'string' && value.trim());
+      const rawBullets = Array.isArray(bulletSource) ? bulletSource : (bulletSource ? [bulletSource] : []);
+      const description = (e.description || (rawBullets.length === 0 ? e.context : '') || '').trim();
 
       const bullets: string[] = [];
       const seenBullets = new Set<string>();

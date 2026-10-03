@@ -98,6 +98,7 @@
 /* Corps 2 colonnes strictement bornées */
 .exec-body {
   display: flex;
+  align-items: flex-start;
   gap: 28px;
   width: 100%;
   box-sizing: border-box;

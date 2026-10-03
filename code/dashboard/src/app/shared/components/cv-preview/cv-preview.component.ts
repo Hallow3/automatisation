@@ -127,6 +127,7 @@ export class CvPreviewComponent implements AfterViewInit, OnDestroy {
   private paginationTimer: ReturnType<typeof setTimeout> | null = null;
 
   pages: CvData[] = [EMPTY_CV_DATA];
+  paginationPending = true;
 
   constructor(private readonly cdr: ChangeDetectorRef) {}
 
@@ -143,7 +144,13 @@ export class CvPreviewComponent implements AfterViewInit, OnDestroy {
   @Input() set cv(value: CvData) { this.setSource(value); }
   @Input() scale = 1;
   @Input() accent = '#2563eb';
-  @Input() showPageBreaks = true;
+  private pageBreaksEnabled = true;
+  @Input() set showPageBreaks(value: boolean) {
+    this.pageBreaksEnabled = value;
+    if (!value) this.paginationPending = false;
+    else this.schedulePagination();
+  }
+  get showPageBreaks(): boolean { return this.pageBreaksEnabled; }
   @Output() paginationSettled = new EventEmitter<void>();
 
   ngAfterViewInit(): void {
@@ -171,6 +178,7 @@ export class CvPreviewComponent implements AfterViewInit, OnDestroy {
   }
 
   private resetPages(): void {
+    this.paginationPending = this.showPageBreaks;
     this.pages = [this.copyPage(this.sourceData)];
     this.schedulePagination();
   }
@@ -182,24 +190,26 @@ export class CvPreviewComponent implements AfterViewInit, OnDestroy {
       const sheets = this.pageSheets.toArray();
       const overflowingIndex = sheets.findIndex(sheet => {
         const article = sheet.nativeElement.querySelector('article');
-        return (article?.scrollHeight || sheet.nativeElement.scrollHeight) > 1125;
+        return (article?.scrollHeight || sheet.nativeElement.scrollHeight) > 1123;
       });
       if (overflowingIndex < 0 || this.pages.length >= 20) {
-        this.paginationSettled.emit();
+        this.finishPagination();
         return;
       }
       const overflowingSheet = sheets[overflowingIndex].nativeElement;
       const mainColumn = overflowingSheet.querySelector<HTMLElement>('.exec-main-col, .onyx-main');
       const sideColumn = overflowingSheet.querySelector<HTMLElement>('.exec-side-col, .onyx-aside');
       const article = overflowingSheet.querySelector<HTMLElement>('article');
+      const bottomPadding = article ? Number.parseFloat(getComputedStyle(article).paddingBottom) || 0 : 0;
+      const contentBottom = 1123 - bottomPadding;
       const mainBottom = mainColumn && article ? this.bottomWithin(mainColumn, article) : 0;
       const sideBottom = sideColumn && article ? this.bottomWithin(sideColumn, article) : 0;
       let overflowingColumn: 'main' | 'side' | 'all' = 'all';
       if (mainColumn && article) {
-        const mainOverflows = mainBottom > 1125;
-        const sideOverflows = !!sideColumn && sideBottom > 1125;
+        const mainOverflows = mainBottom > contentBottom;
+        const sideOverflows = !!sideColumn && sideBottom > contentBottom;
         if (!mainOverflows && !sideOverflows) {
-          this.paginationSettled.emit();
+          this.finishPagination();
           return;
         }
         overflowingColumn = mainOverflows && (!sideOverflows || mainBottom >= sideBottom) ? 'main' : 'side';
@@ -210,7 +220,7 @@ export class CvPreviewComponent implements AfterViewInit, OnDestroy {
         : this.emptyPage();
       next.continuationPage = true;
       if (!this.moveLastBlock(current, next, overflowingColumn)) {
-        this.paginationSettled.emit();
+        this.finishPagination();
         return;
       }
       this.pages = [
@@ -222,6 +232,12 @@ export class CvPreviewComponent implements AfterViewInit, OnDestroy {
       this.cdr.detectChanges();
       this.schedulePagination();
     }, 0);
+  }
+
+  private finishPagination(): void {
+    this.paginationPending = false;
+    this.cdr.detectChanges();
+    this.paginationSettled.emit();
   }
 
   private bottomWithin(element: HTMLElement, ancestor: HTMLElement): number {

@@ -10,6 +10,10 @@
   gap: 18px;
 }
 
+.cv-scale-wrapper.pagination-pending {
+  visibility: hidden;
+}
+
 .cv-page-sheet-container {
   position: relative;
   width: 794px;
