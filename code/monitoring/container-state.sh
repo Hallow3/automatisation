@@ -19,3 +19,21 @@ tmp="$out_dir/containers.prom.tmp"
 } > "$tmp"
 chmod 0644 "$tmp"
 mv "$tmp" "$out_dir/containers.prom"
+
+# Produce Alloy targets on the host, where Docker metadata is available. Alloy only
+# receives this read-only file and the read-only JSON logs, never the Docker socket.
+targets_tmp="$out_dir/docker-log-targets.json.tmp"
+printf '[' > "$targets_tmp"
+first=1
+docker ps -a --format '{{.ID}}|{{.Names}}' | while IFS='|' read -r id name; do
+  [ -n "$id" ] || continue
+  case "$name" in *[!a-zA-Z0-9_.-]*) continue ;; esac
+  log_path=$(docker inspect --format '{{.LogPath}}' "$id" 2>/dev/null) || continue
+  case "$log_path" in /var/lib/docker/containers/*/*-json.log) ;; *) continue ;; esac
+  if [ "$first" -eq 0 ]; then printf ','; fi
+  first=0
+  printf '\n{"__path__":"%s","job":"docker","service":"%s"}' "$log_path" "$name"
+done >> "$targets_tmp"
+printf '\n]\n' >> "$targets_tmp"
+chmod 0644 "$targets_tmp"
+mv "$targets_tmp" "$out_dir/docker-log-targets.json"

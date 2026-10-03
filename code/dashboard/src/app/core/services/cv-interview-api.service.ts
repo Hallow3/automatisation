@@ -54,6 +54,10 @@ export class CvInterviewApiService {
   private http = inject(HttpClient);
   private base = `${environment.apiUrl}/cvs`;
 
+  reportClientError(code: 'WS_CONNECTION' | 'AI_UNAVAILABLE' | 'MICROPHONE' | 'SESSION_START' | 'CV_WRITER' | 'OTHER'): Observable<void> {
+    return this.http.post<void>(`${this.base}/interview/client-error`, { code });
+  }
+
   createSession(cvId: string, resumptionHandle?: string | null): Observable<InterviewSessionResponse> {
     const body = resumptionHandle ? { resumptionHandle } : {};
     return this.http.post<InterviewSessionResponse>(`${this.base}/${cvId}/interview/session`, body);

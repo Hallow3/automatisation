@@ -14,6 +14,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import io.micrometer.core.instrument.MeterRegistry;
+
+import java.util.Set;
 
 /**
  * Contrôleur REST pour l'orchestration V2 de l'entretien vocal CV (Spec V2).
@@ -30,6 +33,22 @@ public class CvInterviewController {
     private final CandidateRepository candidateRepository;
     private final com.getjob.backend.cv.interview.service.CvInterviewBillingService billingService;
     private final com.getjob.backend.cv.interview.service.CvInterviewStreamService streamService;
+    private final MeterRegistry meterRegistry;
+
+    private static final Set<String> CLIENT_ERROR_CODES = Set.of(
+            "WS_CONNECTION", "AI_UNAVAILABLE", "MICROPHONE", "SESSION_START", "CV_WRITER", "OTHER");
+
+    public record ClientErrorEvent(String code) {}
+
+    @PostMapping("/interview/client-error")
+    public ResponseEntity<Void> reportClientError(@RequestBody ClientErrorEvent event) {
+        resolveCurrentCandidate();
+        if (event == null || !CLIENT_ERROR_CODES.contains(event.code())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Code d'erreur invalide.");
+        }
+        meterRegistry.counter("fallajobs_interview_client_errors", "code", event.code()).increment();
+        return ResponseEntity.noContent().build();
+    }
 
     private CandidateEntity resolveCurrentCandidate() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();

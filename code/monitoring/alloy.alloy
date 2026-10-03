@@ -1,8 +1,11 @@
+local.file "docker_targets" {
+  filename = "/etc/alloy/targets/docker-log-targets.json"
+  detector = "poll"
+  poll_frequency = "30s"
+}
+
 local.file_match "docker_logs" {
-  path_targets = [{
-    "__path__" = "/var/lib/docker/containers/*/*-json.log",
-    "job"      = "docker",
-  }]
+  path_targets = encoding.from_json(local.file.docker_targets.content)
 }
 
 loki.source.file "docker_logs" {

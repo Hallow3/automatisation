@@ -1,0 +1,7 @@
+# Vues Grafana supplémentaires
+
+Le collecteur de l'hôte écrit `/opt/fallajobs-monitoring/metrics/docker-log-targets.json` avec le chemin du log et le nom de chaque conteneur. Exécuter `/opt/fallajobs-monitoring/container-state.sh` une fois avant de démarrer Alloy, puis laisser le timer le rafraîchir toutes les 30 secondes. Alloy lit ce fichier sans accès au socket Docker et ajoute l'étiquette Loki `service`. Le filtre **Service** du dashboard utilise cette étiquette. Les anciens logs déjà envoyés à Loki ne l'ont pas.
+
+Les entretiens sont comptés sur les 24 dernières heures depuis les colonnes `ended_at` et `termination_reason` de `cv_interview_session`. Le taux d'échec technique compare `AI_UNAVAILABLE`, `HEARTBEAT_TIMEOUT` et `ORPHAN_TIMEOUT` aux sessions `COMPLETED` et à ces échecs. Les arrêts volontaires et crédits épuisés sont présentés séparément. Les compteurs persistent au redémarrage du backend car ils sont calculés depuis la base.
+
+Les tables de routes utilisent `http_server_requests_seconds_count` sur la plage de temps sélectionnée. Les réponses 4xx et 5xx sont classées par nombre; la table de taux d'erreur retient les 5xx. Les erreurs visibles uniquement dans le navigateur sont envoyées sous un code fixe (`WS_CONNECTION`, `AI_UNAVAILABLE`, `MICROPHONE`, `SESSION_START`, `CV_WRITER` ou `OTHER`) et apparaissent dans un panneau séparé. Aucun texte d'entretien n'est transmis. Ces événements ne sont pas inclus dans le taux d'échec calculé depuis les sessions terminées ; leurs compteurs repartent à zéro lors d'un redémarrage du backend.

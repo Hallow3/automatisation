@@ -1,5 +1,7 @@
 # Monitoring FallaJobs en production
 
+Les vues des entretiens IA, des routes HTTP et des logs par service sont décrites dans [OBSERVABILITY.md](OBSERVABILITY.md).
+
 Le déploiement utilise Grafana, Prometheus, Loki et Grafana Alloy dans le réseau Docker privé `app-network`. Grafana est servi sous `https://fallajobs.com/monitoring/`; Prometheus, Loki, Alloy et node-exporter n'exposent aucun port public.
 
 ## Déploiement

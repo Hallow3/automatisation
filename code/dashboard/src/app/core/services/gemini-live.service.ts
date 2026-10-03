@@ -96,6 +96,7 @@ export class GeminiLiveService {
   public latestControlMessage = signal<string>('');
 
   private lastUserTurnText = '';
+  private lastReportedError = new Map<string, number>();
   private lastAiTurnText = '';
   private syncInFlight = false;
 
@@ -1120,6 +1121,18 @@ export class GeminiLiveService {
   private setError(msg: string): void {
     this.errorMessage.set(msg);
     this.state.set('ERROR');
+    if (!this.currentV2SessionId()) return;
+    const lower = msg.toLowerCase();
+    const code = /websocket|connexion|connecter|réseau|internet/.test(lower) ? 'WS_CONNECTION'
+      : /microphone|micro/.test(lower) ? 'MICROPHONE'
+      : /rédacteur|rédaction/.test(lower) ? 'CV_WRITER'
+      : /vocal|gemini|ia|indisponible/.test(lower) ? 'AI_UNAVAILABLE'
+      : /démarrer|session/.test(lower) ? 'SESSION_START' : 'OTHER';
+    const key = `${this.currentV2SessionId()}:${code}`;
+    const now = Date.now();
+    if (now - (this.lastReportedError.get(key) || 0) < 30_000) return;
+    this.lastReportedError.set(key, now);
+    this.apiService.reportClientError(code).subscribe({ error: () => {} });
   }
 
   public async handleExpiredSession(): Promise<void> {
