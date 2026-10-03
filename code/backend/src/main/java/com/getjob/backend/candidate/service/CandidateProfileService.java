@@ -3,10 +3,12 @@ package com.getjob.backend.candidate.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.getjob.backend.candidate.domain.CandidateEntity;
+import com.getjob.backend.candidate.domain.CandidateConfigurationEntity;
 import com.getjob.backend.candidate.domain.CandidateProfileEntity;
 import com.getjob.backend.candidate.dto.CandidateProfileDto;
 import com.getjob.backend.candidate.dto.AutomationSettingsDto;
 import com.getjob.backend.candidate.repository.CandidateProfileRepository;
+import com.getjob.backend.candidate.repository.CandidateConfigurationRepository;
 import com.getjob.backend.candidate.repository.CandidateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +29,7 @@ public class CandidateProfileService {
 
     private final CandidateRepository candidateRepository;
     private final CandidateProfileRepository candidateProfileRepository;
+    private final CandidateConfigurationRepository candidateConfigurationRepository;
     private final ObjectMapper objectMapper;
 
     /**
@@ -61,7 +64,8 @@ public class CandidateProfileService {
             }
         }
 
-        return mapToDto(candidate, rawDataMap);
+        CandidateConfigurationEntity configuration = candidateConfigurationRepository.findById(candidate.getId()).orElse(null);
+        return mapToDto(candidate, rawDataMap, configuration);
     }
 
     /**
@@ -105,24 +109,35 @@ public class CandidateProfileService {
             }
         }
 
-        // Fusion des champs spécifiques de profil
+        CandidateConfigurationEntity configuration = candidateConfigurationRepository.findById(candidate.getId()).orElse(null);
+        if (configuration == null) configuration = newConfiguration(candidate, rawDataMap);
+        if (dto.getHeadline() != null) configuration.setTargetRole(candidate.getTargetRole());
+        if (dto.getCity() != null) configuration.setTargetCity(candidate.getCity());
+        if (dto.getSalaryExpectations() != null) configuration.setSalaryExpectations(dto.getSalaryExpectations().trim());
+        if (dto.getWhatsappNumber() != null) configuration.setWhatsappNumber(candidate.getWhatsappNumber());
+
+        // Les autres champs de profil restent dans candidate_profile.raw_data.
         if (dto.getAvailability() != null) rawDataMap.put("availability", dto.getAvailability());
         if (dto.getExperienceLevel() != null) rawDataMap.put("experienceLevel", dto.getExperienceLevel());
-        if (dto.getSalaryExpectations() != null) rawDataMap.put("salaryExpectations", dto.getSalaryExpectations());
         if (dto.getContractTypes() != null) rawDataMap.put("contractTypes", dto.getContractTypes());
         if (dto.getTargetLocations() != null) rawDataMap.put("targetLocations", dto.getTargetLocations());
         if (dto.getRemotePreference() != null) rawDataMap.put("remotePreference", dto.getRemotePreference());
         if (dto.getMobility() != null) rawDataMap.put("mobility", dto.getMobility());
         if (dto.getSkills() != null) rawDataMap.put("skills", dto.getSkills());
         if (dto.getAiInstructions() != null) rawDataMap.put("aiInstructions", dto.getAiInstructions());
-        if (dto.getNotifications() != null) rawDataMap.put("notifications", dto.getNotifications());
+        if (dto.getNotifications() != null) {
+            Map<String, Object> notifications = dto.getNotifications();
+            if (notifications.get("emailNewOpportunities") instanceof Boolean value) configuration.setEmailNewOpportunities(value);
+            if (notifications.get("emailWeeklyReport") instanceof Boolean value) configuration.setEmailWeeklyReport(value);
+            if (notifications.get("interviewReminders") instanceof Boolean value) configuration.setInterviewReminders(value);
+        }
         if (dto.getAutomation() != null) {
             AutomationSettingsDto settings = dto.getAutomation();
-            if (settings.isSearchEnabled() && (candidate.getTargetRole() == null || candidate.getTargetRole().isBlank()
-                    || candidate.getCity() == null || candidate.getCity().isBlank())) {
+            if (settings.isSearchEnabled() && (configuration.getTargetRole() == null || configuration.getTargetRole().isBlank()
+                    || configuration.getTargetCity() == null || configuration.getTargetCity().isBlank())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le poste et la ville sont nécessaires pour la recherche automatique.");
             }
-            if (settings.isWhatsappEnabled() && (candidate.getWhatsappNumber() == null || candidate.getWhatsappNumber().isBlank())) {
+            if (settings.isWhatsappEnabled() && (configuration.getWhatsappNumber() == null || configuration.getWhatsappNumber().isBlank())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Un numéro WhatsApp est nécessaire pour les notifications.");
             }
             if (settings.getDailyCreditBudget() < 1 || settings.getDailyCreditBudget() > 5) {
@@ -139,17 +154,17 @@ public class CandidateProfileService {
             if (!address.isEmpty() && !address.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Adresse de messagerie invalide.");
             }
-            Map<String, Object> automation = new HashMap<>();
-            automation.put("searchEnabled", settings.isSearchEnabled());
-            automation.put("autoApplyEnabled", settings.isAutoApplyEnabled());
-            automation.put("coverLetterEnabled", settings.isCoverLetterEnabled());
-            automation.put("whatsappEnabled", settings.isWhatsappEnabled());
-            automation.put("dailyCreditBudget", settings.getDailyCreditBudget());
-            automation.put("mailboxProvider", provider);
-            automation.put("mailboxAddress", address);
-            // mailboxConnected n'est jamais modifiable depuis le formulaire.
-            automation.put("mailboxConnected", false);
-            rawDataMap.put("automation", automation);
+            configuration.setSearchEnabled(settings.isSearchEnabled());
+            configuration.setAutoApplyEnabled(settings.isAutoApplyEnabled());
+            configuration.setCoverLetterEnabled(settings.isCoverLetterEnabled());
+            configuration.setWhatsappEnabled(settings.isWhatsappEnabled());
+            configuration.setDailyCreditBudget(settings.getDailyCreditBudget());
+            // Une adresse modifiée invalide une autorisation de messagerie antérieure.
+            if (!provider.equals(configuration.getMailboxProvider()) || !address.equals(configuration.getMailboxAddress())) {
+                configuration.setMailboxConnected(false);
+            }
+            configuration.setMailboxProvider(provider);
+            configuration.setMailboxAddress(address);
         }
 
         try {
@@ -160,13 +175,25 @@ public class CandidateProfileService {
         }
 
         candidateProfileRepository.save(profile);
+        candidateConfigurationRepository.save(configuration);
         log.info("Profil sauvegardé avec succès pour candidateId={}", candidate.getId());
 
-        return mapToDto(candidate, rawDataMap);
+        return mapToDto(candidate, rawDataMap, configuration);
+    }
+
+    private CandidateConfigurationEntity newConfiguration(CandidateEntity candidate, Map<String, Object> rawData) {
+        String legacySalary = rawData.get("salaryExpectations") instanceof String value ? value : "";
+        return CandidateConfigurationEntity.builder()
+                .candidateId(candidate.getId())
+                .targetRole(candidate.getTargetRole() != null ? candidate.getTargetRole() : "")
+                .targetCity(candidate.getCity() != null ? candidate.getCity() : "")
+                .salaryExpectations(legacySalary)
+                .whatsappNumber(candidate.getWhatsappNumber() != null ? candidate.getWhatsappNumber() : "")
+                .build();
     }
 
     @SuppressWarnings("unchecked")
-    private CandidateProfileDto mapToDto(CandidateEntity candidate, Map<String, Object> rawData) {
+    private CandidateProfileDto mapToDto(CandidateEntity candidate, Map<String, Object> rawData, CandidateConfigurationEntity configuration) {
         List<String> contractTypes = rawData.get("contractTypes") instanceof List<?> list
                 ? (List<String>) list
                 : List.of("CDI", "Temps plein");
@@ -179,23 +206,20 @@ public class CandidateProfileService {
                 ? (List<String>) list
                 : Collections.emptyList();
 
-        Map<String, Object> notifications = rawData.get("notifications") instanceof Map<?, ?> notif
-                ? (Map<String, Object>) notif
+        Map<String, Object> notifications = configuration != null
+                ? Map.of("emailNewOpportunities", configuration.isEmailNewOpportunities(),
+                        "emailWeeklyReport", configuration.isEmailWeeklyReport(),
+                        "interviewReminders", configuration.isInterviewReminders())
                 : Map.of("emailNewOpportunities", true, "emailWeeklyReport", false, "interviewReminders", true);
-
-        Map<String, Object> automation = rawData.get("automation") instanceof Map<?, ?> saved
-                ? (Map<String, Object>) saved : Collections.emptyMap();
-        int dailyCreditBudget = automation.get("dailyCreditBudget") instanceof Number budget
-                ? Math.max(1, Math.min(5, budget.intValue())) : 1;
         AutomationSettingsDto automationSettings = AutomationSettingsDto.builder()
-                .searchEnabled(Boolean.TRUE.equals(automation.get("searchEnabled")))
-                .autoApplyEnabled(Boolean.TRUE.equals(automation.get("autoApplyEnabled")))
-                .coverLetterEnabled(Boolean.TRUE.equals(automation.get("coverLetterEnabled")))
-                .whatsappEnabled(Boolean.TRUE.equals(automation.get("whatsappEnabled")))
-                .dailyCreditBudget(dailyCreditBudget)
-                .mailboxProvider((String) automation.getOrDefault("mailboxProvider", ""))
-                .mailboxAddress((String) automation.getOrDefault("mailboxAddress", ""))
-                .mailboxConnected(false)
+                .searchEnabled(configuration != null && configuration.isSearchEnabled())
+                .autoApplyEnabled(configuration != null && configuration.isAutoApplyEnabled())
+                .coverLetterEnabled(configuration != null && configuration.isCoverLetterEnabled())
+                .whatsappEnabled(configuration != null && configuration.isWhatsappEnabled())
+                .dailyCreditBudget(configuration != null ? configuration.getDailyCreditBudget() : 1)
+                .mailboxProvider(configuration != null ? configuration.getMailboxProvider() : "")
+                .mailboxAddress(configuration != null ? configuration.getMailboxAddress() : "")
+                .mailboxConnected(configuration != null && configuration.isMailboxConnected())
                 .build();
 
         return CandidateProfileDto.builder()
@@ -203,11 +227,11 @@ public class CandidateProfileService {
                 .fullName(candidate.getFullName())
                 .email(candidate.getEmail())
                 .phone(candidate.getPhone() != null ? candidate.getPhone() : "")
-                .city(candidate.getCity() != null ? candidate.getCity() : "")
-                .headline(candidate.getTargetRole() != null ? candidate.getTargetRole() : "")
+                .city(configuration != null ? configuration.getTargetCity() : candidate.getCity() != null ? candidate.getCity() : "")
+                .headline(configuration != null ? configuration.getTargetRole() : candidate.getTargetRole() != null ? candidate.getTargetRole() : "")
                 .availability((String) rawData.getOrDefault("availability", "Disponible"))
                 .experienceLevel((String) rawData.getOrDefault("experienceLevel", ""))
-                .salaryExpectations((String) rawData.getOrDefault("salaryExpectations", ""))
+                .salaryExpectations(configuration != null ? configuration.getSalaryExpectations() : (String) rawData.getOrDefault("salaryExpectations", ""))
                 .contractTypes(contractTypes)
                 .targetLocations(targetLocations)
                 .remotePreference((String) rawData.getOrDefault("remotePreference", ""))
@@ -216,7 +240,7 @@ public class CandidateProfileService {
                 .aiInstructions((String) rawData.getOrDefault("aiInstructions", ""))
                 .notifications(notifications)
                 .automation(automationSettings)
-                .whatsappNumber(candidate.getWhatsappNumber() != null ? candidate.getWhatsappNumber() : "")
+                .whatsappNumber(configuration != null ? configuration.getWhatsappNumber() : candidate.getWhatsappNumber() != null ? candidate.getWhatsappNumber() : "")
                 .proCredits(candidate.getProCredits() != null ? candidate.getProCredits() : 0)
                 .isProAgent(candidate.isProAgent())
                 .agentShopName(candidate.getAgentShopName())

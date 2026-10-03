@@ -1,8 +1,8 @@
 # Préférences candidat pour n8n
 
-La page Paramètres enregistre `candidate.target_role`, `candidate.city`, `candidate.whatsapp_number` et, dans `candidate_profile.raw_data`, `salaryExpectations` et `automation`.
+La page Paramètres enregistre les choix dans `candidate_configuration`, une table avec `candidate_id` comme clé primaire et clé étrangère vers `candidate(id)`. La migration Flyway V15 reprend les valeurs qui existaient dans `candidate` et `candidate_profile.raw_data`. Le profil et les paramètres lisent ensuite la même ligne de configuration. Les colonnes historiques de `candidate` restent synchronisées pour les anciens usages.
 
-`automation` contient `searchEnabled`, `coverLetterEnabled`, `autoApplyEnabled`, `whatsappEnabled`, `dailyCreditBudget` (entier de 1 à 5), `mailboxProvider`, `mailboxAddress` et `mailboxConnected`. Tous les interrupteurs sont désactivés par défaut. `mailboxConnected` est toujours `false` tant qu'une vraie autorisation de messagerie n'est pas implémentée ; le formulaire ne peut pas le modifier.
+La table contient le poste, la ville, les prétentions, le numéro WhatsApp, les notifications et les préférences d'automatisation, dont `daily_credit_budget` (1 à 5). Tous les interrupteurs d'automatisation sont désactivés par défaut. `mailbox_connected` ne peut pas être modifié par le formulaire ; une adresse saisie n'autorise aucun envoi.
 
 Le dossier historique `workflows/` est ignoré par Git. Pour appliquer les adaptations locales aux exports n8n présents dans ce dossier :
 
@@ -13,7 +13,7 @@ python automation/n8n/configure_workflows.py
 Le script est rejouable et ne modifie que quatre exports :
 
 - Le déclencheur principal passe d'un intervalle de 6 h à 24 h.
-- La collecte des offres ne charge que les postes et villes des candidats ayant activé la recherche.
+- La collecte des offres ne charge que les postes et villes des candidats ayant activé la recherche dans `candidate_configuration`.
 - La qualification ne traite que ces candidats et limite le nombre d'offres à `10 × dailyCreditBudget` par candidat et par exécution.
 - La génération automatique des lettres est limitée aux candidats qui ont activé la recherche et la rédaction.
 

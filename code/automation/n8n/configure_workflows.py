@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[2] / 'workflows/json-workflows/emploi'
@@ -22,27 +23,35 @@ def replace_query(filename, node_name, transform):
 replace_query(
     '[OFFRES] Search All Platforms - Company Fallback.json',
     'Load Search Params',
-    lambda _: """SELECT c.target_role AS role, c.city AS city
-FROM candidate c
-JOIN candidate_profile cp ON cp.candidate_id = c.id
-WHERE c.target_role IS NOT NULL AND TRIM(c.target_role) <> ''
-  AND c.city IS NOT NULL AND TRIM(c.city) <> ''
-  AND JSON_UNQUOTE(JSON_EXTRACT(cp.raw_data, '$.automation.searchEnabled')) = 'true'
-GROUP BY c.target_role, c.city;"""
+    lambda _: """SELECT cfg.target_role AS role, cfg.target_city AS city
+FROM candidate_configuration cfg
+WHERE cfg.search_enabled = 1
+  AND TRIM(cfg.target_role) <> ''
+  AND TRIM(cfg.target_city) <> ''
+GROUP BY cfg.target_role, cfg.target_city;"""
 )
 
 
 def qualify(query):
+    query = query.replace('        c.target_role,', '        cfg.target_role,')
+    query = query.replace('        c.city AS candidate_city,', '        cfg.target_city AS candidate_city,')
+    if 'cfg.daily_credit_budget,' not in query:
+        query = query.replace('        cp.raw_data AS profile,', '        cp.raw_data AS profile,\n        cfg.daily_credit_budget,')
+    if 'JOIN candidate_configuration cfg' not in query:
+        query = query.replace('    FROM candidate c\n',
+                              '    FROM candidate c\n    JOIN candidate_configuration cfg ON cfg.candidate_id = c.id\n')
     query = query.replace(
-        '    WHERE NOT EXISTS (',
         "    WHERE JSON_UNQUOTE(JSON_EXTRACT(cp.raw_data, '$.automation.searchEnabled')) = 'true'\n"
         "      AND c.target_role IS NOT NULL AND TRIM(c.target_role) <> ''\n"
-        '      AND NOT EXISTS ('
+        '      AND NOT EXISTS (',
+        "    WHERE cfg.search_enabled = 1\n      AND TRIM(cfg.target_role) <> ''\n"
+        "      AND TRIM(cfg.target_city) <> ''\n      AND NOT EXISTS ("
     )
-    return query.replace(
-        'WHERE candidate_offer_rank <= 50',
-        "WHERE candidate_offer_rank <= 10 * LEAST(5, GREATEST(1, COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(profile, '$.automation.dailyCreditBudget')) AS UNSIGNED), 1)))"
-    )
+    query = query.replace('    WHERE NOT EXISTS (',
+                          "    WHERE cfg.search_enabled = 1\n      AND TRIM(cfg.target_role) <> ''\n"
+                          "      AND TRIM(cfg.target_city) <> ''\n      AND NOT EXISTS (")
+    return re.sub(r'WHERE candidate_offer_rank <= [^\n]+',
+                  'WHERE candidate_offer_rank <= 10 * daily_credit_budget', query)
 
 
 replace_query('[QUALIF] Score Offers.json', 'Load New Offers', qualify)
@@ -50,11 +59,17 @@ replace_query('[QUALIF] Score Offers.json', 'Load New Offers', qualify)
 
 def gate_letters(query):
     base = "WHERE a.status = 'qualified' AND a.cover_letter_minio_key IS NULL"
-    guard = (
+    old_guard = (
         "AND JSON_UNQUOTE(JSON_EXTRACT(cp.raw_data, '$.automation.searchEnabled')) = 'true' "
         "AND JSON_UNQUOTE(JSON_EXTRACT(cp.raw_data, '$.automation.coverLetterEnabled')) = 'true'"
     )
+    guard = 'AND cfg.search_enabled = 1 AND cfg.cover_letter_enabled = 1'
+    if 'JOIN candidate_configuration cfg' not in query:
+        query = query.replace('JOIN candidate c ON c.id = a.candidate_id ',
+                              'JOIN candidate c ON c.id = a.candidate_id '
+                              'JOIN candidate_configuration cfg ON cfg.candidate_id = c.id ')
     before, after = query.split(base, 1)
+    after = after.replace(old_guard, '').strip()
     after = after.replace(guard, '').strip()
     return before + base + ' ' + guard + (' ' + after if after else '')
 
