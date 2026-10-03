@@ -34,7 +34,10 @@ export class AudioPcmEngineService {
   /**
    * Démarre la capture microphone et émet des chunks PCM 16-bit base64.
    */
-  async startMicrophone(onAudioChunk: (base64Pcm: string) => void): Promise<void> {
+  async startMicrophone(
+    onAudioChunk: (base64Pcm: string) => void,
+    onAudioLevel?: (rms: number, peak: number) => void
+  ): Promise<void> {
     this.stopMicrophone();
 
     try {
@@ -60,6 +63,17 @@ export class AudioPcmEngineService {
 
       this.captureNode.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
         if (this.isMuted) return;
+        if (onAudioLevel) {
+          const samples = new Int16Array(event.data);
+          let energy = 0;
+          let peak = 0;
+          for (const sample of samples) {
+            const amplitude = Math.abs(sample / 32768);
+            energy += amplitude * amplitude;
+            peak = Math.max(peak, amplitude);
+          }
+          onAudioLevel(Math.sqrt(energy / Math.max(samples.length, 1)), peak);
+        }
         onAudioChunk(this.arrayBufferToBase64(event.data));
       };
 

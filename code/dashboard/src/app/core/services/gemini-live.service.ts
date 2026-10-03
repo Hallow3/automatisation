@@ -21,6 +21,9 @@ export type LiveInterviewState =
   | 'ERROR'
   | 'COMPLETED';
 
+export type InterviewIssueKind = 'network' | 'microphone' | 'service' | 'credits';
+export type AudioGuidanceKind = 'noise' | 'distance';
+
 export interface TranscriptEntry {
   id: string;
   role: 'user' | 'ai';
@@ -44,13 +47,25 @@ export class GeminiLiveService {
   public state = signal<LiveInterviewState>('READY');
   public transcript = signal<TranscriptEntry[]>([]);
   public errorMessage = signal<string | null>(null);
+  public errorKind = signal<InterviewIssueKind | null>(null);
+  public displayErrorMessage = computed(() => {
+    const message = this.errorMessage();
+    if (!message) return null;
+    return /http failure response|\/api\/|https?:\/\/|status\s*\d{3}|exception|stack trace/i.test(message)
+      ? 'L’entretien vocal est momentanément indisponible. Votre progression est conservée ; vous pouvez réessayer.'
+      : message;
+  });
+  public reconnecting = signal(false);
+  public audioGuidance = signal<AudioGuidanceKind | null>(null);
   public auditReport = signal<CvAuditReport | null>(null);
   public isRefunding = signal<boolean>(false);
   public isSynthesizing = signal<boolean>(false);
   public isQuotaReached = computed(() => {
     const currentState = this.state();
+    if (this.errorMessage() && this.errorKind() === 'credits') return true;
     // Ne jamais écraser un problème technique de connexion ou un remboursement en cours par un faux épuisement de quota
-    if (currentState === 'TEMPORARILY_UNAVAILABLE' || currentState === 'ERROR' || this.isRefunding()) {
+    if (((currentState === 'TEMPORARILY_UNAVAILABLE' || currentState === 'ERROR')
+        && this.errorKind() !== 'credits') || this.isRefunding()) {
       return false;
     }
 
@@ -129,6 +144,10 @@ export class GeminiLiveService {
   private readonly maxResumeAttempts = 3;
   private resumeTimer: ReturnType<typeof setTimeout> | null = null;
   private lastWsSetupAt = 0;
+  private recentAudioLevels: Array<{ rms: number; peak: number }> = [];
+  private lastUserTranscriptionAt = 0;
+  private lastAudioGuidanceAt = 0;
+  private audioGuidanceTimer: ReturnType<typeof setTimeout> | null = null;
   private currentCandidateFirstName = '';
   private cvStreamSubscription: Subscription | null = null;
   private heartbeatTimer: any = null;
@@ -184,6 +203,7 @@ export class GeminiLiveService {
   setMuted(muted: boolean): void {
     this.isMutedSignal.set(muted);
     this.audioEngine.setMuted(muted);
+    if (muted) this.clearAudioGuidance();
   }
 
   public hasActiveCachedSession(cvId: string): boolean {
@@ -286,6 +306,8 @@ export class GeminiLiveService {
       this.currentCvId = cvId;
       this.state.set('CONNECTING');
       this.errorMessage.set(null);
+      this.errorKind.set(null);
+      this.reconnecting.set(false);
       this.resetDraft();
       this.clearInactivityTimer();
       this.hasStarted.set(false);
@@ -334,15 +356,20 @@ export class GeminiLiveService {
       const session = await firstValueFrom(
         this.apiService.createSession(cvId)
       ).catch((err) => {
-        let msg = err?.error?.detail || err?.error?.message || err?.error?.reason || err?.message || 'Service vocal indisponible.';
+        console.warn('[GeminiLive] Échec création session vocale:', err);
+        let msg = err?.error?.detail || err?.error?.message || err?.error?.reason || '';
         if (typeof msg === 'string' && msg.includes('INSUFFICIENT_CREDITS:')) {
-          msg = msg.split('INSUFFICIENT_CREDITS:')[1]?.trim() || msg;
+          msg = "Solde insuffisant : l'accès à l'entretien vocal IA nécessite au moins 1 crédit Pro. Veuillez recharger votre compte.";
           this.paymentService.openPackModal();
         } else if (err?.status === 402 || (typeof msg === 'string' && msg.includes('INSUFFICIENT_CREDITS'))) {
           msg = "Solde insuffisant : l'accès à l'entretien vocal IA nécessite au moins 1 crédit Pro. Veuillez recharger votre compte.";
           this.paymentService.openPackModal();
         } else if (typeof msg === 'string' && msg.includes('QUOTA_REACHED:')) {
-          msg = msg.split('QUOTA_REACHED:')[1]?.trim() || msg;
+          msg = 'Le nombre d’entretiens autorisés est atteint pour le moment.';
+        } else if (err?.status === 0 || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+          msg = 'Votre connexion semble instable. Vérifiez votre réseau, puis réessayez. Votre CV est conservé.';
+        } else {
+          msg = 'L’entretien vocal est momentanément indisponible. Votre CV est conservé ; réessayez dans un instant.';
         }
         throw new Error(msg);
       });
@@ -424,7 +451,7 @@ export class GeminiLiveService {
       if (abortController.signal.aborted) return;
       this.triggerRefundIfAborted('prepare_session_error');
       this.stopSession();
-      this.setError(err?.message || 'Impossible de démarrer la session vocale.');
+      this.setError(err?.message || 'L’entretien vocal est momentanément indisponible. Réessayez dans un instant.');
     } finally {
       this.isSessionStarting = false;
       if (this._startAbortController === abortController) {
@@ -437,6 +464,8 @@ export class GeminiLiveService {
     return {
       onSetupComplete: () => {
         this.isWsReady.set(true);
+        this.reconnecting.set(false);
+        this.errorKind.set(null);
         this.lastWsSetupAt = Date.now();
         if (this.isRecoveringConnection) {
           this.isRecoveringConnection = false;
@@ -471,6 +500,7 @@ export class GeminiLiveService {
       },
       onAudioChunkReceived: (base64Pcm: string) => {
         this.state.set('AI_SPEAKING');
+        this.clearAudioGuidance();
         this.clearInactivityTimer();
         if (this.echoCooldownTimer) {
           clearTimeout(this.echoCooldownTimer);
@@ -488,6 +518,10 @@ export class GeminiLiveService {
         });
       },
       onTextChunkReceived: (role: 'user' | 'ai', text: string) => {
+        if (role === 'user' && text.trim()) {
+          this.lastUserTranscriptionAt = Date.now();
+          this.clearAudioGuidance();
+        }
         this.appendTranscriptChunk(role, text);
       },
       onModelTurnComplete: async () => {
@@ -558,8 +592,12 @@ export class GeminiLiveService {
         this.pendingProCredits = null;
         this.shouldRefreshProStatusOnSetup = false;
         if (this.state() !== 'ERROR') {
+          const networkIssue = code === 1006 || (typeof navigator !== 'undefined' && !navigator.onLine);
+          this.setError(networkIssue
+            ? 'La liaison avec l’entretien s’est interrompue. Votre progression est conservée ; réessayez quand votre connexion sera stable.'
+            : 'L’entretien vocal est momentanément indisponible. Votre progression est conservée ; réessayez dans un instant.',
+          networkIssue ? 'network' : 'service');
           this.state.set('TEMPORARILY_UNAVAILABLE');
-          this.setError('Le service vocal n\'est pas disponible pour le moment. Votre progression a été conservée.');
         }
       }
     };
@@ -578,6 +616,7 @@ export class GeminiLiveService {
     if (this.resumeAttempts >= this.maxResumeAttempts || this.resumeTimer) return false;
     this.resumeAttempts++;
     this.isRecoveringConnection = true;
+    this.reconnecting.set(true);
     this.state.set('CONNECTING');
     const cvId = this.currentCvId;
     const delay = 1000 * (2 ** (this.resumeAttempts - 1)) + Math.floor(Math.random() * 250);
@@ -607,8 +646,9 @@ export class GeminiLiveService {
         this.stopLiveTimers();
         this.hasStarted.set(false);
         this.isRecoveringConnection = false;
+        this.reconnecting.set(false);
+        this.setError('La liaison avec l’entretien s’est interrompue. Votre brouillon est conservé ; vous pouvez réessayer.', 'network');
         this.state.set('TEMPORARILY_UNAVAILABLE');
-        this.setError('Le service vocal est indisponible. Votre brouillon est sauvegardé pour reprendre.');
       }
     }
   }
@@ -633,13 +673,14 @@ export class GeminiLiveService {
 
     try {
       // 1. Démarrer le microphone avec transmission continue et réarmement d'activité
-      await this.audioEngine.startMicrophone((base64Pcm) => {
-        if (this.initialGreetingPending || this.isMutedSignal()) {
-          return;
-        }
-        this.clearInactivityTimer();
-        this.wsClient.sendAudioChunk(base64Pcm);
-      });
+      await this.audioEngine.startMicrophone(
+        (base64Pcm) => {
+          if (this.initialGreetingPending || this.isMutedSignal()) return;
+          this.clearInactivityTimer();
+          this.wsClient.sendAudioChunk(base64Pcm);
+        },
+        (rms, peak) => this.observeAudioLevel(rms, peak)
+      );
 
       // 2. Initialiser l'AudioContext de lecture sur le gesture utilisateur
       this.audioEngine.initPlayback();
@@ -659,7 +700,8 @@ export class GeminiLiveService {
       this.isStarting.set(false);
       this.userWantsToStart = false;
       this.triggerRefundIfAborted('mic_permission_error');
-      this.setError(err?.message || 'Impossible d’accéder au microphone. Vérifiez vos autorisations.');
+      console.warn('[GeminiLive] Microphone indisponible:', err);
+      this.setError('Le microphone semble indisponible. Vérifiez son accès dans votre navigateur, puis réessayez.', 'microphone');
     }
   }
 
@@ -691,6 +733,7 @@ export class GeminiLiveService {
     this.isSessionStarting = false;
     this.isResumingConnection = false;
     this.isRecoveringConnection = false;
+    this.reconnecting.set(false);
     this.resumeUsedHandle = false;
     this.resumeAttempts = 0;
     this.lastWsSetupAt = 0;
@@ -705,6 +748,9 @@ export class GeminiLiveService {
     }
     this.isAiSpeakingCooldown = false;
     this.clearInactivityTimer();
+    this.clearAudioGuidance();
+    this.recentAudioLevels = [];
+    this.lastUserTranscriptionAt = 0;
     this.finalizeCurrentTurn();
     this.audioEngine.destroy();
     this.wsClient.disconnect();
@@ -1135,13 +1181,55 @@ export class GeminiLiveService {
     };
   }
 
-  private setError(msg: string): void {
-    this.errorMessage.set(msg);
+  private observeAudioLevel(rms: number, peak: number): void {
+    if (!this.hasStarted() || this.state() !== 'LISTENING' || this.isMutedSignal()
+        || this.initialGreetingPending || this.isAiSpeakingCooldown) {
+      this.recentAudioLevels = [];
+      return;
+    }
+    this.recentAudioLevels.push({ rms, peak });
+    if (this.recentAudioLevels.length > 32) this.recentAudioLevels.shift();
+    if (this.recentAudioLevels.length < 32 || this.audioGuidance()
+        || Date.now() - this.lastAudioGuidanceAt < 45_000
+        || Date.now() - this.lastUserTranscriptionAt < 8_000) return;
+
+    const active = this.recentAudioLevels.filter(level => level.rms > 0.007);
+    const strong = this.recentAudioLevels.filter(level => level.rms > 0.075 && level.peak > 0.18);
+    if (strong.length >= 24) {
+      this.showAudioGuidance('noise');
+    } else if (active.length >= 18
+        && active.every(level => level.rms < 0.028 && level.peak < 0.16)) {
+      this.showAudioGuidance('distance');
+    }
+  }
+
+  private showAudioGuidance(kind: AudioGuidanceKind): void {
+    this.lastAudioGuidanceAt = Date.now();
+    this.audioGuidance.set(kind);
+    if (this.audioGuidanceTimer) clearTimeout(this.audioGuidanceTimer);
+    this.audioGuidanceTimer = setTimeout(() => this.clearAudioGuidance(), 8_000);
+  }
+
+  private clearAudioGuidance(): void {
+    this.audioGuidance.set(null);
+    if (this.audioGuidanceTimer) clearTimeout(this.audioGuidanceTimer);
+    this.audioGuidanceTimer = null;
+  }
+
+  private setError(msg: string, kind?: InterviewIssueKind): void {
+    const lower = msg.toLowerCase();
+    const issue = kind || (/crédit|solde/.test(lower) ? 'credits'
+      : /microphone|micro/.test(lower) ? 'microphone'
+      : /connexion|liaison|réseau|internet/.test(lower) ? 'network' : 'service');
+    const safeMessage = /http failure response|\/api\/|https?:\/\/|status\s*\d{3}|exception|stack trace/i.test(msg)
+      ? 'L’entretien vocal est momentanément indisponible. Votre progression est conservée ; réessayez dans un instant.'
+      : msg;
+    this.errorKind.set(issue);
+    this.errorMessage.set(safeMessage);
     this.state.set('ERROR');
     if (!this.currentV2SessionId()) return;
-    const lower = msg.toLowerCase();
-    const code = /websocket|connexion|connecter|réseau|internet/.test(lower) ? 'WS_CONNECTION'
-      : /microphone|micro/.test(lower) ? 'MICROPHONE'
+    const code = issue === 'network' ? 'WS_CONNECTION'
+      : issue === 'microphone' ? 'MICROPHONE'
       : /rédacteur|rédaction/.test(lower) ? 'CV_WRITER'
       : /vocal|gemini|ia|indisponible/.test(lower) ? 'AI_UNAVAILABLE'
       : /démarrer|session/.test(lower) ? 'SESSION_START' : 'OTHER';

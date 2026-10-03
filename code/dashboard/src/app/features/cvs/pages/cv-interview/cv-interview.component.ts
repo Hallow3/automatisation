@@ -65,6 +65,10 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
   transcript = this.geminiService.transcript;
   draft = this.geminiService.currentDraft;
   errorMessage = this.geminiService.errorMessage;
+  displayErrorMessage = this.geminiService.displayErrorMessage;
+  errorKind = this.geminiService.errorKind;
+  reconnecting = this.geminiService.reconnecting;
+  audioGuidance = this.geminiService.audioGuidance;
   isQuotaReached = this.geminiService.isQuotaReached;
   auditReport = this.geminiService.auditReport;
   hasStarted = this.geminiService.hasStarted;
