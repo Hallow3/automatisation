@@ -1,16 +1,16 @@
 <div class="mx-auto max-w-4xl space-y-5 p-3 sm:p-6 lg:p-8">
-  <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+  <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
     <div class="min-w-0">
       <h1 class="text-lg font-bold text-slate-900 sm:text-xl">Mes préférences</h1>
       <p class="mt-1 text-xs leading-relaxed text-slate-500 sm:text-sm">Dites-nous ce que vous recherchez et ce que vous souhaitez confier à l’assistant.</p>
     </div>
-    <app-button variant="primary" [disabled]="isLoading || loadFailed || isSaving" [loading]="isSaving" (btnClick)="saveSettings()" customClass="w-full sm:w-auto">
-      {{ isSaving ? 'Enregistrement…' : 'Enregistrer mes choix' }}
-    </app-button>
+    <p *ngIf="!isLoading && !loadFailed" role="status" aria-live="polite" class="inline-flex items-center gap-2 text-xs text-slate-500 sm:shrink-0">
+      <span [class]="'h-1.5 w-1.5 rounded-full ' + (saveStatus === 'saved' ? 'bg-emerald-500' : saveStatus === 'error' || saveStatus === 'needsInput' ? 'bg-amber-500' : 'bg-slate-400')"></span>
+      {{ saveStatus === 'saving' || saveStatus === 'pending' ? 'Enregistrement…' : saveStatus === 'saved' ? 'Choix enregistrés' : saveStatus === 'needsInput' || saveStatus === 'error' ? saveError : 'Enregistrement automatique' }}
+    </p>
   </div>
 
-  <p *ngIf="savedNotice" role="status" class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs text-emerald-800">Vos préférences ont été enregistrées.</p>
-  <p *ngIf="saveError" role="alert" class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-700">{{ saveError }}</p>
+  <p *ngIf="loadFailed" role="alert" class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-700">{{ saveError }}</p>
 
   <div class="rounded-2xl border border-slate-200 bg-white px-3 pt-1 shadow-sm">
     <app-tabs [items]="tabs" [value]="activeTab" (tabChange)="setTab($event)" />
@@ -31,15 +31,15 @@
         <div class="mt-5 grid gap-4 sm:grid-cols-2">
           <div class="sm:col-span-2">
             <label for="target-role" class="text-xs font-semibold text-slate-700">Poste souhaité</label>
-            <input id="target-role" type="text" [(ngModel)]="search.headline" maxlength="150" autocomplete="organization-title" placeholder="Ex. Assistant administratif" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100" />
+            <input id="target-role" type="text" [(ngModel)]="search.headline" (ngModelChange)="queueSave()" (blur)="flushSave()" maxlength="150" autocomplete="organization-title" placeholder="Ex. Assistant administratif" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100" />
           </div>
           <div>
             <label for="target-city" class="text-xs font-semibold text-slate-700">Ville recherchée</label>
-            <input id="target-city" type="text" [(ngModel)]="search.city" maxlength="100" placeholder="Ex. Douala" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100" />
+            <input id="target-city" type="text" [(ngModel)]="search.city" (ngModelChange)="queueSave()" (blur)="flushSave()" maxlength="100" placeholder="Ex. Douala" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100" />
           </div>
           <div>
             <label for="target-salary" class="text-xs font-semibold text-slate-700">Prétentions salariales <span class="font-normal text-slate-400">(facultatif)</span></label>
-            <input id="target-salary" type="text" [(ngModel)]="search.salaryExpectations" maxlength="120" placeholder="Ex. 250 000 FCFA / mois" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100" />
+            <input id="target-salary" type="text" [(ngModel)]="search.salaryExpectations" (ngModelChange)="queueSave()" (blur)="flushSave()" maxlength="120" placeholder="Ex. 250 000 FCFA / mois" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100" />
           </div>
         </div>
       </div>
@@ -52,7 +52,7 @@
             <span class="mt-0.5 block text-xs leading-relaxed text-slate-500">L’assistant utilise le poste et la ville indiqués ci-dessus.</span>
           </span>
           <span class="relative inline-flex shrink-0 items-center">
-            <input id="search-enabled" type="checkbox" [(ngModel)]="automation.searchEnabled" class="peer sr-only" />
+            <input id="search-enabled" type="checkbox" [(ngModel)]="automation.searchEnabled" (ngModelChange)="queueSave(true)" class="peer sr-only" />
             <span class="h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-brand-600 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-400"></span>
             <span class="absolute left-1 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5"></span>
           </span>
@@ -62,7 +62,7 @@
           <p class="text-xs font-semibold text-slate-700">Budget quotidien de recherche</p>
           <p class="mt-1 text-xs leading-relaxed text-slate-500">Choisissez jusqu’à 5 crédits par jour. Un budget plus élevé permet d’examiner davantage d’offres.</p>
           <div class="mt-3 grid grid-cols-5 gap-2" role="group" aria-label="Budget quotidien en crédits">
-            <button *ngFor="let amount of [1, 2, 3, 4, 5]" type="button" (click)="automation.dailyCreditBudget = amount" [attr.aria-pressed]="automation.dailyCreditBudget === amount" [class]="'h-10 rounded-xl border text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 ' + (automation.dailyCreditBudget === amount ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')">{{ amount }}</button>
+            <button *ngFor="let amount of [1, 2, 3, 4, 5]" type="button" (click)="setBudget(amount)" [attr.aria-pressed]="automation.dailyCreditBudget === amount" [class]="'h-10 rounded-xl border text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 ' + (automation.dailyCreditBudget === amount ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')">{{ amount }}</button>
           </div>
           <p class="mt-2 text-[11px] text-slate-500">{{ automation.dailyCreditBudget }} crédit{{ automation.dailyCreditBudget > 1 ? 's' : '' }} / jour au maximum, seulement si la recherche est activée. Aucun crédit de recherche n’est débité pendant cette phase de configuration.</p>
         </div>
@@ -76,20 +76,20 @@
         <div class="mt-3 divide-y divide-slate-100">
           <label for="letter-enabled" class="flex cursor-pointer items-center justify-between gap-4 py-4">
             <span class="min-w-0"><span class="block text-sm font-medium text-slate-800">Rédiger mes lettres de motivation</span><span class="mt-0.5 block text-xs leading-relaxed text-slate-500">Préparer une lettre adaptée aux offres retenues.</span></span>
-            <span class="relative inline-flex shrink-0 items-center"><input id="letter-enabled" type="checkbox" [(ngModel)]="automation.coverLetterEnabled" class="peer sr-only" /><span class="h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-brand-600 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-400"></span><span class="absolute left-1 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5"></span></span>
+            <span class="relative inline-flex shrink-0 items-center"><input id="letter-enabled" type="checkbox" [(ngModel)]="automation.coverLetterEnabled" (ngModelChange)="queueSave(true)" class="peer sr-only" /><span class="h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-brand-600 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-400"></span><span class="absolute left-1 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5"></span></span>
           </label>
           <label for="apply-enabled" class="flex cursor-pointer items-center justify-between gap-4 py-4">
             <span class="min-w-0"><span class="block text-sm font-medium text-slate-800">Je souhaite l’envoi automatique</span><span class="mt-0.5 block text-xs leading-relaxed text-slate-500">L’envoi restera en attente tant que votre boîte mail n’est pas connectée.</span></span>
-            <span class="relative inline-flex shrink-0 items-center"><input id="apply-enabled" type="checkbox" [(ngModel)]="automation.autoApplyEnabled" class="peer sr-only" /><span class="h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-brand-600 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-400"></span><span class="absolute left-1 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5"></span></span>
+            <span class="relative inline-flex shrink-0 items-center"><input id="apply-enabled" type="checkbox" [(ngModel)]="automation.autoApplyEnabled" (ngModelChange)="queueSave(true)" class="peer sr-only" /><span class="h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-brand-600 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-400"></span><span class="absolute left-1 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5"></span></span>
           </label>
           <label for="whatsapp-enabled" class="flex cursor-pointer items-center justify-between gap-4 py-4">
             <span class="min-w-0"><span class="block text-sm font-medium text-slate-800">Je souhaite des alertes WhatsApp</span><span class="mt-0.5 block text-xs leading-relaxed text-slate-500">Pour les nouvelles importantes liées à vos candidatures, lorsque le canal sera disponible.</span></span>
-            <span class="relative inline-flex shrink-0 items-center"><input id="whatsapp-enabled" type="checkbox" [(ngModel)]="automation.whatsappEnabled" class="peer sr-only" /><span class="h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-brand-600 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-400"></span><span class="absolute left-1 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5"></span></span>
+            <span class="relative inline-flex shrink-0 items-center"><input id="whatsapp-enabled" type="checkbox" [(ngModel)]="automation.whatsappEnabled" (ngModelChange)="queueSave(true)" class="peer sr-only" /><span class="h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-brand-600 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-400"></span><span class="absolute left-1 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5"></span></span>
           </label>
         </div>
         <div *ngIf="automation.whatsappEnabled" class="mt-1">
           <label for="whatsapp-number" class="text-xs font-semibold text-slate-700">Numéro WhatsApp</label>
-          <input id="whatsapp-number" type="tel" [(ngModel)]="whatsappNumber" autocomplete="tel" maxlength="30" placeholder="Ex. +237 6 00 00 00 00" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 sm:max-w-sm" />
+          <input id="whatsapp-number" type="tel" [(ngModel)]="whatsappNumber" (ngModelChange)="queueSave()" (blur)="flushSave()" autocomplete="tel" maxlength="30" placeholder="Ex. +237 6 00 00 00 00" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 sm:max-w-sm" />
         </div>
       </div>
 
@@ -102,13 +102,13 @@
         <div class="mt-4 grid gap-3 sm:grid-cols-2">
           <div>
             <label for="mail-provider" class="text-xs font-semibold text-slate-700">Type de boîte mail</label>
-            <select id="mail-provider" [(ngModel)]="automation.mailboxProvider" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100">
+            <select id="mail-provider" [(ngModel)]="automation.mailboxProvider" (ngModelChange)="queueSave(true)" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100">
               <option value="">Choisir</option><option value="GMAIL">Gmail</option><option value="OUTLOOK">Outlook / Microsoft 365</option>
             </select>
           </div>
           <div>
             <label for="mail-address" class="text-xs font-semibold text-slate-700">Adresse de la boîte mail</label>
-            <input id="mail-address" type="email" [(ngModel)]="automation.mailboxAddress" autocomplete="email" maxlength="254" placeholder="vous@exemple.com" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100" />
+            <input id="mail-address" type="email" [(ngModel)]="automation.mailboxAddress" (ngModelChange)="queueSave()" (blur)="flushSave()" autocomplete="email" maxlength="254" placeholder="vous@exemple.com" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100" />
           </div>
         </div>
         <p class="mt-3 rounded-xl bg-slate-50 px-3 py-2.5 text-xs leading-relaxed text-slate-600">La saisie de l’adresse ne connecte pas votre boîte. L’envoi automatique restera en attente jusqu’à une connexion sécurisée.</p>
@@ -116,8 +116,8 @@
       <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
         <h2 class="text-sm font-semibold text-slate-900">Notifications par email</h2>
         <div class="mt-3 space-y-3 text-xs text-slate-700">
-          <label class="flex items-center gap-3"><input type="checkbox" [(ngModel)]="notifications.emailNewOpportunities" class="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" /><span>Me signaler les nouvelles opportunités</span></label>
-          <label class="flex items-center gap-3"><input type="checkbox" [(ngModel)]="notifications.emailWeeklyReport" class="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" /><span>Recevoir un récapitulatif régulier</span></label>
+          <label class="flex items-center gap-3"><input type="checkbox" [(ngModel)]="notifications.emailNewOpportunities" (ngModelChange)="queueSave(true)" class="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" /><span>Me signaler les nouvelles opportunités</span></label>
+          <label class="flex items-center gap-3"><input type="checkbox" [(ngModel)]="notifications.emailWeeklyReport" (ngModelChange)="queueSave(true)" class="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" /><span>Recevoir un récapitulatif régulier</span></label>
         </div>
       </div>
     </section>
