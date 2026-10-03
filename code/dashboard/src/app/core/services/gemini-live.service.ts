@@ -779,6 +779,13 @@ export class GeminiLiveService {
   }
 
   async handleCompleteInterview(): Promise<void> {
+    if (['ERROR', 'TEMPORARILY_UNAVAILABLE'].includes(this.state())) {
+      this.sessionCache.saveSession(this.currentCvId, this.currentDraft(), this.transcript());
+      this.stopSession();
+      this.state.set('TEMPORARILY_UNAVAILABLE');
+      this.errorMessage.set('Votre entretien est interrompu. Le brouillon est conservé pour une reprise ou une modification.');
+      return;
+    }
     this.finalizeCurrentTurn();
     if (this.lastUserTurnText.trim().length > 0) {
       await this.syncCurrentTurnToBackend();
@@ -792,12 +799,27 @@ export class GeminiLiveService {
 
     if (targetCvId && targetCvId !== 'cv_default' && targetCvId !== 'new') {
       const transcriptEntries = this.transcript();
+      const candidateText = transcriptEntries
+        .filter(t => t.role === 'user')
+        .map(t => t.text.trim())
+        .join(' ');
       const transcriptText = transcriptEntries
         .map(t => `${t.role === 'user' ? 'Candidat' : 'Recruteur'}: ${t.text}`)
         .join('\n')
         .trim();
 
-      if (transcriptText.length >= 30) {
+      // Preserve the structured interview draft when it can be finalized.
+      if (this.hasSubstantiveCvContent(this.currentDraft())) {
+        try {
+          await firstValueFrom(this.apiService.completeInterview(targetCvId));
+          completionSaved = true;
+        } catch (err) {
+          console.warn('[GeminiLive] Finalisation du brouillon indisponible:', err);
+        }
+      }
+
+      if (!completionSaved && !this.hasSubstantiveCvContent(this.currentDraft())
+          && candidateText.length >= 60 && candidateText.split(/\s+/).length >= 10) {
         this.isSynthesizing.set(true);
         try {
           console.log('[GeminiLive] Déclenchement de la synthèse IA complète du CV à partir de la conversation...');
@@ -817,11 +839,6 @@ export class GeminiLiveService {
         } finally {
           this.isSynthesizing.set(false);
         }
-      } else if (this.hasSubstantiveCvContent(this.currentDraft())) {
-        try {
-          await firstValueFrom(this.apiService.completeInterview(targetCvId));
-          completionSaved = true;
-        } catch (e) {}
       }
     }
 
@@ -1148,13 +1165,15 @@ export class GeminiLiveService {
       }
     }
 
-    // 2. Clôture de l'entretien et synthèse IA du CV à partir de la conversation
-    await this.handleCompleteInterview();
+    // Une expiration conserve les données recueillies sans finaliser le CV.
+    this.sessionCache.saveSession(targetCvId, this.currentDraft(), this.transcript());
+    this.stopSession();
+    this.state.set('TEMPORARILY_UNAVAILABLE');
+    this.errorMessage.set('Votre entretien a expiré. Le brouillon est conservé pour une reprise ou une modification.');
 
-    // 3. Rafraîchissement des soldes
+    // Rafraîchissement des soldes
     this.paymentService.fetchProStatus();
     this.authService.refreshCurrentUser().subscribe();
-    this.errorMessage.set(null);
   }
 
   private armInactivityTimer(): void {

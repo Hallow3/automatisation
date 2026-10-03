@@ -292,11 +292,11 @@ export class CvEditorService {
   }
 
   newExperience(data?: any): FormGroup {
-    const rawBullets = [
-      ...(Array.isArray(data?.responsibilities) ? data.responsibilities : (typeof data?.responsibilities === 'string' && data.responsibilities.trim() ? [data.responsibilities] : [])),
-      ...(Array.isArray(data?.achievements) ? data.achievements : (typeof data?.achievements === 'string' && data.achievements.trim() ? [data.achievements] : [])),
-      ...(Array.isArray(data?.bullets) ? data.bullets : (typeof data?.bullets === 'string' && data.bullets.trim() ? [data.bullets] : []))
-    ];
+    // These fields often repeat the same work in different wording. Display
+    // one source, as the CV list preview does, to keep editing and preview in sync.
+    const bulletSource = [data?.responsibilities, data?.bullets, data?.achievements]
+      .find(value => Array.isArray(value) ? value.some(item => String(item || '').trim()) : typeof value === 'string' && value.trim());
+    const rawBullets = Array.isArray(bulletSource) ? bulletSource : (bulletSource ? [bulletSource] : []);
     const seen = new Set<string>();
     const bullets: string[] = [];
     for (const b of rawBullets) {
@@ -395,7 +395,7 @@ export class CvEditorService {
           role:        e.position || '',
           company:     e.company  || '',
           city:        e.city     || '',
-          period:      [e.startDate, e.endDate || (e.startDate ? 'Présent' : '')].filter(Boolean).join(' - '),
+          period:      [e.startDate, e.endDate].filter(Boolean).join(' - '),
           description: e.description || '',
           bullets:     (e.responsibilities || []).filter((r: string) => r && r.trim())
         })),

@@ -279,7 +279,7 @@ export class CvPreviewComponent implements AfterViewInit, OnDestroy {
       const bullets = lastExperience.bullets || [];
       // Une expérience peut dépasser une page à elle seule : continuer ses puces
       // sur la page suivante tout en répétant son intitulé pour garder le contexte.
-      if (current.experiences.length === 1 && bullets.length > 1) {
+      if (bullets.length > 1) {
         const movedBullet = bullets[bullets.length - 1];
         current.experiences[current.experiences.length - 1] = {
           ...lastExperience,

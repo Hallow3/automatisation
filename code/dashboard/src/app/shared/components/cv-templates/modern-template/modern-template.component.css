@@ -468,7 +468,11 @@
   }
 
   .exec-section,
-  .exec-side-section,
+  .exec-side-section {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
   .exec-exp-item,
   .exec-subrole-item,
   .exec-edu-item,

@@ -395,7 +395,11 @@ public class CvService {
         if (storedTranscript.length() > (transcriptText == null ? 0 : transcriptText.length())) {
             transcriptText = storedTranscript;
         }
-        if (transcriptText == null || transcriptText.trim().length() < 10) {
+        String candidateSpeech = transcriptText == null ? "" : transcriptText.lines()
+                .filter(line -> line.stripLeading().startsWith("Candidat:"))
+                .map(line -> line.substring(line.indexOf(':') + 1).trim())
+                .collect(java.util.stream.Collectors.joining(" "));
+        if (candidateSpeech.length() < 60 || candidateSpeech.split("\\s+").length < 10) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transcription insuffisante pour rédiger le CV.");
         }
 
@@ -421,18 +425,16 @@ public class CvService {
         }
 
         String systemInstruction = """
-            Tu es un expert senior en recrutement international et rédaction de CV professionnels de premier plan.
+            Tu es un expert senior en recrutement international et rédaction de CV professionnels.
             À partir de la transcription d'un entretien vocal entre un recruteur IA et un candidat,
-            extrais, structure et développe TOUTES les informations professionnelles pour produire un CV COMPLET et DENSE sur 2 pages A4.
-            
+            structure uniquement les informations que le candidat a explicitement fournies dans cette transcription.
+
             Règles impératives :
-            1. EXTRACTION EXHAUSTIVE : Ne perds aucune information mentionnée (postes actuels ou passés, projets, diplômes, compétences, outils, langues, ville).
-            2. DATES PRÉCISES : Déduis et renseigne rigoureusement "startDate" et "endDate" pour chaque expérience et "year" pour chaque formation. Utilise des années à 4 chiffres (ex: "2021", "2023") ou "Présent" pour le poste actuel.
-            3. CONTEXTE OBLIGATOIRE ("context") : Pour CHAQUE expérience, rédige 2 à 3 phrases décrivant le contexte de l'entreprise, le périmètre du poste et les enjeux. C'est obligatoire et ne doit jamais être vide.
-            4. RÉSUMÉ PROFESSIONNEL ("summary") : Rédige un profil percutant de 4 à 6 phrases résumant le profil, la valeur ajoutée, les domaines de compétence et les ambitions du candidat.
-            5. IMPACT ET RÉALISATIONS : Développe pour chaque expérience AU MINIMUM 5 puces dans "responsibilities" commençant par des verbes d'action forts (Concevoir, Développer, Piloter, Optimiser, Gérer, Mettre en œuvre, Coordonner, Assurer, Superviser, Implanter) et des réalisations mesurables dans "achievements".
-            6. N'INVENTE PAS de diplômes ou d'entreprises non existants, mais valorise au maximum ce qui a été exprimé.
-            7. Produis obligatoirement un JSON valide respectant strictement ce schéma :
+            1. N'INVENTE AUCUN FAIT : n'ajoute aucune expérience, entreprise, formation, date, compétence, langue, responsabilité, réalisation, chiffre ou coordonnée absents de la transcription. N'utilise aucune information d'un autre CV ou d'une session antérieure.
+            2. Si le candidat n'a pas décrit d'expérience professionnelle, renvoie "experiences": []. Ne transforme pas son objectif professionnel, une question du recruteur ou une réponse d'accueil en expérience.
+            3. N'infère pas de dates précises. Laisse une date vide si elle n'a pas été dite. N'ajoute du contexte, des responsabilités ou des réalisations que s'ils sont explicitement décrits; reformule sans enrichir les faits.
+            4. Un entretien interrompu peut produire un CV court ou incomplet. Ne cherche jamais à remplir deux pages. Laisse les champs et listes vides lorsque la transcription ne fournit pas l'information.
+            5. Produis obligatoirement un JSON valide respectant strictement ce schéma :
             {
               "identity": {
                 "fullName": string,

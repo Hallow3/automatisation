@@ -255,8 +255,8 @@ export class CvListComponent implements OnInit {
       experiences: (data?.experiences || []).map((e: any) => ({
         role: e.position || e.role || '',
         company: e.company || '',
-        period: [e.startDate, e.endDate || (e.startDate ? 'Présent' : '')].filter(Boolean).join(' - ') || e.period || '',
-        bullets: e.responsibilities || e.bullets || []
+        period: [e.startDate, e.endDate].filter(Boolean).join(' - ') || e.period || '',
+        bullets: e.responsibilities?.length ? e.responsibilities : (e.bullets?.length ? e.bullets : (e.achievements || []))
       })),
       education: (data?.education || []).map((edu: any) => ({
         degree: edu.degree || '',

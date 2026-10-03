@@ -330,7 +330,7 @@ export class CvInterviewComponent implements OnInit, OnDestroy {
           return {
             role: exp.position || exp.role || exp.title || '',
             company: exp.company || '',
-            period: [exp.startDate, exp.endDate || (exp.startDate ? 'Présent' : '')].filter(Boolean).join(' - ') || exp.period || '',
+            period: [exp.startDate, exp.endDate].filter(Boolean).join(' - ') || exp.period || '',
             bullets: Array.isArray(bullets) ? bullets.filter((b: string) => b && b.trim()) : (typeof bullets === 'string' ? [bullets] : [])
           };
         }),

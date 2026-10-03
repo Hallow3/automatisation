@@ -62,23 +62,20 @@ public class CvInterviewOrchestratorService {
         CvEntity cv;
         Long cvId;
 
-        boolean isSpecialOrMissing = cvIdStr == null || "cv_default".equalsIgnoreCase(cvIdStr) || "new".equalsIgnoreCase(cvIdStr) || !cvIdStr.matches("^\\d+$");
-        if (isSpecialOrMissing) {
+        boolean explicitlyNew = "new".equalsIgnoreCase(cvIdStr);
+        boolean isSpecialOrMissing = cvIdStr == null || "cv_default".equalsIgnoreCase(cvIdStr) || !cvIdStr.matches("^\\d+$");
+        if (explicitlyNew) {
+            // Un choix explicite « partir de zéro » doit toujours créer un CV vierge.
+            // Ne jamais rattacher ce démarrage au brouillon ou à la session d'un autre CV.
+            cv = createBlankCv(candidate);
+            cvId = cv.getId();
+            log.info("[Orchestrator] Nouveau CV vierge créé cvId={} pour candidat={}", cvId, candidate.getId());
+        } else if (isSpecialOrMissing) {
             // Chercher une session ou CV récent en cours, ou créer un nouveau CV brouillon
             cv = cvRepository.findByCandidateId(candidate.getId()).stream()
                     .filter(c -> "IN_PROGRESS".equalsIgnoreCase(c.getInterviewStatus()) || "ACTIVE".equalsIgnoreCase(c.getInterviewStatus()) || "DRAFT".equalsIgnoreCase(c.getInterviewStatus()))
                     .max(Comparator.comparing(CvEntity::getId))
-                    .orElseGet(() -> {
-                        CvEntity newCv = CvEntity.builder()
-                                .candidateId(candidate.getId())
-                                .templateId(1L)
-                                .title("Mon CV Professionnel")
-                                .contentJson(writeJson(loadInitialCvData(null, candidate)))
-                                .status("DRAFT")
-                                .interviewStatus("IN_PROGRESS")
-                                .build();
-                        return cvRepository.save(newCv);
-                    });
+                    .orElseGet(() -> createBlankCv(candidate));
             cvId = cv.getId();
             log.info("[Orchestrator] CV résolu pour cvIdStr='{}' -> cvId={} pour candidat={}", cvIdStr, cvId, candidate.getId());
         } else {
@@ -154,6 +151,17 @@ public class CvInterviewOrchestratorService {
                 .missingFields(Collections.emptyList())
                 .sectionTransitionOccurred(false)
                 .build();
+    }
+
+    private CvEntity createBlankCv(CandidateEntity candidate) {
+        return cvRepository.save(CvEntity.builder()
+                .candidateId(candidate.getId())
+                .templateId(1L)
+                .title("Mon CV Professionnel")
+                .contentJson(writeJson(loadInitialCvData(null, candidate)))
+                .status("DRAFT")
+                .interviewStatus("IN_PROGRESS")
+                .build());
     }
 
     /**
@@ -295,7 +303,9 @@ public class CvInterviewOrchestratorService {
                     sessionRepository.save(session);
 
                     // Peaufiner le CV via CvWriterService
-                    Map<String, Object> finalizedCvData = cvWriterService.finalizeCv(cvDataSoFar);
+                    Map<String, Object> finalizedCvData = cvDraftValidator.isDraftMeaningful(writeJson(cvDataSoFar))
+                            ? cvWriterService.finalizeCv(cvDataSoFar)
+                            : cvDataSoFar;
 
                     // Avertissements de complétude via CvDraftValidator
                     List<String> warnings = cvDraftValidator.checkCompletenessWarnings(finalizedCvData);
@@ -325,7 +335,9 @@ public class CvInterviewOrchestratorService {
         session = sessionRepository.save(session);
 
         // Sauvegarder le draft intermédiaire dans l'entité CV sans casser
-        persistCvContent(session.getCvId(), cvDataSoFar, "IN_PROGRESS");
+        if (!"REVIEW".equals(session.getInterviewStatus())) {
+            persistCvContent(session.getCvId(), cvDataSoFar, "IN_PROGRESS");
+        }
 
         // 5. Construire le message de contrôle [INTERVIEW_STATE] pour Gemini Live
         Map<String, Object> latestPartial = parseJsonMap(session.getSectionPartialData());
